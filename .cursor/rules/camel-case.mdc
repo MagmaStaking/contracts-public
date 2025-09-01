@@ -1,0 +1,5 @@
+---
+description: files and function names should use CamelCase without underscores
+globs:
+alwaysApply: false
+---

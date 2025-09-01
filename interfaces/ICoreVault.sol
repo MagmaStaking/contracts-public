@@ -15,7 +15,7 @@ interface ICoreVault {
     // Delegation functions (onlyMagma)
     function delegate(uint256 amount) external;
     function undelegate(uint256 amount) external;
-    function completeUndelegation(uint256 unbondingIndex) external;
+    function completeUndelegation(uint64 valId, uint8 withdrawalId) external;
 
     // View functions
     function validators(uint256 index) external view returns (address);

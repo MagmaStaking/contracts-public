@@ -1,0 +1,5 @@
+---
+description: For solidity errors, use errors in the error contract where applicable instead of inline requires
+globs:
+alwaysApply: false
+---
