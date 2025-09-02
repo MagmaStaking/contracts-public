@@ -138,7 +138,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     // Minimum user withdraw amount default amount is missing precision
     function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
-        if (amount >= 10000) revert ErrInvalidAmount(amount);
+        if (amount >= 10000 ether) revert ErrInvalidAmount(amount);
         minUserWithdrawAmount = amount;
     }
 
