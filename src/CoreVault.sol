@@ -115,6 +115,15 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         _;
     }
 
+    modifier onlyAfterEpoch() {
+        if (epochSeconds != 0) {
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
+                revert ErrEpochGuard();
+            }
+        }
+        _;
+    }
+
     function pause() external onlyAdmin {
         paused = true;
     }
@@ -133,12 +142,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         minUserWithdrawAmount = amount;
     }
 
-    function addValidator(uint64 valId) external onlyAdmin {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
+    function addValidator(uint64 valId) external onlyAdmin onlyAfterEpoch {
         if (valId == 0) revert ErrZeroValidatorId();
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
 
@@ -151,22 +155,17 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    function removeValidator(uint64 valId) external onlyAdmin {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
+    function removeValidator(uint64 valId) external onlyAdmin onlyAfterEpoch {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
 
         // Store the amount that was delegated to this validator
-        uint256 amountToRedistribute = delegatedAmount[valId];
+        uint256 _amountToRedistribute = delegatedAmount[valId];
 
         // Undelegate all from this validator first
-        if (amountToRedistribute > 0) {
-            _undelegate(valId, amountToRedistribute, ADMIN_WID);
+        if (_amountToRedistribute > 0) {
+            _undelegate(valId, _amountToRedistribute, ADMIN_WID);
             delegatedAmount[valId] = 0;
-            pendingRebalanceTotal += amountToRedistribute;
+            pendingRebalanceTotal += _amountToRedistribute;
         }
 
         // Remove from array
@@ -181,11 +180,11 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         isWhitelisted[valId] = false;
 
         // Redistribute the amount to remaining validators if any
-        if (validators.length > 0 && amountToRedistribute > 0) {
-            uint256 amountPerValidator = amountToRedistribute / validators.length;
-            for (uint256 i = 0; i < validators.length; i++) {
-                _delegate(validators[i], amountPerValidator);
-                delegatedAmount[validators[i]] += amountPerValidator;
+        if (validators.length > 0 && _amountToRedistribute > 0) {
+            uint256 _amountPerValidator = _amountToRedistribute / validators.length;
+            for (uint256 _i = 0; _i < validators.length; _i++) {
+                _delegate(validators[_i], _amountPerValidator);
+                delegatedAmount[validators[_i]] += _amountPerValidator;
             }
         }
 
@@ -196,12 +195,12 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     function delegate(uint256 amount) external onlyMagma whenNotPaused {
         if (validators.length == 0) revert ErrNoValidators();
 
-        uint256 amountPerValidator = amount / validators.length;
-        if (amountPerValidator == 0) revert ErrAmountTooSmall();
+        uint256 _amountPerValidator = amount / validators.length;
+        if (_amountPerValidator == 0) revert ErrAmountTooSmall();
 
-        for (uint256 i = 0; i < validators.length; i++) {
-            _delegate(validators[i], amountPerValidator);
-            delegatedAmount[validators[i]] += amountPerValidator;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            _delegate(validators[_i], _amountPerValidator);
+            delegatedAmount[validators[_i]] += _amountPerValidator;
         }
     }
 
@@ -211,20 +210,20 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
         if (validators.length == 0) revert ErrNoValidators();
 
-        uint256 amountPerValidator = amount / validators.length;
-        if (amountPerValidator == 0) revert ErrAmountTooSmall();
+        uint256 _amountPerValidator = amount / validators.length;
+        if (_amountPerValidator == 0) revert ErrAmountTooSmall();
 
-        for (uint256 i = 0; i < validators.length; i++) {
-            uint64 v = validators[i];
-            uint256 effective = delegatedAmount[v] + pendingUndelegateByValidator[v];
-            if (effective < amountPerValidator) {
-                revert ErrInsufficientDelegated(amountPerValidator, effective);
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _v = validators[_i];
+            uint256 _effective = delegatedAmount[_v] + pendingUndelegateByValidator[_v];
+            if (_effective < _amountPerValidator) {
+                revert ErrInsufficientDelegated(_amountPerValidator, _effective);
             }
-            uint8 wid = _allocateWithdrawalId(v);
-            _undelegate(v, amountPerValidator, wid);
+            uint8 _wid = _allocateWithdrawalId(_v);
+            _undelegate(_v, _amountPerValidator, _wid);
             // Track pending; do not lower local delegated until completion
-            pendingUndelegateByValidator[v] += amountPerValidator;
-            pendingTotal += amountPerValidator;
+            pendingUndelegateByValidator[_v] += _amountPerValidator;
+            pendingTotal += _amountPerValidator;
         }
     }
 
@@ -238,51 +237,51 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function _completeUndelegation() internal {
-        uint256 sum = queuedUndelegateAmount;
-        if (sum == 0) return;
-        uint256 vCount = validators.length;
-        if (vCount == 0) return;
-        uint256 perValidator = sum / vCount;
-        if (perValidator == 0) return;
+        uint256 _sum = queuedUndelegateAmount;
+        if (_sum == 0) return;
+        uint256 _vCount = validators.length;
+        if (_vCount == 0) return;
+        uint256 _perValidator = _sum / _vCount;
+        if (_perValidator == 0) return;
         // Ensure each validator has capacity
-        for (uint256 i = 0; i < vCount; i++) {
-            uint64 v = validators[i];
-            if (delegatedAmount[v] < perValidator) {
+        for (uint256 _i = 0; _i < _vCount; _i++) {
+            uint64 _v = validators[_i];
+            if (delegatedAmount[_v] < _perValidator) {
                 return; // wait until capacity; no partials for simplicity
             }
         }
         // Allocate wid per validator and submit equal-split, while attributing per-user amounts proportionally
-        uint256 nUsers = queueTxUserAddress.length;
-        for (uint256 i = 0; i < vCount; i++) {
-            uint64 v = validators[i];
-            uint8 wid = _allocateWithdrawalId(v);
-            _undelegate(v, perValidator, wid);
-            pendingUndelegateByValidator[v] += perValidator;
-            emit SubmittedUndelegate(wid, perValidator, vCount);
+        uint256 _nUsers = queueTxUserAddress.length;
+        for (uint256 _i = 0; _i < _vCount; _i++) {
+            uint64 _v = validators[_i];
+            uint8 _wid = _allocateWithdrawalId(_v);
+            _undelegate(_v, _perValidator, _wid);
+            pendingUndelegateByValidator[_v] += _perValidator;
+            emit SubmittedUndelegate(_wid, _perValidator, _vCount);
 
-            // Attribute per-user shares for this (v, wid)
-            // Proportional split: userShare = userAmount * perValidator / sum, with last index receiving remainder
-            address[] storage usersStore = pendingUserAddresses[v][wid];
-            uint256[] storage amountsStore = pendingUserAmounts[v][wid];
+            // Attribute per-user shares for this (_v, _wid)
+            // Proportional split: userShare = userAmount * _perValidator / _sum, with last index receiving remainder
+            address[] storage _usersStore = pendingUserAddresses[_v][_wid];
+            uint256[] storage _amountsStore = pendingUserAmounts[_v][_wid];
             // copy addresses
-            for (uint256 j = 0; j < nUsers; j++) {
-                usersStore.push(queueTxUserAddress[j]);
+            for (uint256 _j = 0; _j < _nUsers; _j++) {
+                _usersStore.push(queueTxUserAddress[_j]);
             }
             // compute scaled amounts
-            uint256 remaining = perValidator;
-            for (uint256 j2 = 0; j2 < nUsers; j2++) {
-                uint256 alloc = (queueTxUserAmount[j2] * perValidator) / sum;
+            uint256 _remaining = _perValidator;
+            for (uint256 _j2 = 0; _j2 < _nUsers; _j2++) {
+                uint256 _alloc = (queueTxUserAmount[_j2] * _perValidator) / _sum;
                 // prevent over-allocation due to rounding
-                if (alloc > remaining) alloc = remaining;
-                amountsStore.push(alloc);
-                remaining -= alloc;
+                if (_alloc > _remaining) _alloc = _remaining;
+                _amountsStore.push(_alloc);
+                _remaining -= _alloc;
             }
-            if (nUsers > 0 && remaining > 0) {
+            if (_nUsers > 0 && _remaining > 0) {
                 // add leftover to last entry
-                amountsStore[nUsers - 1] += remaining;
+                _amountsStore[_nUsers - 1] += _remaining;
             }
         }
-        pendingTotal += perValidator * vCount;
+        pendingTotal += _perValidator * _vCount;
         queuedUndelegateAmount = 0;
         // Clear the queue after fully attributing this batch
         delete queueTxUserAddress;
@@ -300,29 +299,29 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         if (_tryWithdraw(valId, withdrawalId)) {
             // Distribute expected amount to users in order; leave leftovers if any send fails
-            uint256 remaining = amt;
-            uint256 n = pendingUserAddresses[valId][withdrawalId].length;
-            uint256 totalDistributed = 0;
-            uint256 totalDue = 0;
+            uint256 _remaining = amt;
+            uint256 _n = pendingUserAddresses[valId][withdrawalId].length;
+            uint256 _totalDistributed = 0;
+            uint256 _totalDue = 0;
 
-            for (uint256 i = 0; i < n && remaining > 0; i++) {
-                address u = pendingUserAddresses[valId][withdrawalId][i];
-                uint256 due = pendingUserAmounts[valId][withdrawalId][i];
-                totalDue += due;
-                if (due == 0 || u == address(0)) continue;
-                if (due > remaining) {
-                    emit WithdrawalAmountMismatch(valId, withdrawalId, totalDue, totalDistributed, due, u);
+            for (uint256 _i = 0; _i < _n && _remaining > 0; _i++) {
+                address _u = pendingUserAddresses[valId][withdrawalId][_i];
+                uint256 _due = pendingUserAmounts[valId][withdrawalId][_i];
+                _totalDue += _due;
+                if (_due == 0 || _u == address(0)) continue;
+                if (_due > _remaining) {
+                    emit WithdrawalAmountMismatch(valId, withdrawalId, _totalDue, _totalDistributed, _due, _u);
                     continue;
                 }
-                (bool ok,) = u.call{value: due}("");
-                if (!ok) {
-                    emit WithdrawalPaymentFailed(valId, withdrawalId, u, due);
+                (bool _ok,) = _u.call{value: _due}("");
+                if (!_ok) {
+                    emit WithdrawalPaymentFailed(valId, withdrawalId, _u, _due);
                     continue;
                 } else {
-                    totalDistributed += due;
-                    emit WithdrawalPaymentSuccess(valId, withdrawalId, u, due);
+                    _totalDistributed += _due;
+                    emit WithdrawalPaymentSuccess(valId, withdrawalId, _u, _due);
                 }
-                remaining -= due;
+                _remaining -= _due;
             }
             delete pendingUserAddresses[valId][withdrawalId];
             delete pendingUserAmounts[valId][withdrawalId];
@@ -350,25 +349,20 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     // Convenience overload: try for all validators for this withdrawalId
     function completeWithdrawal(uint8 withdrawalId) external {
-        uint256 vCount = validators.length;
-        for (uint256 i = 0; i < vCount; i++) {
-            uint64 v = validators[i];
-            (bool exists,,,) = _getWithdrawalRequest(v, address(this), withdrawalId);
-            if (exists) {
-                _completeWithdrawal(v, withdrawalId);
+        uint256 _vCount = validators.length;
+        for (uint256 _i = 0; _i < _vCount; _i++) {
+            uint64 _v = validators[_i];
+            (bool _exists,,,) = _getWithdrawalRequest(_v, address(this), withdrawalId);
+            if (_exists) {
+                _completeWithdrawal(_v, withdrawalId);
             }
         }
     }
 
     // Phase 1: initiate by undelegating excess from over-target validators
-    function adminRebalanceInitiate() external onlyAdmin {
+    function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         finishedLastRebalance = false;
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
         _rebalanceInitiate();
         lastRebalanceTimestamp = block.timestamp;
     }
@@ -381,21 +375,21 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     function _rebalanceInitiate() internal {
         if (validators.length == 0) return;
 
-        uint256 totalDelegated = 0;
-        for (uint256 i = 0; i < validators.length; i++) {
-            totalDelegated += delegatedAmount[validators[i]];
+        uint256 _totalDelegated = 0;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            _totalDelegated += delegatedAmount[validators[_i]];
         }
-        if (totalDelegated == 0) return;
+        if (_totalDelegated == 0) return;
 
-        uint256 targetPerValidator = totalDelegated / validators.length;
-        for (uint256 i = 0; i < validators.length; i++) {
-            uint64 v = validators[i];
-            if (delegatedAmount[v] > targetPerValidator) {
-                uint256 excess = delegatedAmount[v] - targetPerValidator;
-                _undelegate(v, excess, ADMIN_WID);
+        uint256 _targetPerValidator = _totalDelegated / validators.length;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _v = validators[_i];
+            if (delegatedAmount[_v] > _targetPerValidator) {
+                uint256 _excess = delegatedAmount[_v] - _targetPerValidator;
+                _undelegate(_v, _excess, ADMIN_WID);
                 // Track pending excess; keep local delegated until completion
-                pendingUndelegateByValidator[v] += excess;
-                pendingRebalanceTotal += excess;
+                pendingUndelegateByValidator[_v] += _excess;
+                pendingRebalanceTotal += _excess;
             }
         }
         emit RebalanceInitiated();
@@ -404,19 +398,19 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     function _rebalanceRedistribute() internal {
         if (validators.length == 0) return;
 
-        uint256 totalDelegated = 0;
-        for (uint256 i = 0; i < validators.length; i++) {
-            totalDelegated += delegatedAmount[validators[i]];
+        uint256 _totalDelegated = 0;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            _totalDelegated += delegatedAmount[validators[_i]];
         }
-        if (totalDelegated == 0) return;
+        if (_totalDelegated == 0) return;
 
-        uint256 targetPerValidator = totalDelegated / validators.length;
-        for (uint256 i = 0; i < validators.length; i++) {
-            uint64 v = validators[i];
-            if (delegatedAmount[v] < targetPerValidator) {
-                uint256 deficit = targetPerValidator - delegatedAmount[v];
-                _delegate(v, deficit);
-                delegatedAmount[v] = targetPerValidator;
+        uint256 _targetPerValidator = _totalDelegated / validators.length;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _v = validators[_i];
+            if (delegatedAmount[_v] < _targetPerValidator) {
+                uint256 _deficit = _targetPerValidator - delegatedAmount[_v];
+                _delegate(_v, _deficit);
+                delegatedAmount[_v] = _targetPerValidator;
             }
         }
         finishedLastRebalance = true;
@@ -425,14 +419,14 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint8 start = _nextWithdrawalId[valId];
-        for (uint16 i = 0; i < 256; i++) {
-            uint8 candidate = uint8(uint16(start) + i);
-            if (candidate == ADMIN_WID) continue;
-            (bool exists,,,) = _getWithdrawalRequest(valId, address(this), candidate);
-            if (!exists) {
-                wid = candidate;
-                _nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
+        uint8 _start = _nextWithdrawalId[valId];
+        for (uint16 _i = 0; _i < 256; _i++) {
+            uint8 _candidate = uint8(uint16(_start) + _i);
+            if (_candidate == ADMIN_WID) continue;
+            (bool _exists,,,) = _getWithdrawalRequest(valId, address(this), _candidate);
+            if (!_exists) {
+                wid = _candidate;
+                _nextWithdrawalId[valId] = uint8(uint16(_candidate) + 1);
                 return wid;
             }
         }
@@ -449,11 +443,11 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function getTotalDelegated() external view returns (uint256) {
-        uint256 total = 0;
-        for (uint256 i = 0; i < validators.length; i++) {
-            total += delegatedAmount[validators[i]];
+        uint256 _total = 0;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            _total += delegatedAmount[validators[_i]];
         }
-        return total;
+        return _total;
     }
 
     function _authorizeUpgrade(address) internal override {
