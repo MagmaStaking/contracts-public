@@ -7,11 +7,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 
-abstract contract MagmaBase is
-    Initializable,
-    ERC4626Upgradeable,
-    ERC165Upgradeable
-{
+abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradeable {
     // ERC-7540 Interface ID
     bytes4 internal constant INTERFACE_ID_ERC7540 = 0x2f0a18c5;
 
@@ -54,35 +50,19 @@ abstract contract MagmaBase is
 
     // Events for ERC-7540 compatibility and admin
     event WithdrawRequest(
-        address indexed controller,
-        address indexed owner,
-        uint256 indexed requestId,
-        address sender,
-        uint256 assets
+        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 assets
     );
 
     event RedeemRequest(
-        address indexed controller,
-        address indexed owner,
-        uint256 indexed requestId,
-        address sender,
-        uint256 shares
+        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
 
-    event OperatorSet(
-        address indexed controller,
-        address indexed operator,
-        bool approved
-    );
+    event OperatorSet(address indexed controller, address indexed operator, bool approved);
 
     event Paused(address indexed admin);
     event Unpaused(address indexed admin);
     event Referral(
-        address indexed sender,
-        address indexed receiver,
-        uint256 assets,
-        uint256 shares,
-        bytes32 indexed referralId
+        address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );
 
     event RebalanceAttempted(uint16 bps);
@@ -92,12 +72,10 @@ abstract contract MagmaBase is
     address public coreVault;
     address public gVault;
 
-    function __MagmaBase_init(
-        IERC20 asset_,
-        string memory name_,
-        string memory symbol_,
-        address admin_
-    ) internal onlyInitializing {
+    function __MagmaBase_init(IERC20 asset_, string memory name_, string memory symbol_, address admin_)
+        internal
+        onlyInitializing
+    {
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
@@ -112,12 +90,8 @@ abstract contract MagmaBase is
     /*//////////////////////////////////////////////////////////////
                             ERC-165 SUPPORT
     //////////////////////////////////////////////////////////////*/
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165Upgradeable) returns (bool) {
-        return
-            interfaceId == INTERFACE_ID_ERC7540 ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
+        return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }
 
     // Role and admin functions moved to MagmaRoleManagementModule
@@ -125,24 +99,14 @@ abstract contract MagmaBase is
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    function totalAssets()
-        public
-        view
-        virtual
-        override(ERC4626Upgradeable)
-        returns (uint256)
-    {
-        return
-            _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
+    function totalAssets() public view virtual override(ERC4626Upgradeable) returns (uint256) {
+        return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
 
     // Abstract internals that other modules may call
     function _undelegate(uint256 assets) internal virtual;
     function _completeUndelegationAndWrap(uint256 assets) internal virtual;
-    function _undelegateFromValidator(
-        uint64 valId,
-        uint256 assets
-    ) internal virtual;
+    function _undelegateFromValidator(uint64 valId, uint256 assets) internal virtual;
     function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 
     uint256[50] private __gap;

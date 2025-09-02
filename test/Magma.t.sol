@@ -7,7 +7,16 @@ import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
-import {ErrPaused, ErrNotAuthorized, ErrInsufficientShares, ErrNoPendingWithdrawRequest, ErrInsufficientClaimableAssets, ErrZeroNativeAsset, ErrZeroShares, ErrZeroAddress} from "../src/MagmaErrorsModule.sol";
+import {
+    ErrPaused,
+    ErrNotAuthorized,
+    ErrInsufficientShares,
+    ErrNoPendingWithdrawRequest,
+    ErrInsufficientClaimableAssets,
+    ErrZeroNativeAsset,
+    ErrZeroShares,
+    ErrZeroAddress
+} from "../src/MagmaErrorsModule.sol";
 
 contract MagmaTest is Test {
     Magma public magma;
@@ -29,17 +38,7 @@ contract MagmaTest is Test {
         address implementation = address(new Magma());
         address proxy = UnsafeUpgrades.deployUUPSProxy(
             implementation,
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
+            abi.encodeCall(Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0)))
         );
         magma = Magma(payable(proxy));
 
@@ -279,10 +278,7 @@ contract MagmaTest is Test {
         magma.withdraw(partialClaim, alice, alice);
 
         // Check remaining request
-        assertEq(
-            magma.pendingWithdrawRequest(alice),
-            withdrawAmount - partialClaim
-        );
+        assertEq(magma.pendingWithdrawRequest(alice), withdrawAmount - partialClaim);
         assertTrue(magma.balanceOf(address(magma)) > 0);
     }
 
@@ -361,17 +357,7 @@ contract MagmaNativeTest is Test {
         address impl2 = address(new Magma());
         address proxy2 = UnsafeUpgrades.deployUUPSProxy(
             impl2,
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
+            abi.encodeCall(Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0)))
         );
         magma = Magma(payable(proxy2));
 

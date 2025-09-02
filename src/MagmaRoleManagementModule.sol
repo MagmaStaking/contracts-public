@@ -10,10 +10,7 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
         _;
     }
 
-    function setOperator(
-        address operator,
-        bool approved
-    ) external returns (bool) {
+    function setOperator(address operator, bool approved) external returns (bool) {
         isOperator[msg.sender][operator] = approved;
         emit OperatorSet(msg.sender, operator, approved);
         return true;

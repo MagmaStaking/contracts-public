@@ -4,7 +4,25 @@ pragma solidity ^0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {ErrNotAdmin, ErrNotMagma, ErrPaused, ErrEpochGuard, ErrZeroValidatorId, ErrAlreadyWhitelisted, ErrNotWhitelisted, ErrNoValidators, ErrAmountTooSmall, ErrBelowMinWithdraw, ErrZeroAmount, ErrQueueFull, ErrNoFreeWithdrawalId, ErrRebalanceInProgress, ErrInvalidAmount, ErrInsufficientDelegated, ErrNoPendingWithdrawRequest} from "./MagmaErrorsModule.sol";
+import {
+    ErrNotAdmin,
+    ErrNotMagma,
+    ErrPaused,
+    ErrEpochGuard,
+    ErrZeroValidatorId,
+    ErrAlreadyWhitelisted,
+    ErrNotWhitelisted,
+    ErrNoValidators,
+    ErrAmountTooSmall,
+    ErrBelowMinWithdraw,
+    ErrZeroAmount,
+    ErrQueueFull,
+    ErrNoFreeWithdrawalId,
+    ErrRebalanceInProgress,
+    ErrInvalidAmount,
+    ErrInsufficientDelegated,
+    ErrNoPendingWithdrawRequest
+} from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 
 contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
@@ -54,11 +72,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     event RebalanceInitiated();
     event RebalanceCompleted();
     event EnqueuedUndelegate(uint256 amount, address indexed caller);
-    event SubmittedUndelegate(
-        uint8 withdrawalId,
-        uint256 perValidatorAmount,
-        uint256 validatorCount
-    );
+    event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
     // User withdrawal distribution events (mirrors gVault for consistency)
     event WithdrawalAmountMismatch(
         uint64 indexed valId,
@@ -69,24 +83,14 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         address indexed user
     );
     event WithdrawalPaymentFailed(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        address indexed user,
-        uint256 amount
+        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
     event WithdrawalPaymentSuccess(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        address indexed user,
-        uint256 amount
+        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
-    function initialize(
-        address _magma,
-        uint256 _minQueueDelaySeconds,
-        uint256 _epochSeconds
-    ) external initializer {
+    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -123,6 +127,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         minQueueDelaySeconds = secondsDelay;
     }
 
+    // Minimum user withdraw amount default amount is missing precision
     function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
         if (amount >= 10000) revert ErrInvalidAmount(amount);
         minUserWithdrawAmount = amount;
@@ -130,8 +135,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     function addValidator(uint64 valId) external onlyAdmin {
         if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds)
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
+            }
         }
         if (valId == 0) revert ErrZeroValidatorId();
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
@@ -147,8 +153,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     function removeValidator(uint64 valId) external onlyAdmin {
         if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds)
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
+            }
         }
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
 
@@ -175,8 +182,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         // Redistribute the amount to remaining validators if any
         if (validators.length > 0 && amountToRedistribute > 0) {
-            uint256 amountPerValidator = amountToRedistribute /
-                validators.length;
+            uint256 amountPerValidator = amountToRedistribute / validators.length;
             for (uint256 i = 0; i < validators.length; i++) {
                 _delegate(validators[i], amountPerValidator);
                 delegatedAmount[validators[i]] += amountPerValidator;
@@ -200,8 +206,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function undelegate(uint256 amount) external onlyMagma whenNotPaused {
-        if (amount < minUserWithdrawAmount)
+        if (amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
+        }
         if (validators.length == 0) revert ErrNoValidators();
 
         uint256 amountPerValidator = amount / validators.length;
@@ -209,10 +216,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         for (uint256 i = 0; i < validators.length; i++) {
             uint64 v = validators[i];
-            uint256 effective = delegatedAmount[v] +
-                pendingUndelegateByValidator[v];
-            if (effective < amountPerValidator)
+            uint256 effective = delegatedAmount[v] + pendingUndelegateByValidator[v];
+            if (effective < amountPerValidator) {
                 revert ErrInsufficientDelegated(amountPerValidator, effective);
+            }
             uint8 wid = _allocateWithdrawalId(v);
             _undelegate(v, amountPerValidator, wid);
             // Track pending; do not lower local delegated until completion
@@ -221,9 +228,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
     }
 
-    function enqueueUndelegate(
-        uint256 amount
-    ) external onlyMagma whenNotPaused {
+    function enqueueUndelegate(uint256 amount) external onlyMagma whenNotPaused {
         if (amount == 0) revert ErrZeroAmount();
         if (queueTxUserAddress.length >= MAX_QUEUE_ITEMS) revert ErrQueueFull();
         queuedUndelegateAmount += amount;
@@ -290,11 +295,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     function _completeWithdrawal(uint64 valId, uint8 withdrawalId) internal {
         // Read amount before withdrawing to update pendingTotal
-        (bool exists, uint256 amt, , ) = _getWithdrawalRequest(
-            valId,
-            address(this),
-            withdrawalId
-        );
+        (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), withdrawalId);
         if (!(exists && amt > 0)) revert ErrNoPendingWithdrawRequest();
 
         if (_tryWithdraw(valId, withdrawalId)) {
@@ -310,17 +311,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 totalDue += due;
                 if (due == 0 || u == address(0)) continue;
                 if (due > remaining) {
-                    emit WithdrawalAmountMismatch(
-                        valId,
-                        withdrawalId,
-                        totalDue,
-                        totalDistributed,
-                        due,
-                        u
-                    );
+                    emit WithdrawalAmountMismatch(valId, withdrawalId, totalDue, totalDistributed, due, u);
                     continue;
                 }
-                (bool ok, ) = u.call{value: due}("");
+                (bool ok,) = u.call{value: due}("");
                 if (!ok) {
                     emit WithdrawalPaymentFailed(valId, withdrawalId, u, due);
                     continue;
@@ -359,11 +353,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         uint256 vCount = validators.length;
         for (uint256 i = 0; i < vCount; i++) {
             uint64 v = validators[i];
-            (bool exists, , , ) = _getWithdrawalRequest(
-                v,
-                address(this),
-                withdrawalId
-            );
+            (bool exists,,,) = _getWithdrawalRequest(v, address(this), withdrawalId);
             if (exists) {
                 _completeWithdrawal(v, withdrawalId);
             }
@@ -375,8 +365,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         finishedLastRebalance = false;
         if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds)
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
+            }
         }
         _rebalanceInitiate();
         lastRebalanceTimestamp = block.timestamp;
@@ -438,11 +429,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         for (uint16 i = 0; i < 256; i++) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == ADMIN_WID) continue;
-            (bool exists, , , ) = _getWithdrawalRequest(
-                valId,
-                address(this),
-                candidate
-            );
+            (bool exists,,,) = _getWithdrawalRequest(valId, address(this), candidate);
             if (!exists) {
                 wid = candidate;
                 _nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
