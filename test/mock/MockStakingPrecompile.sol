@@ -214,10 +214,10 @@ contract MockStakingPrecompile {
     }
 
     function _handleDelegate() internal {
-        (uint64 valId, uint256 amount) = abi.decode(msg.data[4:], (uint64, uint256));
+        (uint64 valId) = abi.decode(msg.data[4:], (uint64));
+        uint256 amount = msg.value;
         require(amount > 0, "Amount must be > 0");
         require(val_execution[valId].stake > 0, "Invalid validator");
-        require(address(this).balance >= amount, "Insufficient ETH balance");
 
         DelInfo storage del = delegator[valId][msg.sender];
         uint64 activationEpoch = _getActivationEpoch();

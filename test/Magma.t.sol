@@ -216,6 +216,8 @@ contract MagmaTest is Test {
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), withdrawAmount);
         uint256 aliceAssetsBefore = wmon.balanceOf(alice);
 
         // Alice claims withdrawal
@@ -244,6 +246,8 @@ contract MagmaTest is Test {
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 aliceAssetsBefore = wmon.balanceOf(alice);
 
         // Alice claims redemption
@@ -273,6 +277,8 @@ contract MagmaTest is Test {
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), withdrawAmount);
         // Alice claims partial withdrawal
         vm.prank(alice);
         magma.withdraw(partialClaim, alice, alice);
@@ -399,6 +405,8 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.requestRedeem(redeemShares, alice, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBefore = wmon.balanceOf(alice);
         vm.prank(alice);
         uint256 assets = magma.redeem(redeemShares, alice, alice);
@@ -418,6 +426,8 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.requestRedeem(redeemShares, bob, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBeforeBob = wmon.balanceOf(bob);
         vm.prank(bob);
         uint256 assets = magma.redeem(redeemShares, bob, bob);
@@ -436,6 +446,8 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.requestRedeem(redeemShares, bob, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBeforeBob = wmon.balanceOf(bob);
         vm.prank(bob);
         uint256 assets = magma.redeem(redeemShares, bob, bob);
@@ -491,6 +503,8 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.requestRedeem(1 ether, alice, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), 1 ether);
         uint256 wmonBefore = wmon.balanceOf(alice);
         vm.prank(alice);
         uint256 assets = magma.redeem(1 ether, alice, alice);

@@ -56,7 +56,8 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
      * @param assets Amount of assets to delegate
      */
     function _delegateToCoreVault(uint256 assets) private {
-        (bool success,) = coreVault.call(abi.encodeWithSignature("delegate(uint256)", assets));
+        // TODO: remove redundant parameter
+        (bool success,) = coreVault.call{value: assets}(abi.encodeWithSignature("delegate()"));
         if (!success) revert ErrDelegateFailed();
     }
 
@@ -66,7 +67,9 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
      * @param assets Amount of assets to delegate
      */
     function _delegateToGVault(uint64 valId, uint256 assets) private {
-        (bool success,) = gVault.call(abi.encodeWithSignature("delegate(uint64,uint256)", valId, assets));
+        // TODO: remove redundant parameter
+        (bool success,) =
+            gVault.call{value: assets}(abi.encodeWithSignature("delegate(address,uint64)", msg.sender, valId));
         if (!success) revert ErrGVDelegateFailed();
     }
 }

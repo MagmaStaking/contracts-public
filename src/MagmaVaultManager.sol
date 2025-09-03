@@ -23,7 +23,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
      * @dev Delegate through CoreVault (distributes equally among whitelisted validators)
      */
     function delegate(uint256 amount) external {
-        (bool success,) = coreVault.call(abi.encodeWithSignature("delegate(uint256)", amount));
+        (bool success,) = coreVault.call{value: amount}(abi.encodeWithSignature("delegate()"));
         if (!success) revert ErrDelegateFailed();
     }
 
@@ -33,7 +33,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     function delegateToValidator(uint64 valId, uint256 amount) external {
         if (gVault == address(0)) revert ErrGVaultNotSet();
         (bool success,) =
-            gVault.call(abi.encodeWithSignature("delegate(address,uint64,uint256)", msg.sender, valId, amount));
+            gVault.call{value: amount}(abi.encodeWithSignature("delegate(address,uint64)", msg.sender, valId));
         if (!success) revert ErrDelegateFailed();
     }
 
@@ -130,7 +130,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
         if (msg.sender != gVault) revert ErrNotGVault();
         if (msg.value == 0) revert ErrZeroNativeAsset();
         _delegatedNativeAssets += msg.value;
-        (bool s,) = coreVault.call(abi.encodeWithSignature("delegate(uint256)", msg.value));
+        (bool s,) = coreVault.call{value: msg.value}(abi.encodeWithSignature("delegate()"));
         if (!s) revert ErrForwardFailed();
         emit RebalanceFundsReceived(msg.sender, msg.value);
     }

@@ -21,7 +21,8 @@ import {
     ErrRebalanceInProgress,
     ErrInvalidAmount,
     ErrInsufficientDelegated,
-    ErrNoPendingWithdrawRequest
+    ErrNoPendingWithdrawRequest,
+    ErrDelegateFailed
 } from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 
@@ -190,13 +191,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    function delegate(uint256 amount) external onlyMagma whenNotPaused {
-        if (validators.length == 0) revert ErrNoValidators();
-
-        uint256 _amountPerValidator = amount / validators.length;
-        if (_amountPerValidator == 0) revert ErrAmountTooSmall();
-
-        _distributeToValidators(amount);
+    function delegate() external payable onlyMagma whenNotPaused {
+        _distributeToValidators(msg.value);
     }
 
     function undelegate(uint256 amount) external onlyMagma whenNotPaused {

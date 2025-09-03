@@ -13,7 +13,7 @@ interface ICoreVault {
     function rebalance() external;
 
     // Delegation functions (onlyMagma)
-    function delegate(uint256 amount) external;
+    function delegate() external payable;
     function undelegate(uint256 amount) external;
     function completeUndelegation(uint64 valId, uint8 withdrawalId) external;
 

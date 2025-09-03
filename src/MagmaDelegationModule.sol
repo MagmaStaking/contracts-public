@@ -13,7 +13,7 @@ import {
  * @dev Abstract thin adapter over Monad staking precompile. Inherit in vaults so msg.sender == delegator.
  */
 abstract contract MagmaDelegationModule {
-    address internal constant STAKING_PRECOMPILE = address(0x0000000000000000000000000000000000000100);
+    address internal constant STAKING_PRECOMPILE = address(0x0000000000000000000000000000000000001000);
     bytes4 internal constant SEL_DELEGATE = 0x00000002;
     bytes4 internal constant SEL_UNDELEGATE = 0x00000003;
     bytes4 internal constant SEL_COMPOUND = 0x00000004;
@@ -24,7 +24,7 @@ abstract contract MagmaDelegationModule {
 
     function _delegate(uint64 valId, uint256 amount) internal {
         if (amount == 0) revert ErrZeroAssets();
-        (bool ok,) = STAKING_PRECOMPILE.call(abi.encodeWithSelector(SEL_DELEGATE, valId, amount));
+        (bool ok,) = STAKING_PRECOMPILE.call{value: amount}(abi.encodeWithSelector(SEL_DELEGATE, valId));
         if (!ok) revert ErrDelegateFailed();
     }
 

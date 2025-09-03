@@ -253,15 +253,15 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         return (total * defaultCapBps) / 10_000;
     }
 
-    function delegate(address user, uint64 valId, uint256 amount) external onlyMagma {
+    function delegate(address user, uint64 valId) external payable onlyMagma {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
         if (user == address(0)) revert ErrZeroAddress();
         // Cap check
         uint256 cap = _maxCapFor(valId);
         if (cap == 0) revert ErrCapZero();
-        uint256 newAmt = delegatedAmountOf[user][valId] + amount;
+        uint256 newAmt = delegatedAmountOf[user][valId] + msg.value;
         if (newAmt > cap) revert ErrExceedsCap();
-        _delegate(valId, amount);
+        _delegate(valId, msg.value);
         // Update position
         delegatedAmountOf[user][valId] = newAmt;
         if (!userHasValidator[user][valId]) {
@@ -272,7 +272,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 validatorUsers[valId].push(user);
             }
         }
-        emit PositionUpdated(user, valId, amount, true);
+        emit PositionUpdated(user, valId, msg.value, true);
     }
 
     function undelegate(address user, uint64 valId, uint256 amount) external onlyMagma {

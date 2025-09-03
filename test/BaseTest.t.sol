@@ -23,7 +23,7 @@ contract BaseTest is Test {
     MockStakingPrecompile public stakingPrecompile;
 
     // Staking precompile address
-    address payable internal constant STAKING_PRECOMPILE = payable(address(0x0000000000000000000000000000000000000100));
+    address payable internal constant STAKING_PRECOMPILE = payable(address(0x0000000000000000000000000000000000001000));
 
     function setUp() public virtual {
         admin = address(0xA11CE);
