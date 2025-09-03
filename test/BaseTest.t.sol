@@ -10,6 +10,7 @@ import {CoreVault} from "../src/CoreVault.sol";
 import {gVault} from "../src/gVault.sol";
 // MagmaDelegationModule is abstract and inherited by vaults now
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
+import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 
 contract BaseTest is Test {
     address public admin;
@@ -19,10 +20,21 @@ contract BaseTest is Test {
     Magma public magma;
     CoreVault public coreVault;
     gVault public gvault;
+    MockStakingPrecompile public stakingPrecompile;
+
+    // Staking precompile address
+    address payable internal constant STAKING_PRECOMPILE = payable(address(0x0000000000000000000000000000000000000100));
 
     function setUp() public virtual {
         admin = address(0xA11CE);
         user = address(0xB0B);
+
+        // Deploy mock staking precompile at the expected address
+        stakingPrecompile = new MockStakingPrecompile();
+        vm.etch(STAKING_PRECOMPILE, address(stakingPrecompile).code);
+
+        // Fund the precompile with ETH for withdrawals
+        vm.deal(STAKING_PRECOMPILE, 1000000 ether);
 
         // Deploy underlying wrapped asset
         wmon = new WrappedMonad();
@@ -54,5 +66,15 @@ contract BaseTest is Test {
         // Wire magma vault refs
         vm.prank(admin);
         magma.setVaults(address(coreVault), address(gvault));
+    }
+
+    // Helper function to set up validator stakes for testing
+    function _setupValidatorStake(uint64 valId, uint256 amount) internal {
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(valId, address(coreVault), amount);
+    }
+
+    // Helper to advance epochs for withdrawal testing
+    function _advanceEpoch() internal {
+        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
     }
 }

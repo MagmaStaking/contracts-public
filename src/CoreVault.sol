@@ -60,7 +60,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     uint256 public lastRebalanceTimestamp;
 
     // Pending withdrawals totals
-    uint256 public pendingTotal;
+    uint256 public totalPendingUndelegations;
     uint256 public pendingRebalanceTotal;
     bool public finishedLastRebalance;
 
@@ -159,7 +159,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
 
         // Store the amount that was delegated to this validator
-        uint256 _amountToRedistribute = delegatedAmount[valId];
+        // Question: does this include pending rewards or previously compounded rewards?
+        // TODO: Claim rewards separately
+        uint256 _amountToRedistribute = _getDelegatorStake(valId, address(this));
 
         // Undelegate all from this validator first
         if (_amountToRedistribute > 0) {
@@ -180,13 +182,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         isWhitelisted[valId] = false;
 
         // Redistribute the amount to remaining validators if any
-        if (validators.length > 0 && _amountToRedistribute > 0) {
-            uint256 _amountPerValidator = _amountToRedistribute / validators.length;
-            for (uint256 _i = 0; _i < validators.length; _i++) {
-                _delegate(validators[_i], _amountPerValidator);
-                delegatedAmount[validators[_i]] += _amountPerValidator;
-            }
-        }
+        _distributeToValidators(_amountToRedistribute);
 
         emit ValidatorRemoved(valId);
         lastRebalanceTimestamp = block.timestamp;
@@ -198,10 +194,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         uint256 _amountPerValidator = amount / validators.length;
         if (_amountPerValidator == 0) revert ErrAmountTooSmall();
 
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            _delegate(validators[_i], _amountPerValidator);
-            delegatedAmount[validators[_i]] += _amountPerValidator;
-        }
+        _distributeToValidators(amount);
     }
 
     function undelegate(uint256 amount) external onlyMagma whenNotPaused {
@@ -223,7 +216,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
             _undelegate(_v, _amountPerValidator, _wid);
             // Track pending; do not lower local delegated until completion
             pendingUndelegateByValidator[_v] += _amountPerValidator;
-            pendingTotal += _amountPerValidator;
+            totalPendingUndelegations += _amountPerValidator;
         }
     }
 
@@ -281,7 +274,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 _amountsStore[_nUsers - 1] += _remaining;
             }
         }
-        pendingTotal += _perValidator * _vCount;
+        totalPendingUndelegations += _perValidator * _vCount;
         queuedUndelegateAmount = 0;
         // Clear the queue after fully attributing this batch
         delete queueTxUserAddress;
@@ -293,7 +286,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function _completeWithdrawal(uint64 valId, uint8 withdrawalId) internal {
-        // Read amount before withdrawing to update pendingTotal
+        // Read amount before withdrawing to update totalPendingUndelegations
         (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), withdrawalId);
         if (!(exists && amt > 0)) revert ErrNoPendingWithdrawRequest();
 
@@ -337,7 +330,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 delegatedAmount[valId] = 0;
             }
 
-            pendingTotal = (amt > pendingTotal) ? 0 : (pendingTotal - amt);
+            totalPendingUndelegations = (amt > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - amt);
         } else {
             emit WithdrawalFailed(valId, withdrawalId);
         }
@@ -418,6 +411,20 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
+    /**
+     * @dev Distributes the specified amount equally among all validators
+     * @param amount The total amount to distribute
+     */
+    function _distributeToValidators(uint256 amount) internal {
+        if (validators.length == 0 || amount == 0) return;
+
+        uint256 _amountPerValidator = amount / validators.length;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            _delegate(validators[_i], _amountPerValidator);
+            delegatedAmount[validators[_i]] += _amountPerValidator;
+        }
+    }
+
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
         uint8 _start = _nextWithdrawalId[valId];
         for (uint16 _i = 0; _i < 256; _i++) {
