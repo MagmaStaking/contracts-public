@@ -69,6 +69,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     event ValidatorAdded(uint64 indexed valId);
     event ValidatorRemoved(uint64 indexed valId);
+    event ValidatorRemovalCompleted(uint64 indexed valId);
     event RebalanceInitiated();
     event RebalanceCompleted();
     event EnqueuedUndelegate(uint256 amount, address indexed caller);
@@ -160,14 +161,13 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         // Store the amount that was delegated to this validator
         // Question: does this include pending rewards or previously compounded rewards?
-        // TODO: Claim rewards separately
-        uint256 _amountToRedistribute = _getDelegatorStake(valId, address(this));
+        uint256 _amountToUndelegate = _getDelegatorStake(valId, address(this));
 
         // Undelegate all from this validator first
-        if (_amountToRedistribute > 0) {
-            _undelegate(valId, _amountToRedistribute, ADMIN_WID);
+        if (_amountToUndelegate > 0) {
+            _undelegate(valId, _amountToUndelegate, ADMIN_WID);
             delegatedAmount[valId] = 0;
-            pendingRebalanceTotal += _amountToRedistribute;
+            pendingRebalanceTotal += _amountToUndelegate;
         }
 
         // Remove from array
@@ -181,8 +181,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         isWhitelisted[valId] = false;
 
-        // Redistribute the amount to remaining validators if any
-        _distributeToValidators(_amountToRedistribute);
+        // NOTE: Do NOT redistribute immediately!
+        // The undelegated funds are locked in a withdrawal request for WITHDRAWAL_DELAY epochs.
+        // After the delay period, call completeValidatorRemovalWithdrawal() to complete the process
+        // and redistribute the recovered funds.
 
         emit ValidatorRemoved(valId);
         lastRebalanceTimestamp = block.timestamp;
@@ -363,6 +365,26 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     // Phase 2: redistribute by delegating to under-target validators
     function adminRebalanceRedistribute() external onlyAdmin {
         _rebalanceRedistribute();
+    }
+
+    /**
+     * @dev Complete the withdrawal process for a removed validator
+     * This should be called after the WITHDRAWAL_DELAY period has passed
+     * @param valId The validator ID that was removed
+     */
+    function completeValidatorRemovalWithdrawal(uint64 valId) external onlyAdmin {
+        // TODO: Claim rewards
+        // Get the withdrawal amount before completing withdrawal
+        (bool exists, uint256 withdrawalAmount,,) = _getWithdrawalRequest(valId, address(this), ADMIN_WID);
+        if (!(exists && withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
+
+        // Complete the withdrawal using the admin withdrawal ID
+        _completeWithdrawal(valId, ADMIN_WID);
+
+        // Distribute the recovered funds to remaining validators
+        _distributeToValidators(withdrawalAmount);
+
+        emit ValidatorRemovalCompleted(valId);
     }
 
     function _rebalanceInitiate() internal {

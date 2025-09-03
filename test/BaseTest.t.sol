@@ -36,6 +36,9 @@ contract BaseTest is Test {
         // Fund the precompile with ETH for withdrawals
         vm.deal(STAKING_PRECOMPILE, 1000000 ether);
 
+        // Initialize the mock since vm.etch bypasses constructor
+        MockStakingPrecompile(STAKING_PRECOMPILE).initialize();
+
         // Deploy underlying wrapped asset
         wmon = new WrappedMonad();
 
