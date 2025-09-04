@@ -47,6 +47,7 @@ error ErrGVDelegateFailed();
 error ErrGVUndelegateFailed();
 error ErrGVCompleteFailed();
 error ErrWrapFailed();
+error ErrNativeTransferFailed();
 error ErrForwardFailed();
 error ErrRebalanceInitiateFailed();
 error ErrRebalanceCompleteFailed();

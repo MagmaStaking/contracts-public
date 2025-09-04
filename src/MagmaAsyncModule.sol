@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import {ErrZeroShares, ErrNotAuthorized, ErrInsufficientShares, ErrRequestPending} from "./MagmaErrorsModule.sol";
+import {ErrZeroShares, ErrNativeTransferFailed, ErrNotAuthorized, ErrInsufficientShares, ErrRequestPending} from "./MagmaErrorsModule.sol";
 
 // TODO: last -> run tests
 // TODO: last -> organize by external view, public internal etc on code and put in doc
@@ -141,6 +141,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
+    // TODO: revier here here if we want WMON or not in claimRequest
+    // TODO: reentranceGuard in withdrawals and this module
     function claimRequest(
         uint256 requestId,
         address controller,
@@ -160,8 +162,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
         delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
-        // TODO: improve this
-        payable(receiver).call{value: assets}("");
+        (bool sent, ) = payable(receiver).call{value: assets}("");
+        if (!sent) {
+            revert ErrNativeTransferFailed();
+        }
         // TODO: check this made no sense and delete _completeUndelegationAndWrap, also do some tests
         // _completeUndelegationAndWrap(assets);
         // IERC20(asset()).transfer(receiver, assets);
