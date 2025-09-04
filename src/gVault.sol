@@ -3,11 +3,31 @@ pragma solidity ^0.8.13;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {ErrNotMagma, ErrNotAdmin, ErrZeroValidatorId, ErrAlreadyWhitelisted, ErrEpochGuard, ErrMustPauseBeforeRemove, ErrNotWhitelisted, ErrInvalidBps, ErrInvalidAmount, ErrBelowMinWithdraw, ErrCapZero, ErrExceedsCap, ErrZeroAddress, ErrInsufficientPosition, ErrRebalanceInProgress, ErrQueueFull, ErrForwardFailed} from "./MagmaErrorsModule.sol";
+import {
+    ErrNotMagma,
+    ErrNotAdmin,
+    ErrZeroValidatorId,
+    ErrAlreadyWhitelisted,
+    ErrEpochGuard,
+    ErrMustPauseBeforeRemove,
+    ErrNotWhitelisted,
+    ErrInvalidBps,
+    ErrInvalidAmount,
+    ErrBelowMinWithdraw,
+    ErrCapZero,
+    ErrExceedsCap,
+    ErrZeroAddress,
+    ErrInsufficientPosition,
+    ErrRebalanceInProgress,
+    ErrQueueFull,
+    ErrForwardFailed
+} from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
-contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
+contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, IGVault {
     IMagma public magma;
 
     // Whitelist of eligible validators (tracked by valId)
@@ -23,7 +43,9 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
 
     // Per-validator next withdrawal id cursor (0..255)
-    mapping(uint64 => uint8) private _nextWithdrawalId;
+    mapping(uint64 => uint8) private nextWithdrawalId;
+    // Per-validator withdrawal ID availability bitmap (bit set = ID in use)
+    mapping(uint64 => uint256) private withdrawalIdBitmap;
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
@@ -66,58 +88,8 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     // Default cap percent in basis points (1% = 100 bps)
     uint256 public defaultCapBps = 25; // 0.25%
 
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
-    event PositionUpdated(
-        address indexed user,
-        uint64 indexed valId,
-        uint256 amount,
-        bool isDelegate
-    );
-    event CapChanged(uint64 indexed valId, uint256 newCap);
-    event DefaultCapUpdated(uint256 newDefaultBps);
-    // Rebalance admin events
-    event AdminInitiatedRebalance(uint16 bps);
-    event AdminCompletedRebalance(uint256 amountForwarded);
-    event AdminCompletedRebalanceWithdrawal(
-        uint64 indexed valId,
-        uint256 amount
-    );
-
-    event ProcessedBatch(
-        uint64 indexed valId,
-        uint8 withdrawalId,
-        uint256 amount
-    );
-
-    // User withdrawal distribution events
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        address indexed user,
-        uint256 amount
-    );
-    event WithdrawalPaymentSuccess(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        address indexed user,
-        uint256 amount
-    );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
-
-    function initialize(
-        address _magma,
-        uint256 _minQueueDelaySeconds,
-        uint256 _epochSeconds
-    ) external initializer {
+    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+        __ReentrancyGuard_init();
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -136,21 +108,15 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         _;
     }
 
-    function setMinQueueDelaySeconds(
-        uint256 secondsDelay
-    ) external onlyMagmaAdmin {
+    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyMagmaAdmin {
         minQueueDelaySeconds = secondsDelay;
     }
 
-    function pauseWithdrawalsForValidator(
-        uint64 valId
-    ) external onlyMagmaAdmin {
+    function pauseWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
         pausedWithdrawalsForValidator[valId] = block.timestamp;
     }
 
-    function resumeWithdrawalsForValidator(
-        uint64 valId
-    ) external onlyMagmaAdmin {
+    function resumeWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
         pausedWithdrawalsForValidator[valId] = 0;
     }
 
@@ -160,19 +126,26 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
         isWhitelisted[valId] = true;
         whitelistedValidators.push(valId);
+
+        // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
+        uint256 adminMask = 1 << ADMIN_WID_REBALANCE;
+        withdrawalIdBitmap[valId] |= adminMask;
+
         emit ValidatorAdded(valId);
     }
 
     function removeValidator(uint64 valId) external onlyMagmaAdmin {
         if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds)
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
+            }
         }
 
         if (
-            !(pausedWithdrawalsForValidator[valId] > 0 &&
-                (block.timestamp - pausedWithdrawalsForValidator[valId]) >
-                epochSeconds)
+            !(
+                pausedWithdrawalsForValidator[valId] > 0
+                    && (block.timestamp - pausedWithdrawalsForValidator[valId]) > epochSeconds
+            )
         ) revert ErrMustPauseBeforeRemove();
 
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
@@ -227,19 +200,12 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    function getWhitelistedValidators()
-        external
-        view
-        returns (uint64[] memory)
-    {
+    function getWhitelistedValidators() external view returns (uint64[] memory) {
         return whitelistedValidators;
     }
 
     // Admin: set per-validator explicit cap (can increase or decrease)
-    function changeValidatorCap(
-        uint64 valId,
-        uint256 newCap
-    ) external onlyMagmaAdmin {
+    function changeValidatorCap(uint64 valId, uint256 newCap) external onlyMagmaAdmin {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
         validatorCap[valId] = newCap;
         emit CapChanged(valId, newCap);
@@ -261,28 +227,22 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         uint256 cap = validatorCap[valId];
         if (cap != 0) return cap;
 
-        (bool ok, bytes memory data) = address(magma).staticcall(
-            abi.encodeWithSignature("totalAssets()")
-        );
+        (bool ok, bytes memory data) = address(magma).staticcall(abi.encodeWithSignature("totalAssets()"));
         // TVL bps based cap
         if (!ok || data.length == 0) return 0;
         uint256 total = abi.decode(data, (uint256));
         return (total * defaultCapBps) / 10_000;
     }
 
-    function delegate(
-        address user,
-        uint64 valId,
-        uint256 amount
-    ) external onlyMagma {
+    function delegate(address user, uint64 valId) external payable onlyMagma {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
         if (user == address(0)) revert ErrZeroAddress();
         // Cap check
         uint256 cap = _maxCapFor(valId);
         if (cap == 0) revert ErrCapZero();
-        uint256 newAmt = delegatedAmountOf[user][valId] + amount;
+        uint256 newAmt = delegatedAmountOf[user][valId] + msg.value;
         if (newAmt > cap) revert ErrExceedsCap();
-        _delegate(valId, amount);
+        _delegate(valId, msg.value);
         // Update position
         delegatedAmountOf[user][valId] = newAmt;
         if (!userHasValidator[user][valId]) {
@@ -293,21 +253,19 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 validatorUsers[valId].push(user);
             }
         }
-        emit PositionUpdated(user, valId, amount, true);
+        emit PositionUpdated(user, valId, msg.value, true);
     }
 
-    function undelegate(
-        address user,
-        uint64 valId,
-        uint256 amount
-    ) external onlyMagma {
-        if (amount < minUserWithdrawAmount)
+    function undelegate(address user, uint64 valId, uint256 amount) external onlyMagma {
+        if (amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
+        }
         //undelegate just adds to the queue
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
         if (user == address(0)) revert ErrZeroAddress();
-        if (queueTxUserAddress[valId].length >= MAX_QUEUE_ITEMS_PER_VALIDATOR)
+        if (queueTxUserAddress[valId].length >= MAX_QUEUE_ITEMS_PER_VALIDATOR) {
             revert ErrQueueFull();
+        }
         uint256 curr = delegatedAmountOf[user][valId];
         if (curr < amount) revert ErrInsufficientPosition(amount, curr);
         // remove user delegated amount during pending
@@ -356,18 +314,14 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         // allocate wid
         uint8 wid;
         bool found = false;
-        uint8 start = _nextWithdrawalId[valId];
+        uint8 start = nextWithdrawalId[valId];
         for (uint16 k = 0; k < 256; k++) {
             uint8 cand = uint8(uint16(start) + k);
             if (cand == ADMIN_WID_REBALANCE) continue;
-            (bool exists, , , ) = _getWithdrawalRequest(
-                valId,
-                address(this),
-                cand
-            );
+            (bool exists,,,) = _getWithdrawalRequest(valId, address(this), cand);
             if (!exists) {
                 wid = cand;
-                _nextWithdrawalId[valId] = uint8(uint16(cand) + 1);
+                nextWithdrawalId[valId] = uint8(uint16(cand) + 1);
                 found = true;
                 break;
             }
@@ -407,11 +361,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
             wid = pendingValidatorWithdrawalId[valId];
         }
 
-        (bool exists, uint256 amt, , ) = _getWithdrawalRequest(
-            valId,
-            address(this),
-            wid
-        );
+        (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), wid);
 
         if (exists && amt > 0) {
             if (_tryWithdraw(valId, uint8(wid))) {
@@ -433,19 +383,12 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                     if (due == 0 || u == address(0)) continue;
 
                     if (due > remaining) {
-                        emit WithdrawalAmountMismatch(
-                            valId,
-                            wid,
-                            totalDue,
-                            totalDistributed,
-                            due,
-                            u
-                        );
+                        emit WithdrawalAmountMismatch(valId, wid, totalDue, totalDistributed, due, u);
                         continue;
                     }
 
                     // Send funds to user
-                    (bool ok, ) = u.call{value: due}("");
+                    (bool ok,) = u.call{value: due}("");
 
                     if (!ok) {
                         emit WithdrawalPaymentFailed(valId, wid, u, due);
@@ -460,6 +403,8 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
                 pendingTotalByValidator[valId] = 0;
                 delete pendingUserAddress[valId][wid];
                 delete pendingUserAmount[valId][wid];
+                // Mark withdrawal ID as free in bitmap
+                _markWithdrawalCompleted(valId, wid);
                 pendingValidatorWithdrawalId[valId] = 0;
             } else {
                 emit WithdrawalFailed(valId, wid);
@@ -467,7 +412,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
     }
 
-    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external {
+    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external nonReentrant {
         _completeWithdrawalForValidator(valId, wid);
     }
 
@@ -476,8 +421,9 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     function adminInitiateRebalanceBps(uint16 bps) external onlyMagmaAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds)
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
+            }
         }
         if (bps > 10_000) revert ErrInvalidBps();
         uint64[] memory list = whitelistedValidators;
@@ -497,18 +443,14 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
-    function adminCompleteRebalance() public onlyMagmaAdmin {
+    function adminCompleteRebalance() public onlyMagmaAdmin nonReentrant {
         uint64[] memory list = whitelistedValidators;
         uint256 beforeBal = address(this).balance;
         uint256 n = list.length;
         for (uint256 i = 0; i < n; i++) {
             uint64 valId = list[i];
 
-            (bool exists, uint256 amt, , ) = _getWithdrawalRequest(
-                valId,
-                address(this),
-                ADMIN_WID_REBALANCE
-            );
+            (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), ADMIN_WID_REBALANCE);
             if (!exists || amt == 0) continue;
             if (_tryWithdraw(valId, ADMIN_WID_REBALANCE)) {
                 emit AdminCompletedRebalanceWithdrawal(valId, amt);
@@ -516,9 +458,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
         uint256 delta = address(this).balance - beforeBal;
         if (delta > 0) {
-            (bool sent, ) = address(magma).call{value: delta}(
-                abi.encodeWithSignature("onRebalanceFundsReceived()")
-            );
+            (bool sent,) = address(magma).call{value: delta}(abi.encodeWithSignature("onRebalanceFundsReceived()"));
             if (!sent) revert ErrForwardFailed();
         }
         emit AdminCompletedRebalance(delta);
@@ -526,34 +466,44 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint8 start = _nextWithdrawalId[valId];
+        uint256 bitmap = withdrawalIdBitmap[valId];
+        uint8 start = nextWithdrawalId[valId];
+
+        // Find first free slot starting from cursor
         for (uint16 i = 0; i < 256; i++) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == ADMIN_WID_REBALANCE) continue; // skip reserved
-            (bool exists, , , ) = _getWithdrawalRequest(
-                valId,
-                address(this),
-                candidate
-            );
-            if (!exists) {
-                wid = candidate;
-                _nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
-                return wid;
+
+            uint256 mask = 1 << candidate;
+            if (bitmap & mask == 0) {
+                // Mark as used in bitmap
+                withdrawalIdBitmap[valId] |= mask;
+                nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
+                return candidate;
             }
         }
         revert("gVault: no free withdrawal id");
     }
 
+    /**
+     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
+     * @param valId The validator ID
+     * @param withdrawalId The withdrawal ID to mark as free
+     */
+    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
+        // Don't clear the ADMIN_WID_REBALANCE in bitmap since it's reserved and shouldn't be reused
+        if (withdrawalId == ADMIN_WID_REBALANCE) return;
+
+        uint256 mask = 1 << withdrawalId;
+        withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
+    }
+
     // Helpers for reading user positions
-    function getUserValidators(
-        address user
-    ) external view returns (uint64[] memory) {
+    function getUserValidators(address user) external view returns (uint64[] memory) {
         return userValidators[user];
     }
 
-    function getUserPositions(
-        address user
-    )
+    function getUserPositions(address user)
         external
         view
         returns (uint64[] memory validators, uint256[] memory amounts)

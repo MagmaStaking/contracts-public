@@ -6,6 +6,8 @@ import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC2
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
 abstract contract MagmaBase is
     Initializable,
@@ -86,8 +88,8 @@ abstract contract MagmaBase is
     event RebalanceFundsReceived(address indexed from, uint256 amount);
 
     // Vault contract references (to be set by admin)
-    address public coreVault;
-    address public gVault;
+    ICoreVault public coreVault;
+    IGVault public gVault;
 
     function __MagmaBase_init(
         IERC20 asset_,

@@ -11,6 +11,8 @@ import {MagmaVaultManager} from "./MagmaVaultManager.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {MagmaBase} from "./MagmaBase.sol";
 import {ErrNotAdmin} from "./MagmaErrorsModule.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
 contract Magma is
     Initializable,
@@ -28,8 +30,8 @@ contract Magma is
         address gVault_
     ) external initializer {
         __MagmaBase_init(asset_, name_, symbol_, admin_);
-        coreVault = coreVault_;
-        gVault = gVault_;
+        coreVault = ICoreVault(coreVault_);
+        gVault = IGVault(gVault_);
     }
 
     function _authorizeUpgrade(address) internal view override {

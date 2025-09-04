@@ -1,29 +1,77 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-interface ICoreVault {
-    // Events
-    event ValidatorAdded(address indexed validator);
-    event ValidatorRemoved(address indexed validator);
-    event Rebalanced();
+import {IMagma} from "./IMagma.sol";
 
+interface ICoreVault {
     // Admin functions
-    function addValidator(address validator) external;
-    function removeValidator(address validator) external;
-    function rebalance() external;
+    function addValidator(uint64 valId) external;
+    function removeValidator(uint64 valId) external;
+    function completeValidatorRemovalWithdrawal(uint64 valId) external;
+    function adminRebalanceInitiate() external;
+    function adminRebalanceRedistribute() external;
+    function pause() external;
+    function unpause() external;
+    function setMinQueueDelaySeconds(uint256 secondsDelay) external;
+    function setMinUserWithdrawAmount(uint256 amount) external;
 
     // Delegation functions (onlyMagma)
-    function delegate(uint256 amount) external;
+    function delegate() external payable;
     function undelegate(uint256 amount) external;
-    function completeUndelegation(uint64 valId, uint8 withdrawalId) external;
+    function enqueueUndelegate(uint256 amount) external;
+
+    // Withdrawal completion functions
+    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external;
+    function completeWithdrawal(uint8 withdrawalId) external;
+    function processPending() external;
+
+    // Initialization
+    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
 
     // View functions
-    function validators(uint256 index) external view returns (address);
-    function isWhitelisted(address validator) external view returns (bool);
-    function delegatedAmount(address validator) external view returns (uint256);
-    function getValidators() external view returns (address[] memory);
+    function magma() external view returns (IMagma);
+    function isWhitelisted(uint64 valId) external view returns (bool);
+    function delegatedAmount(uint64 valId) external view returns (uint256);
+    function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
+    function queuedUndelegateAmount() external view returns (uint256);
+    function queueTxUserAddress(uint256 index) external view returns (address);
+    function queueTxUserAmount(uint256 index) external view returns (uint256);
+    function pendingUserAddresses(uint64 valId, uint8 withdrawalId, uint256 index) external view returns (address);
+    function pendingUserAmounts(uint64 valId, uint8 withdrawalId, uint256 index) external view returns (uint256);
+    function minQueueDelaySeconds() external view returns (uint256);
+    function epochSeconds() external view returns (uint256);
+    function minUserWithdrawAmount() external view returns (uint256);
+    function lastRebalanceTimestamp() external view returns (uint256);
+    function totalPendingUndelegations() external view returns (uint256);
+    function pendingRebalanceTotal() external view returns (uint256);
+    function finishedLastRebalance() external view returns (bool);
+    function paused() external view returns (bool);
+    function getValidators() external view returns (uint64[] memory);
     function getValidatorCount() external view returns (uint256);
     function getTotalDelegated() external view returns (uint256);
-    function magma() external view returns (address);
-    function magmaDelegation() external view returns (address);
+
+    // Events
+    event ValidatorAdded(uint64 indexed valId);
+    event ValidatorRemoved(uint64 indexed valId);
+    event ValidatorRemovalCompleted(uint64 indexed valId);
+    event RebalanceInitiated();
+    event RebalanceCompleted();
+    event EnqueuedUndelegate(uint256 amount, address indexed caller);
+    event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
+    // User withdrawal distribution events (mirrors gVault for consistency)
+    event WithdrawalAmountMismatch(
+        uint64 indexed valId,
+        uint8 indexed withdrawalId,
+        uint256 totalDue,
+        uint256 totalDistributed,
+        uint256 expectedDueForUser,
+        address indexed user
+    );
+    event WithdrawalPaymentFailed(
+        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
+    );
+    event WithdrawalPaymentSuccess(
+        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
+    );
+    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 }

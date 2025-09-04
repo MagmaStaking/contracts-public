@@ -79,10 +79,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         bool isGVault
     ) private whenNotPaused returns (uint256 requestId) {
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == msg.sender || isOperator[owner][msg.sender]))
+        if (!(owner == msg.sender || isOperator[owner][msg.sender])) {
             revert ErrNotAuthorized();
-        if (shares > balanceOf(owner))
+        }
+        if (shares > balanceOf(owner)) {
             revert ErrInsufficientShares(shares, balanceOf(owner));
+        }
 
         uint256 assets = convertToAssets(shares);
         pendingRedeemRequests[controller][requestIdCount] = RedeemRequests({

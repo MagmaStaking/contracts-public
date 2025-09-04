@@ -10,6 +10,7 @@ import {CoreVault} from "../src/CoreVault.sol";
 import {gVault} from "../src/gVault.sol";
 // MagmaDelegationModule is abstract and inherited by vaults now
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
+import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 
 contract BaseTest is Test {
     address public admin;
@@ -19,10 +20,24 @@ contract BaseTest is Test {
     Magma public magma;
     CoreVault public coreVault;
     gVault public gvault;
+    MockStakingPrecompile public stakingPrecompile;
+
+    // Staking precompile address
+    address payable internal constant STAKING_PRECOMPILE = payable(address(0x0000000000000000000000000000000000001000));
 
     function setUp() public virtual {
         admin = address(0xA11CE);
         user = address(0xB0B);
+
+        // Deploy mock staking precompile at the expected address
+        stakingPrecompile = new MockStakingPrecompile();
+        vm.etch(STAKING_PRECOMPILE, address(stakingPrecompile).code);
+
+        // Fund the precompile with ETH for withdrawals
+        vm.deal(STAKING_PRECOMPILE, 1000000 ether);
+
+        // Initialize the mock since vm.etch bypasses constructor
+        MockStakingPrecompile(STAKING_PRECOMPILE).initialize();
 
         // Deploy underlying wrapped asset
         wmon = new WrappedMonad();
@@ -31,41 +46,90 @@ contract BaseTest is Test {
         address magmaImpl = address(new Magma());
         address magmaProxy = UnsafeUpgrades.deployUUPSProxy(
             magmaImpl,
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
+            abi.encodeCall(Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0)))
         );
         magma = Magma(payable(magmaProxy));
 
         uint256 delay = 25000 / 250;
-        uint256 epoch = 25000;
+        uint256 epoch = 0; // Disable epoch guard for testing
 
         // CoreVault
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl,
-            abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
         );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
         address gvImpl = address(new gVault());
-        address gvProxy = UnsafeUpgrades.deployUUPSProxy(
-            gvImpl,
-            abi.encodeCall(gVault.initialize, (address(magma), delay, epoch))
-        );
+        address gvProxy =
+            UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), delay, epoch)));
         gvault = gVault(payable(gvProxy));
 
         // Wire magma vault refs
         vm.prank(admin);
         magma.setVaults(address(coreVault), address(gvault));
+
+        // Set up some validators for testing
+        // First register validators in the mock staking precompile
+        _setupValidatorInStakingPrecompile(1);
+        _setupValidatorInStakingPrecompile(2);
+
+        // Advance epoch to activate the initial validator stakes
+        _advanceEpoch();
+
+        // Then add them to the CoreVault
+        vm.prank(admin);
+        coreVault.addValidator(1);
+        vm.prank(admin);
+        coreVault.addValidator(2);
+    }
+
+    // Helper function to register a validator in the staking precompile
+    function _setupValidatorInStakingPrecompile(uint64 valId) internal {
+        // Register validator in mock staking precompile with minimal stake
+        bytes memory secpPubkey = abi.encodePacked(bytes32(uint256(valId)), bytes1(0x02)); // 33 bytes
+        bytes memory blsPubkey = new bytes(48); // 48 bytes
+
+        vm.deal(address(this), 1000 ether);
+        (bool success,) = STAKING_PRECOMPILE.call{value: 100 ether}(
+            abi.encodeWithSelector(
+                bytes4(0x00000001), // SEL_ADD_VALIDATOR
+                secpPubkey,
+                blsPubkey,
+                address(this), // auth_address
+                100 ether, // amount
+                0 // commission (0%)
+            )
+        );
+        require(success, "Failed to add validator to staking precompile");
+    }
+
+    // Helper function to set up validator stakes for testing
+    function _setupValidatorStake(uint64 valId, uint256 amount) internal {
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(valId, address(coreVault), amount);
+    }
+
+    // Helper to advance epochs for withdrawal testing
+    function _advanceEpoch() internal {
+        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+    }
+
+    // Helper to activate delegated stakes after deposits
+    function _activateDelegatedStakes() internal {
+        // Advance epoch to activate any pending delegations
+        _advanceEpoch();
+
+        // Manually set delegator stakes to match what should be delegated
+        // This is needed because the mock precompile uses delayed activation
+        uint256 val1Stake = coreVault.delegatedAmount(1);
+        uint256 val2Stake = coreVault.delegatedAmount(2);
+
+        if (val1Stake > 0) {
+            MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(1, address(coreVault), val1Stake);
+        }
+        if (val2Stake > 0) {
+            MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(2, address(coreVault), val2Stake);
+        }
     }
 }

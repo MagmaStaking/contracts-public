@@ -1,0 +1,42 @@
+name: Forge Format Check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  forge-fmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Check Solidity formatting
+        run: |
+          forge fmt --check
+        working-directory: .
+
+      - name: Run tests
+        run: |
+          forge test
+        working-directory: .
+
+      - name: Show formatting differences (if any)
+        if: failure()
+        run: |
+          echo "❌ Code is not properly formatted!"
+          echo "To fix formatting issues, run: forge fmt"
+          echo ""
+          echo "Files that need formatting:"
+          forge fmt --check --diff
+        working-directory: .

@@ -1,47 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Test, console} from "forge-std/Test.sol";
+import {BaseTest} from "./BaseTest.t.sol";
 import {Magma} from "../src/Magma.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
-import {ErrPaused, ErrNotAuthorized, ErrInsufficientShares, ErrNoPendingWithdrawRequest, ErrZeroNativeAsset, ErrZeroShares, ErrZeroAddress} from "../src/MagmaErrorsModule.sol";
+import {ErrPaused, ErrNotAuthorized, ErrNoPendingWithdrawRequest, ErrZeroNativeAsset, ErrZeroShares, ErrZeroAddress} from "../src/MagmaErrorsModule.sol";
 
-contract MagmaTest is Test {
-    Magma public magma;
-    WrappedMonad public wmon;
-
+contract MagmaTest is BaseTest {
     address public alice = address(0x1);
     address public bob = address(0x2);
-    address public admin = address(0x99); // Admin for pause tests
 
     uint256 public constant INITIAL_SUPPLY = 1_000_000e18;
     uint256 public constant DEFAULT_DELAY = 1 days;
 
-    function setUp() public {
-        // Deploy WrappedMonad as the underlying asset
-        wmon = new WrappedMonad();
-
-        // Deploy Magma vault - the vault shares are gMON (admin will be msg.sender = this contract)
-        // Deploy proxy for tests (unsafe helper ok in tests)
-        address implementation = address(new Magma());
-        address proxy = UnsafeUpgrades.deployUUPSProxy(
-            implementation,
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
-        );
-        magma = Magma(payable(proxy));
+    function setUp() public override {
+        super.setUp();
 
         // Give test accounts native currency for wrapping
         vm.deal(alice, 20_000 ether);
@@ -60,6 +36,11 @@ contract MagmaTest is Test {
 
         vm.prank(bob);
         wmon.approve(address(magma), type(uint256).max);
+    }
+
+    // Helper function to be called in tests after deposits
+    function _activateStakes() internal {
+        _activateDelegatedStakes();
     }
 
     function testDeploy() public {
@@ -137,6 +118,9 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         uint256 initialShares = magma.balanceOf(alice);
 
         // Alice requests withdrawal
@@ -161,6 +145,9 @@ contract MagmaTest is Test {
         // Setup: Alice deposits
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
+
+        // Activate the delegated stakes in the mock
+        _activateStakes();
 
         uint256 initialShares = magma.balanceOf(alice);
 
@@ -187,6 +174,9 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(withdrawAmount, alice, alice);
 
@@ -211,12 +201,17 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(withdrawAmount, alice, alice);
 
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), withdrawAmount);
         uint256 aliceAssetsBefore = wmon.balanceOf(alice);
 
         // Alice claims withdrawal
@@ -239,12 +234,17 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestRedeem(redeemShares, alice, alice);
 
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 aliceAssetsBefore = wmon.balanceOf(alice);
 
         // Alice claims redemption
@@ -268,12 +268,17 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(depositAmount, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(withdrawAmount, alice, alice);
 
         // Fast forward past delay
         vm.warp(block.timestamp + DEFAULT_DELAY);
 
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), withdrawAmount);
         // Alice claims partial withdrawal
         vm.prank(alice);
         magma.withdraw(partialClaim, alice, alice);
@@ -296,6 +301,9 @@ contract MagmaTest is Test {
         // Bob can now act on behalf of Alice
         vm.prank(alice);
         magma.deposit(1000e18, alice);
+
+        // Activate the delegated stakes in the mock
+        _activateStakes();
 
         vm.prank(bob);
         magma.requestWithdraw(500e18, alice, alice);
@@ -334,6 +342,9 @@ contract MagmaTest is Test {
         vm.prank(alice);
         magma.deposit(1000e18, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(5 ether, alice, alice);
 
@@ -345,39 +356,21 @@ contract MagmaTest is Test {
 }
 
 // Test contract for native MON deposit/redeem functionality
-contract MagmaNativeTest is Test {
-    Magma public magma;
-    WrappedMonad public wmon;
-
+contract MagmaNativeTest is BaseTest {
     address public alice = address(0x1);
     address public bob = address(0x2);
-    address public admin = address(0x99); // Admin for pause tests
 
-    function setUp() public {
-        // Deploy WrappedMonad
-        wmon = new WrappedMonad();
-
-        // Deploy Magma vault with WrappedMonad as underlying asset (admin will be the deployer)
-        address impl2 = address(new Magma());
-        address proxy2 = UnsafeUpgrades.deployUUPSProxy(
-            impl2,
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
-        );
-        magma = Magma(payable(proxy2));
+    function setUp() public override {
+        super.setUp();
 
         // Give test accounts some native currency
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
+    }
+
+    // Helper function to be called in tests after deposits
+    function _activateStakes() internal {
+        _activateDelegatedStakes();
     }
 
     function testDepositMon() public {
@@ -407,12 +400,17 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.depositMon{value: depositAmount}();
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         uint256 aliceSharesBefore = magma.balanceOf(alice);
 
         // Async claim: request and redeem ERC20 asset to Alice
         vm.prank(alice);
         magma.requestRedeem(redeemShares, alice, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBefore = wmon.balanceOf(alice);
         vm.prank(alice);
         uint256 assets = magma.redeem(redeemShares, alice, alice);
@@ -428,10 +426,15 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.depositMon{value: depositAmount}();
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         // Async claim to receiver in ERC20 asset
         vm.prank(alice);
         magma.requestRedeem(redeemShares, bob, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBeforeBob = wmon.balanceOf(bob);
         vm.prank(bob);
         uint256 assets = magma.redeem(redeemShares, bob, bob);
@@ -446,10 +449,15 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.depositMon{value: depositAmount}();
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         // Async: Alice schedules redeem to controller Bob, then Bob claims ERC20 assets to himself
         vm.prank(alice);
         magma.requestRedeem(redeemShares, bob, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), redeemShares);
         uint256 wmonBeforeBob = wmon.balanceOf(bob);
         vm.prank(bob);
         uint256 assets = magma.redeem(redeemShares, bob, bob);
@@ -496,6 +504,9 @@ contract MagmaNativeTest is Test {
         vm.prank(bob);
         magma.depositMon{value: 2 ether}();
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         // Check total vault state
         assertEq(magma.totalAssets(), 5 ether);
         assertEq(magma.balanceOf(alice), 3 ether);
@@ -505,6 +516,8 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.requestRedeem(1 ether, alice, alice);
         vm.warp(block.timestamp + 1 days);
+        // Simulate completed withdrawal by funding contract with ETH for wrapping
+        vm.deal(address(magma), 1 ether);
         uint256 wmonBefore = wmon.balanceOf(alice);
         vm.prank(alice);
         uint256 assets = magma.redeem(1 ether, alice, alice);
@@ -611,6 +624,9 @@ contract MagmaNativeTest is Test {
         vm.prank(alice);
         magma.deposit(10 ether, alice);
 
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(5 ether, alice, alice);
 
@@ -637,6 +653,9 @@ contract MagmaNativeTest is Test {
         // Make a deposit and request redemption
         vm.prank(alice);
         magma.deposit(10 ether, alice);
+
+        // Activate the delegated stakes in the mock
+        _activateStakes();
 
         vm.prank(alice);
         magma.requestRedeem(5 ether, alice, alice);
@@ -694,6 +713,10 @@ contract MagmaNativeTest is Test {
         wmon.approve(address(magma), 10 ether);
         vm.prank(alice);
         magma.deposit(10 ether, alice);
+
+        // Activate the delegated stakes in the mock
+        _activateStakes();
+
         vm.prank(alice);
         magma.requestWithdraw(5 ether, alice, alice);
         vm.warp(block.timestamp + 1 days);

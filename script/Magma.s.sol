@@ -18,24 +18,13 @@ contract MagmaScript is Script {
         vm.startBroadcast();
 
         address underlyingAssetAddress = vm.envAddress("UNDERLYING_ASSET");
-        require(
-            underlyingAssetAddress != address(0),
-            "missing UNDERLYING_ASSET"
-        );
+        require(underlyingAssetAddress != address(0), "missing UNDERLYING_ASSET");
 
         // Deploy UUPS proxy and initialize
         address magmaProxy = Upgrades.deployUUPSProxy(
             "Magma.sol",
             abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(underlyingAssetAddress),
-                    "gMON",
-                    "gMON",
-                    msg.sender,
-                    address(0),
-                    address(0)
-                )
+                Magma.initialize, (IERC20(underlyingAssetAddress), "gMON", "gMON", msg.sender, address(0), address(0))
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -45,13 +34,10 @@ contract MagmaScript is Script {
         uint256 epoch = 25000;
 
         address coreProxy = Upgrades.deployUUPSProxy(
-            "CoreVault.sol",
-            abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
+            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
         );
-        address gvProxy = Upgrades.deployUUPSProxy(
-            "gVault.sol",
-            abi.encodeCall(gVault.initialize, (address(magma), delay, epoch))
-        );
+        address gvProxy =
+            Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), delay, epoch)));
 
         magma.setVaults(coreProxy, gvProxy);
 

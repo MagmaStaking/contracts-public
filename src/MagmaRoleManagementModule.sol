@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 
 import {MagmaBase} from "./MagmaBase.sol";
 import {ErrNotAdmin, ErrAlreadyPaused, ErrNotPaused, ErrZeroAddress, ErrPaused} from "./MagmaErrorsModule.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
 abstract contract MagmaRoleManagementModule is MagmaBase {
     modifier whenNotPaused() {
@@ -10,10 +12,7 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
         _;
     }
 
-    function setOperator(
-        address operator,
-        bool approved
-    ) external returns (bool) {
+    function setOperator(address operator, bool approved) external returns (bool) {
         isOperator[msg.sender][operator] = approved;
         emit OperatorSet(msg.sender, operator, approved);
         return true;
@@ -42,7 +41,7 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
     function setVaults(address _coreVault, address _gVault) external {
         if (msg.sender != admin) revert ErrNotAdmin();
         if (_coreVault == address(0)) revert ErrZeroAddress();
-        coreVault = _coreVault;
-        gVault = _gVault;
+        coreVault = ICoreVault(_coreVault);
+        gVault = IGVault(_gVault);
     }
 }
