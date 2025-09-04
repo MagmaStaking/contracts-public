@@ -30,17 +30,7 @@ contract BaseIntegrationTest is Test {
         // Deploy Magma (implementation and proxy) using safe Upgrades
         address magmaProxy = Upgrades.deployUUPSProxy(
             "Magma.sol",
-            abi.encodeCall(
-                Magma.initialize,
-                (
-                    IERC20(address(wmon)),
-                    "gMON",
-                    "gMON",
-                    admin,
-                    address(0),
-                    address(0)
-                )
-            )
+            abi.encodeCall(Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0)))
         );
         magma = Magma(payable(magmaProxy));
 
@@ -49,16 +39,13 @@ contract BaseIntegrationTest is Test {
 
         // CoreVault
         address coreProxy = Upgrades.deployUUPSProxy(
-            "CoreVault.sol",
-            abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
+            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
         );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
-        address gvProxy = Upgrades.deployUUPSProxy(
-            "gVault.sol",
-            abi.encodeCall(gVault.initialize, (address(magma), delay, epoch))
-        );
+        address gvProxy =
+            Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), delay, epoch)));
         gvault = gVault(payable(gvProxy));
 
         // Wire magma vault refs

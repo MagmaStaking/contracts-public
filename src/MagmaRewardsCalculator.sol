@@ -10,6 +10,7 @@ abstract contract MagmaRewardsCalculator is MagmaBase {
     event RewardsFeeSet(uint256 newFee);
     event RewardsFeeReceiverSet(address newFeeReceiver);
     // change fee
+
     function _setFee(uint256 newFee) internal {
         if (newFee == 0 || newFee > 100) revert ErrInvalidRewardsFee();
         rewardsFee = newFee;
@@ -32,21 +33,17 @@ abstract contract MagmaRewardsCalculator is MagmaBase {
         principalAssets[user] -= amount;
     }
 
-    function _calculateRewardsFee(
-        uint256 withdrawalAmount,
-        uint256 totalCurrentAssets,
-        uint256 principalAssets
-    ) internal view returns (uint256 fee) {
+    function _calculateRewardsFee(uint256 withdrawalAmount, uint256 totalCurrentAssets, uint256 principalAssets)
+        internal
+        view
+        returns (uint256 fee)
+    {
         if (withdrawalAmount == 0 || rewardsFee == 0) return 0;
 
         uint256 accumulatedYield = totalCurrentAssets - principalAssets;
         if (accumulatedYield == 0) return 0;
 
-        uint256 yieldShare = Math.mulDiv(
-            withdrawalAmount,
-            accumulatedYield,
-            totalCurrentAssets
-        );
+        uint256 yieldShare = Math.mulDiv(withdrawalAmount, accumulatedYield, totalCurrentAssets);
 
         fee = Math.mulDiv(yieldShare, rewardsFee, 100, Math.Rounding.Ceil);
     }

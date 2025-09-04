@@ -38,10 +38,8 @@ contract Magma is
         if (msg.sender != admin) revert ErrNotAdmin();
     }
     // Resolve function collisions from multiple inheritance
-    function deposit(
-        uint256 assets,
-        address receiver
-    )
+
+    function deposit(uint256 assets, address receiver)
         public
         virtual
         override(MagmaERC4626Module, ERC4626Upgradeable)
@@ -50,10 +48,7 @@ contract Magma is
         return MagmaERC4626Module.deposit(assets, receiver);
     }
 
-    function mint(
-        uint256 shares,
-        address receiver
-    )
+    function mint(uint256 shares, address receiver)
         public
         virtual
         override(MagmaERC4626Module, ERC4626Upgradeable)
@@ -62,9 +57,7 @@ contract Magma is
         return MagmaERC4626Module.mint(shares, receiver);
     }
 
-    function maxWithdraw(
-        address owner
-    )
+    function maxWithdraw(address owner)
         public
         view
         virtual
@@ -74,9 +67,7 @@ contract Magma is
         return MagmaERC4626Module.maxWithdraw(owner);
     }
 
-    function maxRedeem(
-        address owner
-    )
+    function maxRedeem(address owner)
         public
         view
         virtual
@@ -86,9 +77,7 @@ contract Magma is
         return MagmaERC4626Module.maxRedeem(owner);
     }
 
-    function previewWithdraw(
-        uint256 assets
-    )
+    function previewWithdraw(uint256 assets)
         public
         view
         virtual
@@ -98,9 +87,7 @@ contract Magma is
         return MagmaERC4626Module.previewWithdraw(assets);
     }
 
-    function previewRedeem(
-        uint256 shares
-    )
+    function previewRedeem(uint256 shares)
         public
         view
         virtual
@@ -110,11 +97,7 @@ contract Magma is
         return MagmaERC4626Module.previewRedeem(shares);
     }
 
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address controller
-    )
+    function withdraw(uint256 assets, address receiver, address controller)
         public
         virtual
         override(MagmaAsyncModule, ERC4626Upgradeable)
@@ -123,11 +106,7 @@ contract Magma is
         return MagmaAsyncModule.withdraw(assets, receiver, controller);
     }
 
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address controller
-    )
+    function redeem(uint256 shares, address receiver, address controller)
         public
         virtual
         override(MagmaAsyncModule, ERC4626Upgradeable)

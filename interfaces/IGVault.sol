@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 interface IGVault {
     // Delegation functions (onlyMagma)
-    function delegate(address validator, uint256 amount) external;
+    function delegate(address user, uint64 valId) external payable;
     function undelegate(address validator, uint256 amount) external;
     function completeUndelegation(uint256 unbondingIndex) external;
 
