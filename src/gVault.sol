@@ -569,7 +569,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
     }
 
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }
 

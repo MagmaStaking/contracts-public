@@ -3,328 +3,171 @@ pragma solidity ^0.8.13;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {MagmaBase} from "./MagmaBase.sol";
+import {WrappedMonad} from "../monad/WrappedMonad.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import {ErrZeroAssets, ErrZeroShares, ErrNotAuthorized, ErrInsufficientShares, ErrInsufficientDelegated, ErrNoPendingWithdrawRequest, ErrNoPendingRedeemRequest, ErrInsufficientClaimableAssets, ErrInsufficientClaimableShares, ErrNotGVaultRequest, ErrZeroAddress, ErrNativeTransferFailed} from "./MagmaErrorsModule.sol";
+import {ErrZeroAssets, ErrZeroShares, ErrNotAuthorized, ErrInsufficientShares, ErrInsufficientDelegated, ErrNoPendingRedeemRequest, ErrInsufficientClaimableShares, ErrNotGVaultRequest, ErrZeroAddress, ErrNativeTransferFailed} from "./MagmaErrorsModule.sol";
 
+// TODO: run tests
+// TODO: organize by external view, public internal etc on code and put in doc
+// TODO: check 4626 and think about compatibility with oracles and so on
+// TODO: explain only one controller, more than one operator, if request id is 0, then only one controller. Explain differences between owner, controller and operator
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    function requestWithdraw(
+    // TODO: add comments we are wrapping and depositing right before working with the precompile
+    /**
+     * @dev Return the total assets managed by the vault, including delegated native and held WMON
+     */
+    function totalAssets() public view override returns (uint256) {
+        return
+            _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
+    }
+
+    function deposit(
         uint256 assets,
-        address controller,
-        address owner
-    ) external whenNotPaused returns (uint256 requestId) {
-        if (assets == 0) revert ErrZeroAssets();
-        if (!(owner == msg.sender || isOperator[owner][msg.sender]))
-            revert ErrNotAuthorized();
+        address receiver
+    ) public override whenNotPaused returns (uint256) {
+        uint256 shares = super.deposit(assets, receiver);
+        WrappedMonad(payable(address(asset()))).withdraw(assets);
+        _delegatedNativeAssets += assets;
+        ICoreVault(coreVault).delegate(assets);
+        return shares;
+    }
 
-        uint256 shares = previewWithdraw(assets);
-        if (shares > balanceOf(owner))
-            revert ErrInsufficientShares(shares, balanceOf(owner));
+    function mint(
+        uint256 shares,
+        address receiver
+    ) public override whenNotPaused returns (uint256) {
+        uint256 assets = previewMint(shares);
+        uint256 minted = super.mint(shares, receiver);
+        WrappedMonad(payable(address(asset()))).withdraw(assets);
+        _delegatedNativeAssets += assets;
+        ICoreVault(coreVault).delegate(assets);
+        return minted;
+    }
 
-        delete pendingWithdrawals[controller];
+    /// TODO: think about maxWithdraw and maxRedeem
+    function maxWithdraw(
+        address /*owner*/
+    ) public view override returns (uint256) {
+        revert();
+    }
 
-        pendingWithdrawals[controller] = WithdrawalRequest({
-            shares: shares,
-            assets: assets,
-            timestamp: block.timestamp,
-            claimableTime: block.timestamp + DEFAULT_DELAY,
-            isRedeem: false,
-            validator: address(0)
-        });
-
-        _transfer(owner, address(this), shares);
-
-        if (_delegatedNativeAssets < assets)
-            revert ErrInsufficientDelegated(assets, _delegatedNativeAssets);
-        _delegatedNativeAssets -= assets;
-        _undelegate(assets);
-
-        emit WithdrawRequest(controller, owner, 0, msg.sender, assets);
-        return 0;
+    function maxRedeem(
+        address /*owner*/
+    ) public view override returns (uint256) {
+        revert();
     }
 
     function requestRedeem(
         uint256 shares,
         address controller,
         address owner
-    ) external whenNotPaused returns (uint256 requestId) {
-        if (shares == 0) revert ErrZeroShares();
-        if (!(owner == msg.sender || isOperator[owner][msg.sender]))
-            revert ErrNotAuthorized();
-        if (shares > balanceOf(owner))
-            revert ErrInsufficientShares(shares, balanceOf(owner));
-
-        delete pendingWithdrawals[controller];
-
-        uint256 assets = previewRedeem(shares);
-
-        pendingWithdrawals[controller] = WithdrawalRequest({
-            shares: shares,
-            assets: assets,
-            timestamp: block.timestamp,
-            claimableTime: block.timestamp + DEFAULT_DELAY,
-            isRedeem: true,
-            validator: address(0)
-        });
-
-        _transfer(owner, address(this), shares);
-
-        if (_delegatedNativeAssets < assets)
-            revert ErrInsufficientDelegated(assets, _delegatedNativeAssets);
-        _delegatedNativeAssets -= assets;
-        _undelegate(assets);
-
-        emit RedeemRequest(controller, owner, 0, msg.sender, shares);
-        return 0;
+    ) external returns (uint256 requestId) {
+        return _requestRedeem(shares, controller, owner, 0, false);
     }
 
-    function requestRedeemFromVault(
+    function requestRedeemFromGVault(
         uint256 shares,
-        uint64 valId,
         address controller,
-        address owner
-    ) external whenNotPaused returns (uint256 requestId) {
+        address owner,
+        uint64 valId
+    ) external returns (uint256 requestId) {
+        return _requestRedeem(shares, controller, owner, valId, true);
+    }
+
+    /**
+     * TODO: update this comment for multiple requestIds, also say assets will not accumulate yield after this
+     * @dev Since requestId is set as 0. The Vault MUST use purely the controller to discriminate the request state.
+     * The Pending and Claimable state of multiple requests from the same controller would be aggregated.
+     * @dev https://eips.ethereum.org/EIPS/eip-7540#request-ids
+     * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
+     * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
+     */
+    function _requestRedeem(
+        uint256 shares,
+        address controller,
+        address owner,
+        uint64 valId,
+        bool isGVault
+    ) private whenNotPaused returns (uint256 requestId) {
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == msg.sender || isOperator[owner][msg.sender]))
             revert ErrNotAuthorized();
         if (shares > balanceOf(owner))
             revert ErrInsufficientShares(shares, balanceOf(owner));
 
-        delete pendingWithdrawals[controller];
-
-        uint256 assets = previewRedeem(shares);
-
-        pendingWithdrawals[controller] = WithdrawalRequest({
+        uint256 assets = convertToAssets(shares);
+        pendingRedeemRequests[controller][requestIdCount] = RedeemRequests({
             shares: shares,
             assets: assets,
-            timestamp: block.timestamp,
-            claimableTime: block.timestamp + DEFAULT_DELAY,
-            isRedeem: true,
-            validator: address(0)
+            claimableTime: block.timestamp + DEFAULT_DELAY
         });
+        requestIdCount++;
 
         _transfer(owner, address(this), shares);
 
-        if (_delegatedNativeAssets < assets)
-            revert ErrInsufficientDelegated(assets, _delegatedNativeAssets);
         _delegatedNativeAssets -= assets;
-        _undelegateFromValidator(valId, assets);
+        isGVault
+            ? _undelegateFromValidator(valId, assets)
+            : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, 0, msg.sender, shares);
-        return 0;
-    }
-
-    function pendingWithdrawRequest(
-        address controller
-    ) external view returns (uint256) {
-        WithdrawalRequest memory request = pendingWithdrawals[controller];
-        if (request.shares == 0 || request.isRedeem) return 0;
-        return request.assets;
+        emit RedeemRequest(
+            controller,
+            owner,
+            requestIdCount,
+            msg.sender,
+            shares
+        );
+        return requestIdCount;
     }
 
     function pendingRedeemRequest(
+        uint256 requestId,
         address controller
-    ) external view returns (uint256) {
-        WithdrawalRequest memory request = pendingWithdrawals[controller];
-        if (request.shares == 0 || !request.isRedeem) return 0;
-        return request.shares;
-    }
-
-    function claimableWithdrawRequest(
-        address controller
-    ) external view returns (uint256) {
-        WithdrawalRequest memory request = pendingWithdrawals[controller];
-        if (request.shares == 0 || request.isRedeem) return 0;
-
-        return
-            _getClaimableAmount(
-                request.assets,
-                request.timestamp,
-                request.claimableTime
-            );
+    ) external view returns (uint256 shares) {
+        return pendingRedeemRequests[controller][requestId].shares;
     }
 
     function claimableRedeemRequest(
+        uint256 requestId,
         address controller
-    ) external view returns (uint256) {
-        WithdrawalRequest memory request = pendingWithdrawals[controller];
-        if (request.shares == 0 || !request.isRedeem) return 0;
-
-        uint256 claimableAssets = _getClaimableAmount(
-            request.assets,
-            request.timestamp,
-            request.claimableTime
-        );
-        if (claimableAssets == 0) return 0;
-        return
-            claimableAssets.mulDiv(
-                request.shares,
-                request.assets,
-                Math.Rounding.Floor
-            );
+    ) external view returns (uint256 shares) {
+        RedeemRequests memory request = pendingRedeemRequests[controller][
+            requestId
+        ];
+        // TODO: check case here where request does not exist
+        return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
-    function _getClaimableAmount(
-        uint256 totalAmount,
-        uint256 requestTime,
-        uint256 claimableTime
-    ) internal view returns (uint256) {
-        if (block.timestamp >= claimableTime) {
-            return totalAmount;
+    function claimRequest(
+        uint256 requestId,
+        address controller,
+        address receiver
+    ) external whenNotPaused {
+        // TODO: should _claimRequest be authorized if it cannot be cancelled revert ErrNotAuthorized();
+        RedeemRequests memory request = pendingRedeemRequests[controller][
+            requestId
+        ];
+        // TODO: check case here where request does not exist
+        if (request.claimableTime < block.timestamp) {
+            // TODO: write this error
+            revert();
         }
-        if (block.timestamp <= requestTime) {
-            return 0;
-        }
-        uint256 elapsed = block.timestamp - requestTime;
-        uint256 duration = claimableTime - requestTime;
-        return totalAmount.mulDiv(elapsed, duration, Math.Rounding.Floor);
-    }
+        // TODO: set variable as _ check in this whole PR, also check if memory here or not, should not be needed
+        uint256 assets = request.assets;
+        uint256 shares = request.assets;
 
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address controller
-    ) public virtual override whenNotPaused returns (uint256) {
-        if (!(controller == msg.sender || isOperator[controller][msg.sender]))
-            revert ErrNotAuthorized();
-        WithdrawalRequest storage request = pendingWithdrawals[controller];
-        if (!(request.shares > 0 && !request.isRedeem))
-            revert ErrNoPendingWithdrawRequest();
-        uint256 claimableAssets = _getClaimableAmount(
-            request.assets,
-            request.timestamp,
-            request.claimableTime
-        );
-        if (assets > claimableAssets)
-            revert ErrInsufficientClaimableAssets(assets, claimableAssets);
-        uint256 sharesToBurn = assets.mulDiv(
-            request.shares,
-            request.assets,
-            Math.Rounding.Ceil
-        );
-        request.assets -= assets;
-        request.shares -= sharesToBurn;
-        if (request.assets == 0) {
-            delete pendingWithdrawals[controller];
-        }
-        _burn(address(this), sharesToBurn);
-        _completeUndelegationAndWrap(assets);
-        IERC20(asset()).transfer(receiver, assets);
-        emit Withdraw(controller, receiver, controller, assets, sharesToBurn);
-        return sharesToBurn;
-    }
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address controller
-    ) public virtual override whenNotPaused returns (uint256) {
-        if (!(controller == msg.sender || isOperator[controller][msg.sender]))
-            revert ErrNotAuthorized();
-        WithdrawalRequest storage request = pendingWithdrawals[controller];
-        if (!(request.shares > 0 && request.isRedeem))
-            revert ErrNoPendingRedeemRequest();
-        uint256 claimableAssets = _getClaimableAmount(
-            request.assets,
-            request.timestamp,
-            request.claimableTime
-        );
-        uint256 claimableShares = claimableAssets.mulDiv(
-            request.shares,
-            request.assets,
-            Math.Rounding.Floor
-        );
-        if (shares > claimableShares)
-            revert ErrInsufficientClaimableShares(shares, claimableShares);
-        uint256 assets = shares.mulDiv(
-            request.assets,
-            request.shares,
-            Math.Rounding.Floor
-        );
-        request.assets -= assets;
-        request.shares -= shares;
-        if (request.shares == 0) {
-            delete pendingWithdrawals[controller];
-        }
+        delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
-        _completeUndelegationAndWrap(assets);
-        IERC20(asset()).transfer(receiver, assets);
-        emit Withdraw(controller, receiver, controller, assets, shares);
-        return assets;
-    }
+        // TODO: improve this
+        payable(receiver).call{value: assets}("");
+        // TODO: check this made no sense and delete _completeUndelegationAndWrap, also do some tests
+        // _completeUndelegationAndWrap(assets);
+        // IERC20(asset()).transfer(receiver, assets);
 
-    function redeemMonFromVault(
-        uint256 shares,
-        address receiver,
-        address controller
-    ) external whenNotPaused returns (uint256 assets) {
-        if (!(controller == msg.sender || isOperator[controller][msg.sender]))
-            revert ErrNotAuthorized();
-        if (receiver == address(0)) revert ErrZeroAddress();
-        WithdrawalRequest storage request = pendingWithdrawals[controller];
-        if (!(request.shares > 0 && request.isRedeem))
-            revert ErrNoPendingRedeemRequest();
-        if (request.validator == address(0)) revert ErrNotGVaultRequest();
-        uint256 claimableAssets = _getClaimableAmount(
-            request.assets,
-            request.timestamp,
-            request.claimableTime
-        );
-        uint256 claimableShares = claimableAssets.mulDiv(
-            request.shares,
-            request.assets,
-            Math.Rounding.Floor
-        );
-        if (shares > claimableShares)
-            revert ErrInsufficientClaimableShares(shares, claimableShares);
-        assets = shares.mulDiv(
-            request.assets,
-            request.shares,
-            Math.Rounding.Floor
-        );
-        request.assets -= assets;
-        request.shares -= shares;
-        if (request.shares == 0) {
-            delete pendingWithdrawals[controller];
-        }
-        _burn(address(this), shares);
-        _completeUndelegationFromGVault(assets);
-        (bool sent, ) = payable(receiver).call{value: assets}("");
-        if (!sent) revert ErrNativeTransferFailed();
-        emit Withdraw(controller, receiver, controller, assets, shares);
-        return assets;
-    }
-
-    function redeemMon(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) external whenNotPaused returns (uint256 assets) {
-        if (shares == 0) revert ErrZeroShares();
-        if (receiver == address(0)) revert ErrZeroAddress();
-        if (!(owner == msg.sender || allowance(owner, msg.sender) >= shares))
-            revert ErrNotAuthorized();
-
-        assets = previewRedeem(shares);
-        if (assets == 0) revert ErrZeroAssets();
-
-        if (owner != msg.sender) {
-            _spendAllowance(owner, msg.sender, shares);
-        }
-        _burn(owner, shares);
-
-        address assetAddress = address(asset());
-        (bool success, ) = assetAddress.call(
-            abi.encodeWithSignature("withdraw(uint256)", assets)
-        );
-        if (!success) revert ErrNativeTransferFailed();
-
-        (bool sent, ) = payable(receiver).call{value: assets}("");
-        if (!sent) revert ErrNativeTransferFailed();
-
-        emit Withdraw(msg.sender, receiver, owner, assets, shares);
-        return assets;
+        // TODO: who is the owner in this withdraw event?
+        emit Withdraw(controller, receiver, receiver, assets, shares);
     }
 }
