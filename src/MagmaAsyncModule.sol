@@ -166,11 +166,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (!sent) {
             revert ErrNativeTransferFailed();
         }
-        // TODO: check this made no sense and delete _completeUndelegationAndWrap, also do some tests
-        // _completeUndelegationAndWrap(assets);
-        // IERC20(asset()).transfer(receiver, assets);
 
-        // TODO: who is the owner in this withdraw event?
-        emit Withdraw(controller, receiver, receiver, assets, shares);
+        emit Withdraw(controller, receiver, address(this), assets, shares);
     }
 }
