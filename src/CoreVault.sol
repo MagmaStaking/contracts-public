@@ -4,11 +4,11 @@ pragma solidity ^0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {
     ErrNotAdmin,
     ErrNotMagma,
-    ErrPaused,
     ErrEpochGuard,
     ErrZeroValidatorId,
     ErrAlreadyWhitelisted,
@@ -28,7 +28,14 @@ import {
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 
-contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, ICoreVault {
+contract CoreVault is
+    Initializable,
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    MagmaDelegationModule,
+    ICoreVault
+{
     IMagma public magma;
 
     uint64[] public validators;
@@ -69,11 +76,16 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     uint256 public pendingRebalanceTotal;
     bool public finishedLastRebalance;
 
-    // Pause state
-    bool public paused;
+    /**
+     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
+     */
+    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
+        return super.paused();
+    }
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
+        __Pausable_init();
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -93,10 +105,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _;
     }
 
-    modifier whenNotPaused() {
-        if (paused) revert ErrPaused();
-        _;
-    }
+    // whenNotPaused modifier is now inherited from PausableUpgradeable
 
     modifier onlyAfterEpoch() {
         if (epochSeconds != 0) {
@@ -108,11 +117,11 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     function pause() external onlyAdmin {
-        paused = true;
+        _pause();
     }
 
     function unpause() external onlyAdmin {
-        paused = false;
+        _unpause();
     }
 
     function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
@@ -321,12 +330,12 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         }
     }
 
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external nonReentrant {
+    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external nonReentrant onlyMagma {
         _completeWithdrawal(valId, withdrawalId);
     }
 
     // Convenience overload: try for all validators for this withdrawalId
-    function completeWithdrawal(uint8 withdrawalId) external nonReentrant {
+    function completeWithdrawal(uint8 withdrawalId) external nonReentrant onlyMagma {
         uint256 _vCount = validators.length;
         for (uint256 _i = 0; _i < _vCount; _i++) {
             uint64 _v = validators[_i];
