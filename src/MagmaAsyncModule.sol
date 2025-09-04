@@ -8,9 +8,8 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {ErrZeroShares, ErrNativeTransferFailed, ErrNotAuthorized, ErrInsufficientShares, ErrRequestPending} from "./MagmaErrorsModule.sol";
 
-// TODO: last -> run tests
+// TODO: last -> run tests, what happens if you transfer while requestClaim and reentrnacy
 // TODO: last -> organize by external view, public internal etc on code and put in doc
-// TODO: last -> check 4626 and think about compatibility with oracles and so on
 // TODO: last -> explain only one controller, more than one operator, if request id is 0, then only one controller. Explain differences between owner, controller and operator
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
@@ -128,7 +127,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
-    // TODO: revier here here if we want WMON or not in claimRequest
+    // TODO: want WMON and not in claimRequest
     // TODO: reentranceGuard in withdrawals and this module
     function claimRequest(
         uint256 requestId,

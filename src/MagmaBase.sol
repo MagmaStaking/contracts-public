@@ -24,7 +24,7 @@ abstract contract MagmaBase is
     // Pause state for deposits and withdrawals
     bool public paused;
 
-    // TODO: here we need a big comment
+    // TODO: last -> here we need a big comment
     // Tracks total native MON delegated via CoreVault (in asset units, 1:1 with WMON)
     uint256 internal _delegatedNativeAssets;
 
