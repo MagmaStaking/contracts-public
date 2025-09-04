@@ -3,11 +3,12 @@ pragma solidity ^0.8.13;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {
     ErrNotAdmin,
     ErrNotMagma,
-    ErrPaused,
     ErrEpochGuard,
     ErrZeroValidatorId,
     ErrAlreadyWhitelisted,
@@ -25,15 +26,25 @@ import {
     ErrDelegateFailed
 } from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
 
-contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
+contract CoreVault is
+    Initializable,
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    MagmaDelegationModule,
+    ICoreVault
+{
     IMagma public magma;
 
     uint64[] public validators;
     mapping(uint64 => bool) public isWhitelisted;
     mapping(uint64 => uint256) public delegatedAmount;
-    // Per-validator next withdrawal id cursor (0..255)
-    mapping(uint64 => uint8) private _nextWithdrawalId;
+    // Per-validator next withdrawal id (0..255)
+    mapping(uint64 => uint8) private nextWithdrawalId;
+    // Per-validator withdrawal ID availability bitmap (bit set = ID in use)
+    mapping(uint64 => uint256) private withdrawalIdBitmap;
     // Per-validator amounts submitted for undelegation but not yet completed
     mapping(uint64 => uint256) public pendingUndelegateByValidator;
 
@@ -65,34 +76,16 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     uint256 public pendingRebalanceTotal;
     bool public finishedLastRebalance;
 
-    // Pause state
-    bool public paused;
-
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
-    event ValidatorRemovalCompleted(uint64 indexed valId);
-    event RebalanceInitiated();
-    event RebalanceCompleted();
-    event EnqueuedUndelegate(uint256 amount, address indexed caller);
-    event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
-    // User withdrawal distribution events (mirrors gVault for consistency)
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalPaymentSuccess(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
+    /**
+     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
+     */
+    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
+        return super.paused();
+    }
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+        __ReentrancyGuard_init();
+        __Pausable_init();
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -112,10 +105,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         _;
     }
 
-    modifier whenNotPaused() {
-        if (paused) revert ErrPaused();
-        _;
-    }
+    // whenNotPaused modifier is now inherited from PausableUpgradeable
 
     modifier onlyAfterEpoch() {
         if (epochSeconds != 0) {
@@ -127,11 +117,11 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function pause() external onlyAdmin {
-        paused = true;
+        _pause();
     }
 
     function unpause() external onlyAdmin {
-        paused = false;
+        _unpause();
     }
 
     function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
@@ -150,6 +140,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
         validators.push(valId);
         isWhitelisted[valId] = true;
+
+        // Initialize bitmap with ADMIN_WID marked as reserved
+        uint256 adminMask = 1 << ADMIN_WID;
+        withdrawalIdBitmap[valId] |= adminMask;
 
         emit ValidatorAdded(valId);
         _rebalanceInitiate();
@@ -316,6 +310,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
             }
             delete pendingUserAddresses[valId][withdrawalId];
             delete pendingUserAmounts[valId][withdrawalId];
+            // Mark withdrawal ID as free in bitmap
+            _markWithdrawalCompleted(valId, withdrawalId);
             // Lower local delegated now that completion finalized
             if (pendingUndelegateByValidator[valId] >= amt) {
                 pendingUndelegateByValidator[valId] -= amt;
@@ -334,12 +330,12 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
         }
     }
 
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external {
+    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external nonReentrant onlyMagma {
         _completeWithdrawal(valId, withdrawalId);
     }
 
     // Convenience overload: try for all validators for this withdrawalId
-    function completeWithdrawal(uint8 withdrawalId) external {
+    function completeWithdrawal(uint8 withdrawalId) external nonReentrant onlyMagma {
         uint256 _vCount = validators.length;
         for (uint256 _i = 0; _i < _vCount; _i++) {
             uint64 _v = validators[_i];
@@ -444,19 +440,37 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     }
 
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint8 _start = _nextWithdrawalId[valId];
-        for (uint16 _i = 0; _i < 256; _i++) {
-            uint8 _candidate = uint8(uint16(_start) + _i);
-            if (_candidate == ADMIN_WID) continue;
-            (bool _exists,,,) = _getWithdrawalRequest(valId, address(this), _candidate);
-            if (!_exists) {
-                wid = _candidate;
-                _nextWithdrawalId[valId] = uint8(uint16(_candidate) + 1);
-                return wid;
+        uint256 bitmap = withdrawalIdBitmap[valId];
+        uint8 start = nextWithdrawalId[valId];
+
+        // Find first free slot starting from cursor
+        for (uint16 i = 0; i < 256; i++) {
+            uint8 candidate = uint8(uint16(start) + i);
+            if (candidate == ADMIN_WID) continue;
+
+            uint256 mask = 1 << candidate;
+            if (bitmap & mask == 0) {
+                // Mark as used in bitmap
+                withdrawalIdBitmap[valId] |= mask;
+                nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
+                return candidate;
             }
         }
         // If all 256 are occupied, revert; caller should withdraw some first
         revert ErrNoFreeWithdrawalId();
+    }
+
+    /**
+     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
+     * @param valId The validator ID
+     * @param withdrawalId The withdrawal ID to mark as free
+     */
+    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
+        // Don't clear the ADMIN_WID in bitmap since it's reserved and shouldn't be reused
+        if (withdrawalId == ADMIN_WID) return;
+
+        uint256 mask = 1 << withdrawalId;
+        withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
     }
 
     function getValidators() external view returns (uint64[] memory) {
