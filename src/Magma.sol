@@ -51,28 +51,6 @@ contract Magma is
         return MagmaAsyncModule.mint(shares, receiver);
     }
 
-    function maxWithdraw(
-        address owner
-    )
-        public
-        view
-        override(MagmaAsyncModule, ERC4626Upgradeable)
-        returns (uint256)
-    {
-        return MagmaAsyncModule.maxWithdraw(owner);
-    }
-
-    function maxRedeem(
-        address owner
-    )
-        public
-        view
-        override(MagmaAsyncModule, ERC4626Upgradeable)
-        returns (uint256)
-    {
-        return MagmaAsyncModule.maxRedeem(owner);
-    }
-
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewWithdraw(
         uint256 assets

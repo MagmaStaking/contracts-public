@@ -47,19 +47,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return minted;
     }
 
-    /// TODO: think about maxWithdraw and maxRedeem
-    function maxWithdraw(
-        address /*owner*/
-    ) public view override returns (uint256) {
-        revert();
-    }
-
-    function maxRedeem(
-        address /*owner*/
-    ) public view override returns (uint256) {
-        revert();
-    }
-
     function requestRedeem(
         uint256 shares,
         address controller,
