@@ -6,16 +6,16 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import {ErrZeroAssets, ErrZeroShares, ErrNotAuthorized, ErrInsufficientShares, ErrInsufficientDelegated, ErrNoPendingRedeemRequest, ErrInsufficientClaimableShares, ErrNotGVaultRequest, ErrZeroAddress, ErrNativeTransferFailed} from "./MagmaErrorsModule.sol";
+import {ErrZeroShares, ErrNotAuthorized, ErrInsufficientShares, ErrRequestPending} from "./MagmaErrorsModule.sol";
 
-// TODO: run tests
-// TODO: organize by external view, public internal etc on code and put in doc
-// TODO: check 4626 and think about compatibility with oracles and so on
-// TODO: explain only one controller, more than one operator, if request id is 0, then only one controller. Explain differences between owner, controller and operator
+// TODO: last -> run tests
+// TODO: last -> organize by external view, public internal etc on code and put in doc
+// TODO: last -> check 4626 and think about compatibility with oracles and so on
+// TODO: last -> explain only one controller, more than one operator, if request id is 0, then only one controller. Explain differences between owner, controller and operator
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    // TODO: add comments we are wrapping and depositing right before working with the precompile
+    // TODO: last ->  add comments we are wrapping and depositing right before working with the precompile
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
@@ -78,7 +78,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /**
-     * TODO: update this comment for multiple requestIds, also say assets will not accumulate yield after this
+     * TODO: last -> update this comment for multiple requestIds, also say assets will not accumulate yield after this
      * @dev Since requestId is set as 0. The Vault MUST use purely the controller to discriminate the request state.
      * The Pending and Claimable state of multiple requests from the same controller would be aggregated.
      * @dev https://eips.ethereum.org/EIPS/eip-7540#request-ids
@@ -137,7 +137,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         RedeemRequests memory request = pendingRedeemRequests[controller][
             requestId
         ];
-        // TODO: check case here where request does not exist
+        // TODO: last -> check case here where request does not exist
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
@@ -146,16 +146,15 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         address controller,
         address receiver
     ) external whenNotPaused {
-        // TODO: should _claimRequest be authorized if it cannot be cancelled revert ErrNotAuthorized();
+        // TODO: last ->, what happens wih receiver? should _claimRequest be authorized if it cannot be cancelled revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][
             requestId
         ];
         // TODO: check case here where request does not exist
         if (request.claimableTime < block.timestamp) {
-            // TODO: write this error
-            revert();
+            revert ErrRequestPending();
         }
-        // TODO: set variable as _ check in this whole PR, also check if memory here or not, should not be needed
+        // TODO: last -> set variable as _ check in this whole PR, also check if memory here or not, should not be needed
         uint256 assets = request.assets;
         uint256 shares = request.assets;
 

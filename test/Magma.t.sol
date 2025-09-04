@@ -7,7 +7,7 @@ import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
-import {ErrPaused, ErrNotAuthorized, ErrInsufficientShares, ErrNoPendingWithdrawRequest, ErrInsufficientClaimableAssets, ErrZeroNativeAsset, ErrZeroShares, ErrZeroAddress} from "../src/MagmaErrorsModule.sol";
+import {ErrPaused, ErrNotAuthorized, ErrInsufficientShares, ErrNoPendingWithdrawRequest, ErrZeroNativeAsset, ErrZeroShares, ErrZeroAddress} from "../src/MagmaErrorsModule.sol";
 
 contract MagmaTest is Test {
     Magma public magma;
