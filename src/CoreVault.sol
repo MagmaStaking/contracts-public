@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {
     ErrNotAdmin,
@@ -27,7 +28,7 @@ import {
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 
-contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, ICoreVault {
+contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, ICoreVault {
     IMagma public magma;
 
     uint64[] public validators;
@@ -72,6 +73,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, ICo
     bool public paused;
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+        __ReentrancyGuard_init();
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -319,12 +321,12 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, ICo
         }
     }
 
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external {
+    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external nonReentrant {
         _completeWithdrawal(valId, withdrawalId);
     }
 
     // Convenience overload: try for all validators for this withdrawalId
-    function completeWithdrawal(uint8 withdrawalId) external {
+    function completeWithdrawal(uint8 withdrawalId) external nonReentrant {
         uint256 _vCount = validators.length;
         for (uint256 _i = 0; _i < _vCount; _i++) {
             uint64 _v = validators[_i];

@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {
     ErrNotMagma,
@@ -26,7 +27,7 @@ import {
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
-contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVault {
+contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, IGVault {
     IMagma public magma;
 
     // Whitelist of eligible validators (tracked by valId)
@@ -88,6 +89,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
     uint256 public defaultCapBps = 25; // 0.25%
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+        __ReentrancyGuard_init();
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -410,7 +412,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
         }
     }
 
-    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external {
+    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external nonReentrant {
         _completeWithdrawalForValidator(valId, wid);
     }
 
@@ -441,7 +443,7 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
     }
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
-    function adminCompleteRebalance() public onlyMagmaAdmin {
+    function adminCompleteRebalance() public onlyMagmaAdmin nonReentrant {
         uint64[] memory list = whitelistedValidators;
         uint256 beforeBal = address(this).balance;
         uint256 n = list.length;

@@ -36,7 +36,7 @@ contract Magma is
         gVault = IGVault(gVault_);
     }
 
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (msg.sender != admin) revert ErrNotAdmin();
     }
     // Resolve function collisions from multiple inheritance
