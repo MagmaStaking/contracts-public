@@ -25,14 +25,15 @@ import {
     ErrDelegateFailed
 } from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
 
-contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
+contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, ICoreVault {
     IMagma public magma;
 
     uint64[] public validators;
     mapping(uint64 => bool) public isWhitelisted;
     mapping(uint64 => uint256) public delegatedAmount;
-    // Per-validator next withdrawal id cursor (0..255)
+    // Per-validator next withdrawal id (0..255)
     mapping(uint64 => uint8) private _nextWithdrawalId;
     // Per-validator amounts submitted for undelegation but not yet completed
     mapping(uint64 => uint256) public pendingUndelegateByValidator;
@@ -67,30 +68,6 @@ contract CoreVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
 
     // Pause state
     bool public paused;
-
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
-    event ValidatorRemovalCompleted(uint64 indexed valId);
-    event RebalanceInitiated();
-    event RebalanceCompleted();
-    event EnqueuedUndelegate(uint256 amount, address indexed caller);
-    event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
-    // User withdrawal distribution events (mirrors gVault for consistency)
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalPaymentSuccess(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         magma = IMagma(_magma);

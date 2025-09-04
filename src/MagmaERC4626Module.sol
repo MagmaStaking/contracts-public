@@ -11,8 +11,7 @@ abstract contract MagmaERC4626Module is MagmaRoleManagementModule {
         (bool successUnwrap,) = address(asset()).call(abi.encodeWithSignature("withdraw(uint256)", assets));
         if (!successUnwrap) revert ErrUnwrapFailed();
         _delegatedNativeAssets += assets;
-        (bool successDelegate,) = coreVault.call{value: assets}(abi.encodeWithSignature("delegate()"));
-        if (!successDelegate) revert ErrDelegateFailed();
+        coreVault.delegate{value: assets}();
         return shares;
     }
 
@@ -22,8 +21,7 @@ abstract contract MagmaERC4626Module is MagmaRoleManagementModule {
         (bool successUnwrap,) = address(asset()).call(abi.encodeWithSignature("withdraw(uint256)", assets));
         if (!successUnwrap) revert ErrUnwrapFailed();
         _delegatedNativeAssets += assets;
-        (bool successDelegate,) = coreVault.call{value: assets}(abi.encodeWithSignature("delegate()"));
-        if (!successDelegate) revert ErrDelegateFailed();
+        coreVault.delegate{value: assets}();
         return minted;
     }
 

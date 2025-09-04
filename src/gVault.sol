@@ -24,8 +24,9 @@ import {
     ErrForwardFailed
 } from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
-contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
+contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVault {
     IMagma public magma;
 
     // Whitelist of eligible validators (tracked by valId)
@@ -83,35 +84,6 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule {
     mapping(uint64 => uint256) public validatorCap;
     // Default cap percent in basis points (1% = 100 bps)
     uint256 public defaultCapBps = 25; // 0.25%
-
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
-    event PositionUpdated(address indexed user, uint64 indexed valId, uint256 amount, bool isDelegate);
-    event CapChanged(uint64 indexed valId, uint256 newCap);
-    event DefaultCapUpdated(uint256 newDefaultBps);
-    // Rebalance admin events
-    event AdminInitiatedRebalance(uint16 bps);
-    event AdminCompletedRebalance(uint256 amountForwarded);
-    event AdminCompletedRebalanceWithdrawal(uint64 indexed valId, uint256 amount);
-
-    event ProcessedBatch(uint64 indexed valId, uint8 withdrawalId, uint256 amount);
-
-    // User withdrawal distribution events
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalPaymentSuccess(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         magma = IMagma(_magma);

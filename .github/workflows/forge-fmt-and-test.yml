@@ -26,6 +26,11 @@ jobs:
           forge fmt --check
         working-directory: .
 
+      - name: Run tests
+        run: |
+          forge test
+        working-directory: .
+
       - name: Show formatting differences (if any)
         if: failure()
         run: |

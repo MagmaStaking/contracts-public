@@ -12,6 +12,8 @@ import {
     ErrDelegateFailed,
     ErrGVDelegateFailed
 } from "./MagmaErrorsModule.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {IGVault} from "../interfaces/IGVault.sol";
 
 abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
     using Math for uint256;
@@ -31,7 +33,7 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
     }
 
     function depositMonToVault(uint64 valId) external payable whenNotPaused returns (uint256 shares) {
-        if (gVault == address(0)) revert ErrGVaultNotSet();
+        if (address(gVault) == address(0)) revert ErrGVaultNotSet();
         shares = _processNativeDeposit();
         _delegateToGVault(valId, msg.value);
         emit Deposit(msg.sender, msg.sender, msg.value, shares);
@@ -56,9 +58,7 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
      * @param assets Amount of assets to delegate
      */
     function _delegateToCoreVault(uint256 assets) private {
-        // TODO: remove redundant parameter
-        (bool success,) = coreVault.call{value: assets}(abi.encodeWithSignature("delegate()"));
-        if (!success) revert ErrDelegateFailed();
+        coreVault.delegate{value: assets}();
     }
 
     /**
@@ -67,9 +67,6 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
      * @param assets Amount of assets to delegate
      */
     function _delegateToGVault(uint64 valId, uint256 assets) private {
-        // TODO: remove redundant parameter
-        (bool success,) =
-            gVault.call{value: assets}(abi.encodeWithSignature("delegate(address,uint64)", msg.sender, valId));
-        if (!success) revert ErrGVDelegateFailed();
+        gVault.delegate{value: assets}(msg.sender, valId);
     }
 }
