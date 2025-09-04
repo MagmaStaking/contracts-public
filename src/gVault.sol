@@ -42,7 +42,9 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
     mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
 
     // Per-validator next withdrawal id cursor (0..255)
-    mapping(uint64 => uint8) private _nextWithdrawalId;
+    mapping(uint64 => uint8) private nextWithdrawalId;
+    // Per-validator withdrawal ID availability bitmap (bit set = ID in use)
+    mapping(uint64 => uint256) private withdrawalIdBitmap;
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
@@ -122,6 +124,11 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
         isWhitelisted[valId] = true;
         whitelistedValidators.push(valId);
+
+        // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
+        uint256 adminMask = 1 << ADMIN_WID_REBALANCE;
+        withdrawalIdBitmap[valId] |= adminMask;
+
         emit ValidatorAdded(valId);
     }
 
@@ -305,14 +312,14 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
         // allocate wid
         uint8 wid;
         bool found = false;
-        uint8 start = _nextWithdrawalId[valId];
+        uint8 start = nextWithdrawalId[valId];
         for (uint16 k = 0; k < 256; k++) {
             uint8 cand = uint8(uint16(start) + k);
             if (cand == ADMIN_WID_REBALANCE) continue;
             (bool exists,,,) = _getWithdrawalRequest(valId, address(this), cand);
             if (!exists) {
                 wid = cand;
-                _nextWithdrawalId[valId] = uint8(uint16(cand) + 1);
+                nextWithdrawalId[valId] = uint8(uint16(cand) + 1);
                 found = true;
                 break;
             }
@@ -394,6 +401,8 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
                 pendingTotalByValidator[valId] = 0;
                 delete pendingUserAddress[valId][wid];
                 delete pendingUserAmount[valId][wid];
+                // Mark withdrawal ID as free in bitmap
+                _markWithdrawalCompleted(valId, wid);
                 pendingValidatorWithdrawalId[valId] = 0;
             } else {
                 emit WithdrawalFailed(valId, wid);
@@ -455,18 +464,36 @@ contract gVault is Initializable, UUPSUpgradeable, MagmaDelegationModule, IGVaul
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint8 start = _nextWithdrawalId[valId];
+        uint256 bitmap = withdrawalIdBitmap[valId];
+        uint8 start = nextWithdrawalId[valId];
+
+        // Find first free slot starting from cursor
         for (uint16 i = 0; i < 256; i++) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == ADMIN_WID_REBALANCE) continue; // skip reserved
-            (bool exists,,,) = _getWithdrawalRequest(valId, address(this), candidate);
-            if (!exists) {
-                wid = candidate;
-                _nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
-                return wid;
+
+            uint256 mask = 1 << candidate;
+            if (bitmap & mask == 0) {
+                // Mark as used in bitmap
+                withdrawalIdBitmap[valId] |= mask;
+                nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
+                return candidate;
             }
         }
         revert("gVault: no free withdrawal id");
+    }
+
+    /**
+     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
+     * @param valId The validator ID
+     * @param withdrawalId The withdrawal ID to mark as free
+     */
+    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
+        // Don't clear the ADMIN_WID_REBALANCE in bitmap since it's reserved and shouldn't be reused
+        if (withdrawalId == ADMIN_WID_REBALANCE) return;
+
+        uint256 mask = 1 << withdrawalId;
+        withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
     }
 
     // Helpers for reading user positions
