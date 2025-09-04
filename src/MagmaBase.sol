@@ -9,11 +9,7 @@ import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/intro
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
-abstract contract MagmaBase is
-    Initializable,
-    ERC4626Upgradeable,
-    ERC165Upgradeable
-{
+abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradeable {
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 internal constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
@@ -52,36 +48,22 @@ abstract contract MagmaBase is
     uint256 internal requestIdCount = 0;
 
     // Mapping from controller to their pending withdrawal requests
-    mapping(address controller => mapping(uint256 requestId => RedeemRequests))
-        public pendingRedeemRequests;
+    mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
 
     // Mapping for operator approvals (ERC-7540)
-    mapping(address controller => mapping(address operator => bool))
-        public isOperator;
+    mapping(address controller => mapping(address operator => bool)) public isOperator;
 
     // Events for ERC-7540 compatibility and admin
     event RedeemRequest(
-        address indexed controller,
-        address indexed owner,
-        uint256 indexed requestId,
-        address sender,
-        uint256 shares
+        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
 
-    event OperatorSet(
-        address indexed controller,
-        address indexed operator,
-        bool approved
-    );
+    event OperatorSet(address indexed controller, address indexed operator, bool approved);
 
     event Paused(address indexed admin);
     event Unpaused(address indexed admin);
     event Referral(
-        address indexed sender,
-        address indexed receiver,
-        uint256 assets,
-        uint256 shares,
-        bytes32 indexed referralId
+        address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );
 
     event RebalanceAttempted(uint16 bps);
@@ -91,12 +73,10 @@ abstract contract MagmaBase is
     ICoreVault public coreVault;
     IGVault public gVault;
 
-    function __MagmaBase_init(
-        IERC20 asset_,
-        string memory name_,
-        string memory symbol_,
-        address admin_
-    ) internal onlyInitializing {
+    function __MagmaBase_init(IERC20 asset_, string memory name_, string memory symbol_, address admin_)
+        internal
+        onlyInitializing
+    {
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
@@ -111,12 +91,8 @@ abstract contract MagmaBase is
     /*//////////////////////////////////////////////////////////////
                             ERC-165 SUPPORT
     //////////////////////////////////////////////////////////////*/
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165Upgradeable) returns (bool) {
-        return
-            interfaceId == INTERFACE_ID_ERC7540 ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
+        return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }
 
     // Role and admin functions moved to MagmaRoleManagementModule
@@ -126,10 +102,7 @@ abstract contract MagmaBase is
 
     function _completeUndelegationAndWrap(uint256 assets) internal virtual;
 
-    function _undelegateFromValidator(
-        uint64 valId,
-        uint256 assets
-    ) internal virtual;
+    function _undelegateFromValidator(uint64 valId, uint256 assets) internal virtual;
 
     function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 
