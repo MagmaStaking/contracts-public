@@ -18,7 +18,6 @@ import {
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    // TODO: last ->  add comments we are wrapping and depositing right before working with the precompile
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
@@ -32,6 +31,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return true;
     }
 
+    /// @dev Withdraws WMON to MON so it can stake it
     function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -40,6 +40,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
+    /// @dev Withdraws WMON to MON so it can stake it
     function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
@@ -108,9 +109,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
-    // TODO: want WMON and not in claimRequest
     /// @param controller was designated by owner in _requestRedeem to manage the claim of the shares
-    function claimRequest(uint256 requestId, address controller, address receiver) external whenNotPaused {
+    /// @param receiveWMON States if the request should be fulfilled in WMON or MON
+    function claimRequest(uint256 requestId, address controller, address receiver, bool receiveWMON)
+        external
+        whenNotPaused
+    {
         if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
             revert ErrNotAuthorized();
         }
@@ -123,9 +127,15 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
         delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
-        (bool sent,) = payable(receiver).call{value: assets}("");
-        if (!sent) {
-            revert ErrNativeTransferFailed();
+
+        if (receiveWMON) {
+            WrappedMonad(payable(address(asset()))).deposit{value: assets}();
+            WrappedMonad(payable(address(asset()))).transfer(receiver, assets);
+        } else {
+            (bool sent,) = payable(receiver).call{value: assets}("");
+            if (!sent) {
+                revert ErrNativeTransferFailed();
+            }
         }
 
         emit Withdraw(controller, receiver, address(this), assets, shares);
