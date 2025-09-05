@@ -32,7 +32,6 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, Magm
         if (msg.sender != admin) revert ErrNotAdmin();
     }
 
-    // Resolve function collisions from multiple inheritance
     function deposit(uint256 assets, address receiver)
         public
         override(MagmaAsyncModule, ERC4626Upgradeable)

@@ -15,8 +15,7 @@ import {
 } from "./MagmaErrorsModule.sol";
 
 // TODO: last -> run tests, what happens if you transfer while requestClaim and reentrnacy
-// TODO: last -> organize by external view, public internal etc on code and put in doc
-// TODO: last -> explain only one controller, more than one operator, if request id is 0, then only one controller. Explain differences between owner, controller and operator
+/// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
@@ -28,11 +27,17 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
 
+    function setOperator(address operator, bool approved) external returns (bool) {
+        isOperator[msg.sender][operator] = approved;
+        emit OperatorSet(msg.sender, operator, approved);
+        return true;
+    }
+
     function deposit(uint256 assets, address receiver) public override whenNotPaused returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
-        ICoreVault(coreVault).delegate(assets);
+        coreVault.delegate{value: assets};
         return shares;
     }
 
@@ -41,7 +46,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
-        ICoreVault(coreVault).delegate(assets);
+        coreVault.delegate{value: assets};
         return minted;
     }
 
@@ -58,6 +63,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     /**
      * TODO: last -> update this comment for multiple requestIds, also say assets will not accumulate yield after this
+     * @param controller The designated controller will be responsible for claiming the assets of the owner after the
+     * request is available.
+     * @param owner Owner of the shares.
+     * @dev An operator is just an account that can manage Requests on behalf of another account, either an owner or a
+     * controller.
      * @dev Since requestId is set as 0. The Vault MUST use purely the controller to discriminate the request state.
      * The Pending and Claimable state of multiple requests from the same controller would be aggregated.
      * @dev https://eips.ethereum.org/EIPS/eip-7540#request-ids
@@ -103,7 +113,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     // TODO: want WMON and not in claimRequest
     // TODO: reentranceGuard in withdrawals and this module
+    /// @param controller was designated by owner in _requestRedeem to manage the claim of the shares
     function claimRequest(uint256 requestId, address controller, address receiver) external whenNotPaused {
+        if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
+            revert ErrNotAuthorized();
+        }
         // TODO: last ->, what happens wih receiver? should _claimRequest be authorized if it cannot be cancelled revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         // TODO: check case here where request does not exist

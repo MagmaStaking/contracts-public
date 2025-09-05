@@ -22,8 +22,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     // Pause state for deposits and withdrawals
     bool public paused;
 
-    // TODO: last -> here we need a big comment
-    // Tracks total native MON delegated via CoreVault (in asset units, 1:1 with WMON)
+    // Tracks total native MON delegated via CoreVault and GVault (in asset units, 1:1 with WMON)
     uint256 internal _delegatedNativeAssets;
 
     // Tracks principal assets for each user for rewards calculation
