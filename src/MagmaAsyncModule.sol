@@ -105,7 +105,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        // TODO: last -> check case here where request does not exist
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
@@ -116,7 +115,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             revert ErrNotAuthorized();
         }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        // TODO: check case here where request does not exist
         if (request.claimableTime < block.timestamp) {
             revert ErrRequestPending();
         }
