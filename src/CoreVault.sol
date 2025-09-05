@@ -5,26 +5,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {
-    ErrNotAdmin,
-    ErrNotMagma,
-    ErrEpochGuard,
-    ErrZeroValidatorId,
-    ErrAlreadyWhitelisted,
-    ErrNotWhitelisted,
-    ErrNoValidators,
-    ErrAmountTooSmall,
-    ErrBelowMinWithdraw,
-    ErrZeroAmount,
-    ErrQueueFull,
-    ErrNoFreeWithdrawalId,
-    ErrRebalanceInProgress,
-    ErrInvalidAmount,
-    ErrInsufficientDelegated,
-    ErrNoPendingWithdrawRequest,
-    ErrDelegateFailed
-} from "./MagmaErrorsModule.sol";
+import {MagmaDelegationModule, DelInfo} from "./MagmaDelegationModule.sol";
+import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 
@@ -39,7 +21,17 @@ contract CoreVault is
     IMagma public magma;
 
     uint64[] public validators;
+
+    enum ValidatorStatus {
+        NONE,
+        PAUSED,
+        UNDELEGATING
+    }
+
+    mapping(uint64 => ValidatorStatus) public validatorStatus;
     mapping(uint64 => bool) public isWhitelisted;
+
+    uint256 public totalDelegated;
     mapping(uint64 => uint256) public delegatedAmount;
     // Per-validator next withdrawal id (0..255)
     mapping(uint64 => uint8) private nextWithdrawalId;
@@ -73,7 +65,7 @@ contract CoreVault is
 
     // Pending withdrawals totals
     uint256 public totalPendingUndelegations;
-    uint256 public pendingRebalanceTotal;
+    uint256 public pendingRedelegationTotal;
     bool public finishedLastRebalance;
 
     /**
@@ -151,38 +143,80 @@ contract CoreVault is
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    function removeValidator(uint64 valId) external onlyAdmin onlyAfterEpoch {
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
+    /**
+     * @notice Step 1: Initiate validator removal by adding to pendingRemovalValidators this way no new delegations
+     *  can be made to the validator and we can ensure that the validator does not have pending stake stuck in the pending epochs (50k blocks, 5.5 hours)
+     * @dev Initiate validator removal by adding to pendingRemovalValidators
+     * @param _valId The validator ID to remove
+     */
+    function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        if (validators.length == 1) revert ErrNotEnoughValidators();
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        validatorStatus[_valId] = ValidatorStatus.PAUSED;
+        isWhitelisted[_valId] = false;
+        _removeFromArray(validators, _valId);
 
-        // Store the amount that was delegated to this validator
-        // Question: does this include pending rewards or previously compounded rewards?
-        uint256 _amountToUndelegate = _getDelegatorStake(valId, address(this));
+        emit ValidatorRemovalInitiated(_valId);
+    }
+
+    /**
+     * @notice Step 2: Remove validator from validators array
+     * @dev Remove validator from validators array
+     * @param _valId The validator ID to remove
+     */
+    function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        if (validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
+
+        DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+        if (_coreVaultDelInfo.delta_stake > 0 || _coreVaultDelInfo.next_delta_stake > 0) {
+            revert ErrPendingStakeNotZero();
+        }
+
+        // TODO: Claim rewards here as well and distribute to remaining validators
+
+        uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
 
         // Undelegate all from this validator first
-        if (_amountToUndelegate > 0) {
-            _undelegate(valId, _amountToUndelegate, ADMIN_WID);
-            delegatedAmount[valId] = 0;
-            pendingRebalanceTotal += _amountToUndelegate;
+        if (_amountToRedelegate > 0) {
+            _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
+            delegatedAmount[_valId] = 0;
+            pendingRedelegationTotal += _amountToRedelegate;
         }
 
-        // Remove from array
-        for (uint256 i = 0; i < validators.length; i++) {
-            if (validators[i] == valId) {
-                validators[i] = validators[validators.length - 1];
-                validators.pop();
-                break;
-            }
+        validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
+        emit ValidatorRemoved(_valId);
+    }
+
+    /**
+     * @dev Complete the withdrawal process for a removed validator
+     * This should be called after the WITHDRAWAL_DELAY period has passed
+     * @param _valId The validator ID that was removed
+     */
+    function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
+
+        // TODO: Claim rewards
+        // Get the withdrawal amount before completing withdrawal
+        (bool exists, uint256 withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+        if (!(exists && withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
+
+        // Complete the withdrawal using the admin withdrawal ID
+        _completeWithdrawal(_valId, ADMIN_WID);
+
+        // Distribute the recovered funds to remaining validators
+        _distributeToValidators(withdrawalAmount);
+
+        // Reduce the pending redistribution amount by the amount we just redistributed
+        if (pendingRedelegationTotal >= withdrawalAmount) {
+            pendingRedelegationTotal -= withdrawalAmount;
+        } else {
+            pendingRedelegationTotal = 0;
         }
 
-        isWhitelisted[valId] = false;
-
-        // NOTE: Do NOT redistribute immediately!
-        // The undelegated funds are locked in a withdrawal request for WITHDRAWAL_DELAY epochs.
-        // After the delay period, call completeValidatorRemovalWithdrawal() to complete the process
-        // and redistribute the recovered funds.
-
-        emit ValidatorRemoved(valId);
         lastRebalanceTimestamp = block.timestamp;
+
+        delete validatorStatus[_valId];
+        emit ValidatorRemovalCompleted(_valId);
     }
 
     function delegate() external payable onlyMagma whenNotPaused {
@@ -359,26 +393,6 @@ contract CoreVault is
         _rebalanceRedistribute();
     }
 
-    /**
-     * @dev Complete the withdrawal process for a removed validator
-     * This should be called after the WITHDRAWAL_DELAY period has passed
-     * @param valId The validator ID that was removed
-     */
-    function completeValidatorRemovalWithdrawal(uint64 valId) external onlyAdmin {
-        // TODO: Claim rewards
-        // Get the withdrawal amount before completing withdrawal
-        (bool exists, uint256 withdrawalAmount,,) = _getWithdrawalRequest(valId, address(this), ADMIN_WID);
-        if (!(exists && withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
-
-        // Complete the withdrawal using the admin withdrawal ID
-        _completeWithdrawal(valId, ADMIN_WID);
-
-        // Distribute the recovered funds to remaining validators
-        _distributeToValidators(withdrawalAmount);
-
-        emit ValidatorRemovalCompleted(valId);
-    }
-
     function _rebalanceInitiate() internal {
         if (validators.length == 0) return;
 
@@ -396,7 +410,7 @@ contract CoreVault is
                 _undelegate(_v, _excess, ADMIN_WID);
                 // Track pending excess; keep local delegated until completion
                 pendingUndelegateByValidator[_v] += _excess;
-                pendingRebalanceTotal += _excess;
+                pendingRedelegationTotal += _excess;
             }
         }
         emit RebalanceInitiated();
@@ -471,6 +485,16 @@ contract CoreVault is
 
         uint256 mask = 1 << withdrawalId;
         withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
+    }
+
+    function _removeFromArray(uint64[] storage array, uint64 valId) internal {
+        for (uint256 i = 0; i < array.length; i++) {
+            if (array[i] == valId) {
+                array[i] = array[array.length - 1];
+                array.pop();
+                break;
+            }
+        }
     }
 
     function getValidators() external view returns (uint64[] memory) {

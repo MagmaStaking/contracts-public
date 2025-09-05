@@ -63,3 +63,6 @@ error ErrNoFreeWithdrawalId();
 
 // Validator admin ops
 error ErrMustPauseBeforeRemove();
+error ErrPendingStakeNotZero();
+error ErrInvalidStatus();
+error ErrNotEnoughValidators();
