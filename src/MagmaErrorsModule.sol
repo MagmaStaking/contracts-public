@@ -11,6 +11,7 @@ error ErrNotMagma();
 
 // Address/inputs
 error ErrZeroAddress();
+error ErrZeroAssets();
 error ErrZeroShares();
 error ErrZeroNativeAsset();
 error ErrInvalidBps();
