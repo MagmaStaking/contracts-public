@@ -111,7 +111,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     // TODO: want WMON and not in claimRequest
-    // TODO: reentranceGuard in withdrawals and this module
     /// @param controller was designated by owner in _requestRedeem to manage the claim of the shares
     function claimRequest(uint256 requestId, address controller, address receiver) external whenNotPaused {
         if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
