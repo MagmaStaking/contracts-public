@@ -88,17 +88,17 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         uint256 assets = convertToAssets(shares);
-        pendingRedeemRequests[controller][requestIdCount] =
+        pendingRedeemRequests[controller][_requestIdCount] =
             RedeemRequests({shares: shares, assets: assets, claimableTime: block.timestamp + DEFAULT_DELAY});
-        requestIdCount++;
+        _requestIdCount++;
 
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
         isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, requestIdCount, msg.sender, shares);
-        return requestIdCount;
+        emit RedeemRequest(controller, owner, _requestIdCount, msg.sender, shares);
+        return _requestIdCount;
     }
 
     function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
@@ -123,7 +123,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime < block.timestamp) {
             revert ErrRequestPending();
         }
-        // TODO: last -> set variable as _ check in this whole PR, also check if memory here or not, should not be needed
         uint256 assets = request.assets;
         uint256 shares = request.assets;
 

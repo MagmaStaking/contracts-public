@@ -44,7 +44,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
         uint256 claimableTime; // When assets become claimable
     }
 
-    uint256 internal requestIdCount = 0;
+    uint256 internal _requestIdCount = 0;
 
     // Mapping from controller to their pending withdrawal requests
     mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
