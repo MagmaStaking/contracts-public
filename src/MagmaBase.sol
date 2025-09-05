@@ -10,8 +10,8 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
 abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradeable {
-    // ERC-7540 Interface ID
-    bytes4 internal constant INTERFACE_ID_ERC7540 = 0x2f0a18c5;
+    // ERC-7540 Asynchronous redemption Vault Interface ID
+    bytes4 internal constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
     // Default delay for async operations (1 day)
     uint256 public constant DEFAULT_DELAY = 1 days;
@@ -22,7 +22,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     // Pause state for deposits and withdrawals
     bool public paused;
 
-    // Tracks total native MON delegated via CoreVault (in asset units, 1:1 with WMON)
+    // Tracks total native MON delegated via CoreVault and GVault (in asset units, 1:1 with WMON)
     uint256 internal _delegatedNativeAssets;
 
     // Tracks principal assets for each user for rewards calculation
@@ -34,27 +34,25 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     /// @notice The address that receives the rewards fee.
     address public rewardsFeeReceiver;
 
-    // Struct to track pending withdrawal requests
-    struct WithdrawalRequest {
+    /// @notice Struct to track pending redeem requests
+    /// @dev Claimable state may transition automatically after a timestamp has passed.
+    /// @dev https://eips.ethereum.org/EIPS/eip-7540#no-event-for-claimable-state
+    /// @dev https://eips.ethereum.org/EIPS/eip-7540#request-lifecycle
+    struct RedeemRequests {
         uint256 shares; // Amount of shares to redeem
         uint256 assets; // Amount of assets to withdraw
-        uint256 timestamp; // When the request was made
         uint256 claimableTime; // When assets become claimable
-        bool isRedeem; // True if redeem request, false if withdraw request
-        address validator; // Non-zero when the request is tied to a gVault validator
     }
 
+    uint256 internal _requestIdCount = 0;
+
     // Mapping from controller to their pending withdrawal requests
-    mapping(address => WithdrawalRequest) public pendingWithdrawals;
+    mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
 
     // Mapping for operator approvals (ERC-7540)
-    mapping(address => mapping(address => bool)) public isOperator;
+    mapping(address controller => mapping(address operator => bool)) public isOperator;
 
     // Events for ERC-7540 compatibility and admin
-    event WithdrawRequest(
-        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 assets
-    );
-
     event RedeemRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
@@ -85,7 +83,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     }
 
     /**
-     * @dev Allow contract to receive native ETH/MON (needed for unwrapping)
+     * @dev Allow contract to receive native MON (needed for unwrapping)
      */
     receive() external payable {}
 
@@ -98,17 +96,13 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
 
     // Role and admin functions moved to MagmaRoleManagementModule
 
-    /**
-     * @dev Return the total assets managed by the vault, including delegated native and held WMON
-     */
-    function totalAssets() public view virtual override(ERC4626Upgradeable) returns (uint256) {
-        return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
-    }
-
     // Abstract internals that other modules may call
     function _undelegate(uint256 assets) internal virtual;
+
     function _completeUndelegationAndWrap(uint256 assets) internal virtual;
+
     function _undelegateFromValidator(uint64 valId, uint256 assets) internal virtual;
+
     function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 
     uint256[50] private __gap;
