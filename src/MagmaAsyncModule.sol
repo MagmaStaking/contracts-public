@@ -62,15 +62,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /**
-     * TODO: last -> update this comment for multiple requestIds, also say assets will not accumulate yield after this
      * @param controller The designated controller will be responsible for claiming the assets of the owner after the
      * request is available.
      * @param owner Owner of the shares.
      * @dev An operator is just an account that can manage Requests on behalf of another account, either an owner or a
      * controller.
-     * @dev Since requestId is set as 0. The Vault MUST use purely the controller to discriminate the request state.
-     * The Pending and Claimable state of multiple requests from the same controller would be aggregated.
-     * @dev https://eips.ethereum.org/EIPS/eip-7540#request-ids
+     * @dev Since we are using requestIds, an owner can do multiple requests and multiple claims without being locked by
+     * former requests or claims: https://eips.ethereum.org/EIPS/eip-7540#request-ids.
+     * @dev Requests are not yield bearing; no yield will accrue after the request is made.
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
