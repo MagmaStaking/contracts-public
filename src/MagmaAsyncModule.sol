@@ -118,7 +118,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
             revert ErrNotAuthorized();
         }
-        // TODO: last ->, what happens wih receiver? should _claimRequest be authorized if it cannot be cancelled revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         // TODO: check case here where request does not exist
         if (request.claimableTime < block.timestamp) {
