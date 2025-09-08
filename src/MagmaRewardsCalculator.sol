@@ -6,6 +6,7 @@ import {MagmaBase} from "./MagmaBase.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {ErrInvalidRewardsFee, ErrInvalidZeroInput} from "./MagmaErrorsModule.sol";
 
+// TODO: fr -> this is not connected anywhere, we should first do a schema on how fees should be tracked
 abstract contract MagmaRewardsCalculator is MagmaBase {
     event RewardsFeeSet(uint256 newFee);
     event RewardsFeeReceiverSet(address newFeeReceiver);

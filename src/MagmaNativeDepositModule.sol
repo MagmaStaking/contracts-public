@@ -15,6 +15,7 @@ import {
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
+// TODO: fr -> what is this for?
 abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
     using Math for uint256;
 
@@ -24,6 +25,7 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
         emit Deposit(msg.sender, msg.sender, msg.value, shares);
     }
 
+    // TODO: referralId?
     function depositMon(bytes32 referralId) external payable whenNotPaused returns (uint256 shares) {
         shares = _processNativeDeposit();
         _delegateToCoreVault(msg.value);
@@ -32,6 +34,7 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
         }
     }
 
+    // TODO: should be gVault and depositMonToVault
     function depositMonToVault(uint64 valId) external payable whenNotPaused returns (uint256 shares) {
         if (address(gVault) == address(0)) revert ErrGVaultNotSet();
         shares = _processNativeDeposit();

@@ -109,8 +109,15 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
-    /// @param controller was designated by owner in _requestRedeem to manage the claim of the shares
-    /// @param receiveWMON States if the request should be fulfilled in WMON or MON
+    /**
+     * @param controller was designated by owner in _requestRedeem to manage the claim of the shares
+     * @param receiveWMON States if the request should be fulfilled in WMON or MON
+     * @dev Compares asset values at request time and claim time, using the lower value to protect against slashing.
+     * This prevents exploitation of price differences during the two-step redemption process. For example, if
+     * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
+     * the higher pre-slashing amount.
+     */
+    // TODO: see if we can change name of claimRequest to redeem after fixing inheritance chain, make two functions redeem and redeemMON
     function claimRequest(uint256 requestId, address controller, address receiver, bool receiveWMON)
         external
         whenNotPaused
@@ -122,8 +129,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime < block.timestamp) {
             revert ErrRequestPending();
         }
-        uint256 assets = request.assets;
         uint256 shares = request.assets;
+        uint256 assetsAtRequest = request.assets;
+        uint256 assetsAtClaim = convertToAssets(shares);
+        uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
         delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
