@@ -7,6 +7,7 @@ import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {
+    ErrGVaultNotSet,
     ErrZeroShares,
     ErrNativeTransferFailed,
     ErrNotAuthorized,
@@ -32,6 +33,16 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
+    function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
+        uint256 assets = previewMint(shares);
+        uint256 minted = super.mint(shares, receiver);
+        WrappedMonad(payable(address(asset()))).withdraw(assets);
+        _delegatedNativeAssets += assets;
+        coreVault.delegate{value: assets};
+        return minted;
+    }
+
+    /// @dev Withdraws WMON to MON so it can stake it
     function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -40,14 +51,18 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
-    /// @dev Withdraws WMON to MON so it can stake it
-    function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
-        uint256 assets = previewMint(shares);
-        uint256 minted = super.mint(shares, receiver);
+    // TODO: check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
+    function depositToGVault(uint256 assets, address receiver, uint64 valId)
+        external
+        payable
+        whenNotPaused
+        returns (uint256)
+    {
+        uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
-        coreVault.delegate{value: assets};
-        return minted;
+        gVault.delegate{value: assets}(receiver, valId);
+        return shares;
     }
 
     function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
