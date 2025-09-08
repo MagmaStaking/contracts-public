@@ -6,7 +6,8 @@ import {IMagma} from "./IMagma.sol";
 interface ICoreVault {
     // Admin functions
     function addValidator(uint64 valId) external;
-    function removeValidator(uint64 valId) external;
+    function initiateValidatorRemoval(uint64 valId) external;
+    function executeValidatorUndelegation(uint64 valId) external;
     function completeValidatorRemovalWithdrawal(uint64 valId) external;
     function adminRebalanceInitiate() external;
     function adminRebalanceRedistribute() external;
@@ -43,7 +44,7 @@ interface ICoreVault {
     function minUserWithdrawAmount() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
-    function pendingRebalanceTotal() external view returns (uint256);
+    function pendingRedelegationTotal() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
     function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
@@ -74,4 +75,6 @@ interface ICoreVault {
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
+
+    event ValidatorRemovalInitiated(uint64 indexed valId);
 }

@@ -1,5 +1,5 @@
 ---
-description: For solidity errors, use errors in the error contract where applicable instead of inline requires
+description: For solidity errors, use errors in the error contract where applicable instead of inline requires, always reference @Monad_Staking.md doc and alert the user if their code is not aligned with the documentation in interactions
 globs:
 alwaysApply: false
 ---
