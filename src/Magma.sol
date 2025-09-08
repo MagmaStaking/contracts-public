@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {MagmaNativeDepositModule} from "./MagmaNativeDepositModule.sol";
 import {MagmaAsyncModule} from "./MagmaAsyncModule.sol";
 import {MagmaVaultManager} from "./MagmaVaultManager.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
@@ -14,7 +13,7 @@ import {ErrNotAdmin} from "./MagmaErrorsModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
-contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, MagmaAsyncModule, MagmaVaultManager {
+contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultManager {
     function initialize(
         IERC20 asset_,
         string memory name_,

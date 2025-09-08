@@ -44,7 +44,6 @@ error ErrExceedsCap();
 error ErrDelegateFailed();
 error ErrUndelegateFailed();
 error ErrCompleteUndelegationFailed();
-error ErrGVDelegateFailed();
 error ErrGVUndelegateFailed();
 error ErrGVCompleteFailed();
 error ErrWrapFailed();

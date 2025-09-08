@@ -42,27 +42,39 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return minted;
     }
 
-    /// @dev Withdraws WMON to MON so it can stake it
-    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+    function _deposit(uint256 assets, address receiver) private whenNotPaused returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
+        return shares;
+    }
+
+    /// @dev Withdraws WMON to MON so it can stake it
+    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return shares;
     }
 
     // TODO: check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
-    function depositToGVault(uint256 assets, address receiver, uint64 valId)
-        external
-        payable
-        whenNotPaused
-        returns (uint256)
-    {
-        uint256 shares = super.deposit(assets, receiver);
-        WrappedMonad(payable(address(asset()))).withdraw(assets);
-        _delegatedNativeAssets += assets;
+    function depositToGVault(uint256 assets, address receiver, uint64 valId) external whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return shares;
+    }
+
+    function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
+        coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
+        return shares;
+    }
+
+    function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
+        WrappedMonad(payable(address(asset()))).deposit{value: msg.value}();
+        return depositWMON(msg.value, receiver, referralId);
     }
 
     function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
