@@ -25,9 +25,9 @@ import {
  * Tests the multi-step validator removal process and validator management
  */
 contract CoreVaultValidatorOperations is BaseTest {
-    uint64 constant VAL_1 = uint64(uint160(address(0x101)));
-    uint64 constant VAL_2 = uint64(uint160(address(0x102)));
-    uint64 constant VAL_3 = uint64(uint160(address(0x103)));
+    uint64 constant VAL_1 = 1;
+    uint64 constant VAL_2 = 2;
+    uint64 constant VAL_3 = 3;
 
     address constant USER_1 = address(0x201);
     address constant USER_2 = address(0x202);
@@ -43,6 +43,9 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Wire magma to new coreVault
         vm.prank(admin);
         magma.setVaults(address(coreVault), address(gvault));
+
+        // Set up VAL_3 in the staking precompile since BaseTest only sets up 1 and 2
+        _setupValidatorInStakingPrecompile(VAL_3);
     }
 
     // ============ VALIDATOR ADDITION TESTS ============
@@ -91,6 +94,279 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_1));
         assertTrue(coreVault.isWhitelisted(VAL_2));
         assertTrue(coreVault.isWhitelisted(VAL_3));
+    }
+
+    // ============ STAKE REDISTRIBUTION TESTS ============
+
+    function testRedistributeToValidators_Success() public {
+        // Step 1: Add VAL_1 and VAL_2, delegate some stake
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+
+        vm.startPrank(admin);
+        coreVault.addValidator(VAL_1);
+        coreVault.addValidator(VAL_2);
+        vm.stopPrank();
+
+        // Delegate 300 ether equally between VAL_1 and VAL_2 (150 each)
+        vm.deal(address(magma), 300 ether);
+        vm.prank(address(magma));
+        coreVault.delegate{value: 300 ether}();
+
+        // Activate delegations
+        _activatePendingDelegations();
+
+        // Verify initial equal distribution
+        assertEq(coreVault.delegatedAmount(VAL_1), 150 ether);
+        assertEq(coreVault.delegatedAmount(VAL_2), 150 ether);
+
+        // Set up active stakes in the mock precompile to match CoreVault's tracking
+        _activateAllStakes();
+
+        // Step 2: Add VAL_3 - this should trigger rebalanceInitiate
+        _setupValidatorInStakingPrecompile(VAL_3);
+
+        vm.prank(admin);
+        coreVault.addValidator(VAL_3); // This calls _rebalanceInitiate()
+
+        // The target is now 300/3 = 100 ether per validator
+        // VAL_1 and VAL_2 each have 150 ether (50 ether excess each)
+        // _rebalanceInitiate should try to undelegate 50 ether from each
+
+        // Verify pending undelegations were initiated
+        assertTrue(coreVault.pendingRedelegationTotal() > 0);
+        assertTrue(coreVault.pendingUndelegateByValidator(VAL_1) > 0);
+        assertTrue(coreVault.pendingUndelegateByValidator(VAL_2) > 0);
+
+        // Step 3: Complete the withdrawals and redistribute
+        // Advance epochs to make withdrawals ready
+        _advanceEpochsForWithdrawal();
+
+        // Redistribute the withdrawn funds
+        vm.prank(admin);
+        coreVault.redistributeToValidators();
+
+        // Step 4: Verify final balanced distribution
+        // All validators should now have equal stakes (100 ether each)
+        uint256 val1Final = coreVault.delegatedAmount(VAL_1);
+        uint256 val2Final = coreVault.delegatedAmount(VAL_2);
+        uint256 val3Final = coreVault.delegatedAmount(VAL_3);
+
+        // Should be very close to exact equal distribution (100 ether each)
+        assertTrue(val1Final >= 99 ether && val1Final <= 101 ether, "VAL_1 should be very close to 100 ether");
+        assertTrue(val2Final >= 99 ether && val2Final <= 101 ether, "VAL_2 should be very close to 100 ether");
+        assertTrue(val3Final >= 99 ether && val3Final <= 101 ether, "VAL_3 should be very close to 100 ether");
+
+        // VAL_3 should have received funds (was 0, now has some)
+        assertTrue(val3Final > 0);
+
+        // Total should be conserved
+        assertEq(val1Final + val2Final + val3Final, 300 ether);
+    }
+
+    function testRedistributeToValidators_NoFundsAvailable() public {
+        // Setup validators but no available funds
+        vm.startPrank(admin);
+        coreVault.addValidator(VAL_1);
+        coreVault.addValidator(VAL_2);
+        vm.stopPrank();
+
+        // No withdrawals to complete, no funds to redistribute
+        vm.prank(admin);
+        coreVault.redistributeToValidators();
+
+        // Should complete without error, no changes to state
+        assertEq(coreVault.delegatedAmount(VAL_1), 0);
+        assertEq(coreVault.delegatedAmount(VAL_2), 0);
+    }
+
+    function testRedistributeToValidators_SingleValidator() public {
+        // Setup: Start with only VAL_1 and VAL_2, then remove VAL_2 to create scenario
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+
+        vm.startPrank(admin);
+        coreVault.addValidator(VAL_1);
+        coreVault.addValidator(VAL_2);
+        vm.stopPrank();
+
+        // Delegate funds to both validators
+        vm.deal(address(magma), 200 ether);
+        vm.prank(address(magma));
+        coreVault.delegate{value: 200 ether}(); // 100 ether each
+
+        // Activate delegations
+        _activatePendingDelegations();
+        _activateAllStakes();
+
+        // Ensure all delegations are fully processed before attempting removal
+        // In real scenario, delegations need time to become fully active
+        _activatePendingDelegations();
+
+        // Remove VAL_2 to create single validator scenario with pending funds
+        vm.startPrank(admin);
+        coreVault.initiateValidatorRemoval(VAL_2);
+        coreVault.executeValidatorUndelegation(VAL_2);
+        vm.stopPrank();
+
+        // Advance epochs for withdrawal completion
+        _advanceEpochsForWithdrawal();
+
+        uint256 val1InitialStake = coreVault.delegatedAmount(VAL_1);
+        assertEq(val1InitialStake, 100 ether);
+
+        // Complete VAL_2 removal - this creates funds for redistribution
+        vm.prank(admin);
+        coreVault.completeValidatorRemovalWithdrawal(VAL_2);
+
+        // Test redistribution with single validator
+        vm.prank(admin);
+        coreVault.redistributeToValidators();
+
+        // VAL_1 should receive all redistributed funds from VAL_2's removal
+        uint256 val1FinalStake = coreVault.delegatedAmount(VAL_1);
+        assertEq(val1FinalStake, 200 ether); // Should get all 200 ether
+
+        // Verify VAL_2 is properly removed
+        assertFalse(coreVault.isWhitelisted(VAL_2));
+        assertEq(coreVault.getValidatorCount(), 1);
+    }
+
+    function testRedistributeToValidators_MultipleWithdrawals() public {
+        // Test redistribution when multiple validators are removed and funds need redistribution
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+        _setupValidatorInStakingPrecompile(VAL_3);
+
+        vm.startPrank(admin);
+        coreVault.addValidator(VAL_1);
+        coreVault.addValidator(VAL_2);
+        coreVault.addValidator(VAL_3);
+        vm.stopPrank();
+
+        // Set up initial stakes using actual delegation
+        vm.deal(address(magma), 450 ether);
+        vm.prank(address(magma));
+        coreVault.delegate{value: 450 ether}(); // 150 ether each
+
+        // Activate delegations
+        _activatePendingDelegations();
+        _activateAllStakes();
+
+        // Verify initial equal distribution
+        assertEq(coreVault.delegatedAmount(VAL_1), 150 ether);
+        assertEq(coreVault.delegatedAmount(VAL_2), 150 ether);
+        assertEq(coreVault.delegatedAmount(VAL_3), 150 ether);
+
+        uint256 val3InitialStake = coreVault.delegatedAmount(VAL_3);
+
+        // Remove VAL_1 and VAL_2 to create multiple withdrawal scenarios
+        vm.startPrank(admin);
+
+        // Remove VAL_1
+        coreVault.initiateValidatorRemoval(VAL_1);
+        coreVault.executeValidatorUndelegation(VAL_1);
+
+        // Remove VAL_2
+        coreVault.initiateValidatorRemoval(VAL_2);
+        coreVault.executeValidatorUndelegation(VAL_2);
+
+        vm.stopPrank();
+
+        // Advance epochs for withdrawal completion
+        _advanceEpochsForWithdrawal();
+
+        // Complete both withdrawals
+        vm.startPrank(admin);
+        coreVault.completeValidatorRemovalWithdrawal(VAL_1);
+        coreVault.completeValidatorRemovalWithdrawal(VAL_2);
+        vm.stopPrank();
+
+        // Test redistribution - VAL_3 should get all funds from removed validators
+        vm.prank(admin);
+        coreVault.redistributeToValidators();
+
+        // Verify VAL_3 received all redistributed funds (450 ether total)
+        uint256 val3FinalStake = coreVault.delegatedAmount(VAL_3);
+        assertEq(val3FinalStake, 450 ether);
+        assertTrue(val3FinalStake > val3InitialStake);
+
+        // Verify other validators are properly removed
+        assertFalse(coreVault.isWhitelisted(VAL_1));
+        assertFalse(coreVault.isWhitelisted(VAL_2));
+        assertTrue(coreVault.isWhitelisted(VAL_3));
+        assertEq(coreVault.getValidatorCount(), 1);
+    }
+
+    function testRedistributeToValidators_AccessControl() public {
+        vm.prank(admin);
+        coreVault.addValidator(VAL_1);
+
+        // Test that only admin can call redistributeToValidators
+        vm.prank(USER_1);
+        vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
+        coreVault.redistributeToValidators();
+
+        // Admin should be able to call it
+        vm.prank(admin);
+        coreVault.redistributeToValidators(); // Should not revert
+    }
+
+    function testAddValidator_DoesNotImmediatelyRebalance() public {
+        // Test that adding a validator only initiates undelegation but doesn't complete redistribution
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+
+        // Add first validator
+        vm.prank(admin);
+        coreVault.addValidator(VAL_1);
+
+        // Delegate stake to first validator
+        vm.deal(address(magma), 200 ether);
+        vm.prank(address(magma));
+        coreVault.delegate{value: 200 ether}(); // All goes to VAL_1
+
+        // Activate delegation
+        _activatePendingDelegations();
+        _activateAllStakes();
+
+        uint256 val1StakeBeforeAdd = coreVault.delegatedAmount(VAL_1);
+        assertEq(val1StakeBeforeAdd, 200 ether);
+
+        // Add second validator - this should trigger rebalanceInitiate but not complete redistribution
+        vm.prank(admin);
+        coreVault.addValidator(VAL_2);
+
+        // After adding VAL_2, the target becomes 200/2 = 100 ether per validator
+        // VAL_1 has 100 ether excess that should be undelegated but not yet redistributed
+
+        // Verify that undelegation was initiated but redistribution hasn't happened yet
+        assertTrue(coreVault.pendingRedelegationTotal() > 0, "Should have pending undelegations");
+        assertTrue(coreVault.pendingUndelegateByValidator(VAL_1) > 0, "VAL_1 should have pending undelegations");
+
+        // VAL_1's tracked amount should be unchanged (undelegation is pending, not completed)
+        assertEq(
+            coreVault.delegatedAmount(VAL_1),
+            val1StakeBeforeAdd,
+            "VAL_1 stake should be unchanged until withdrawal completes"
+        );
+        assertEq(coreVault.delegatedAmount(VAL_2), 0, "VAL_2 should have no stake yet");
+
+        // Complete the withdrawal process
+        _advanceEpochsForWithdrawal();
+
+        // Manual redistribution should complete the rebalancing
+        vm.prank(admin);
+        coreVault.redistributeToValidators();
+
+        // Now verify balanced distribution
+        uint256 val1FinalStake = coreVault.delegatedAmount(VAL_1);
+        uint256 val2FinalStake = coreVault.delegatedAmount(VAL_2);
+
+        // Should be very close to equal (100 ether each)
+        assertTrue(val1FinalStake >= 99 ether && val1FinalStake <= 101 ether, "VAL_1 should be very close to 100 ether");
+        assertTrue(val2FinalStake >= 99 ether && val2FinalStake <= 101 ether, "VAL_2 should be very close to 100 ether");
+        assertEq(val1FinalStake + val2FinalStake, 200 ether);
     }
 
     // ============ VALIDATOR REMOVAL STEP 1: INITIATION TESTS ============
@@ -251,9 +527,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Advance epochs to make withdrawal ready
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
 
         // Complete withdrawal
         vm.prank(admin);
@@ -297,8 +571,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.delegate{value: 200 ether}();
 
         // Activate the delegations
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        _activatePendingDelegations();
 
         // Verify both validators have stake
         assertTrue(coreVault.delegatedAmount(val1) > 0);
@@ -310,9 +583,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Advance enough epochs for withdrawal to be ready (WITHDRAWAL_DELAY is 7 epochs)
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
 
         // Should complete successfully when withdrawal is ready
         vm.prank(admin);
@@ -360,9 +631,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.pendingRedelegationTotal(), val1InitialStake);
 
         // Step 3: Wait for withdrawal delay and complete withdrawal
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
 
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
@@ -403,9 +672,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Advance epochs
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
 
         // Complete removal
         vm.prank(admin);
@@ -459,8 +726,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.delegate{value: 1000 ether}();
 
         // Activate the delegations
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        _activatePendingDelegations();
 
         // Record initial states
         uint256 initialValidator1Stake = coreVault.delegatedAmount(VAL_1);
@@ -496,9 +762,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         console.log("Pending redistribution:", coreVault.pendingRedelegationTotal());
 
         // Step 2: Complete withdrawal to trigger redistribution
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
 
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
@@ -553,8 +817,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.delegate{value: 900 ether}();
 
         // Activate the delegations
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        _activatePendingDelegations();
 
         // Verify all 3 validators have equal stakes
         assertEq(coreVault.getValidatorCount(), 3);
@@ -570,9 +833,8 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Complete VAL_1 withdrawal
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
+
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
@@ -601,9 +863,8 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Complete VAL_2 withdrawal
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
+
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_2);
 
@@ -642,8 +903,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.delegate{value: 500 ether}();
 
         // Activate the delegations
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        _activatePendingDelegations();
 
         // Record initial stakes (should be equal due to equal distribution)
         uint256 val1InitialStake = coreVault.delegatedAmount(VAL_1);
@@ -660,9 +920,8 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Complete the withdrawal
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
+
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
@@ -704,8 +963,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.delegate{value: 200 ether}();
 
         // Activate the delegations
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        _activatePendingDelegations();
 
         // Initial state
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
@@ -723,9 +981,8 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
 
         // After withdrawal completion
-        for (uint256 i = 0; i < 8; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
-        }
+        _advanceEpochsForWithdrawal();
+
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));

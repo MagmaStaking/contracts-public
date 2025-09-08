@@ -528,7 +528,12 @@ contract MockStakingPrecompile {
     }
 
     function setDelegatorStake(uint64 valId, address delegatorAddr, uint256 amount) external {
+        // Clear all pending stakes to avoid ErrPendingStakeNotZero issues
         delegator[valId][delegatorAddr].stake = amount;
+        delegator[valId][delegatorAddr].delta_stake = 0;
+        delegator[valId][delegatorAddr].next_delta_stake = 0;
+        delegator[valId][delegatorAddr].delta_epoch = 0;
+        delegator[valId][delegatorAddr].next_delta_epoch = 0;
 
         // Always create or update validator to match
         val_execution[valId] = ValExecution({
@@ -636,6 +641,24 @@ contract MockStakingPrecompile {
 
     function debugValidatorStake(uint64 valId) external view returns (uint256) {
         return val_execution[valId].stake;
+    }
+
+    /**
+     * @dev Helper function to create a withdrawal request for testing
+     * This simulates a completed undelegation that's ready for withdrawal
+     */
+    function createWithdrawalRequest(
+        uint64 valId,
+        address delegatorAddr,
+        uint8 withdrawalId,
+        uint256 amount,
+        uint64 withdrawalEpoch
+    ) external {
+        withdrawal[valId][delegatorAddr][withdrawalId] =
+            WithdrawalRequest({amount: amount, acc: val_execution[valId].acc, epoch: withdrawalEpoch});
+
+        // Contract balance should already be sufficient for withdrawal
+        // In real scenario, this would come from validator unstaking
     }
 
     // Allow contract to receive ETH

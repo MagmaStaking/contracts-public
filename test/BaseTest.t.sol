@@ -132,4 +132,33 @@ contract BaseTest is Test {
             MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(2, address(coreVault), val2Stake);
         }
     }
+
+    // Helper to activate all validator stakes to match CoreVault's tracking
+    function _activateAllStakes() internal {
+        // Get all validators from CoreVault
+        uint64[] memory validators = coreVault.getValidators();
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            uint64 valId = validators[i];
+            uint256 delegatedAmount = coreVault.delegatedAmount(valId);
+
+            if (delegatedAmount > 0) {
+                MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(valId, address(coreVault), delegatedAmount);
+            }
+        }
+    }
+
+    // Helper to advance multiple epochs and wait for withdrawals to mature
+    function _advanceEpochsForWithdrawal() internal {
+        // Advance enough epochs for withdrawal to be ready (WITHDRAWAL_DELAY is 7 epochs)
+        for (uint256 i = 0; i < 8; i++) {
+            MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        }
+    }
+
+    // Helper to advance 2 epochs for delegation activation
+    function _activatePendingDelegations() internal {
+        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+        MockStakingPrecompile(STAKING_PRECOMPILE).advanceEpoch();
+    }
 }

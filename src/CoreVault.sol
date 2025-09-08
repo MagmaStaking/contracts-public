@@ -9,6 +9,7 @@ import {MagmaDelegationModule, DelInfo} from "./MagmaDelegationModule.sol";
 import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {BitMapLib} from "./utils/BitMapLib.sol";
 
 contract CoreVault is
     Initializable,
@@ -18,6 +19,8 @@ contract CoreVault is
     MagmaDelegationModule,
     ICoreVault
 {
+    using BitMapLib for BitMapLib.WithdrawalBitMap;
+
     IMagma public magma;
 
     uint64[] public validators;
@@ -33,10 +36,8 @@ contract CoreVault is
 
     uint256 public totalDelegated;
     mapping(uint64 => uint256) public delegatedAmount;
-    // Per-validator next withdrawal id (0..255)
-    mapping(uint64 => uint8) private nextWithdrawalId;
-    // Per-validator withdrawal ID availability bitmap (bit set = ID in use)
-    mapping(uint64 => uint256) private withdrawalIdBitmap;
+    // Per-validator withdrawal ID bitmap management
+    mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     // Per-validator amounts submitted for undelegation but not yet completed
     mapping(uint64 => uint256) public pendingUndelegateByValidator;
 
@@ -67,6 +68,11 @@ contract CoreVault is
     uint256 public totalPendingUndelegations;
     uint256 public pendingRedelegationTotal;
     bool public finishedLastRebalance;
+
+    struct ValidatorAmount {
+        uint64 valId;
+        uint256 amount;
+    }
 
     /**
      * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
@@ -126,20 +132,42 @@ contract CoreVault is
         minUserWithdrawAmount = amount;
     }
 
-    function addValidator(uint64 valId) external onlyAdmin onlyAfterEpoch {
-        if (valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
+    /**
+     * @notice Step 1: Add a validator and initiate rebalance phase 1 (undelegation)
+     * @dev Add a validator and trigger excess undelegation. Redistribution must be done manually via redistributeToValidators()
+     * @param _valId The validator ID to add
+     */
+    function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
+        if (_valId == 0) revert ErrZeroValidatorId();
+        if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
 
-        validators.push(valId);
-        isWhitelisted[valId] = true;
+        validators.push(_valId);
+        isWhitelisted[_valId] = true;
 
         // Initialize bitmap with ADMIN_WID marked as reserved
-        uint256 adminMask = 1 << ADMIN_WID;
-        withdrawalIdBitmap[valId] |= adminMask;
+        withdrawalIdBitmaps[_valId].initForCoreVault();
 
-        emit ValidatorAdded(valId);
+        emit ValidatorAdded(_valId);
         _rebalanceInitiate();
-        _rebalanceRedistribute();
+    }
+
+    /**
+     * @notice Step 2: Redistribute to validators
+     * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
+     */
+    function redistributeToValidators() external onlyAdmin {
+        // Step 1: Complete all pending withdrawals
+        uint256 _totalAmountToDistribute = _completeAllPendingWithdrawals();
+
+        if (_totalAmountToDistribute == 0) return;
+
+        // Step 2: Get validators sorted by current stake (lowest first)
+        ValidatorAmount[] memory _sortedValidators = _getSortedValidatorsByStake();
+
+        // Step 3: Distribute stake to under-target validators ascending
+        _distributeStakeToValidatorsAscending(_sortedValidators, _totalAmountToDistribute);
+
+        // Step 4: Update timestamp
         lastRebalanceTimestamp = block.timestamp;
     }
 
@@ -197,18 +225,18 @@ contract CoreVault is
 
         // TODO: Claim rewards
         // Get the withdrawal amount before completing withdrawal
-        (bool exists, uint256 withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-        if (!(exists && withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
+        (bool exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+        if (!(exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
         _completeWithdrawal(_valId, ADMIN_WID);
 
         // Distribute the recovered funds to remaining validators
-        _distributeToValidators(withdrawalAmount);
+        _distributeAmountEquallyToValidators(_withdrawalAmount);
 
         // Reduce the pending redistribution amount by the amount we just redistributed
-        if (pendingRedelegationTotal >= withdrawalAmount) {
-            pendingRedelegationTotal -= withdrawalAmount;
+        if (pendingRedelegationTotal >= _withdrawalAmount) {
+            pendingRedelegationTotal -= _withdrawalAmount;
         } else {
             pendingRedelegationTotal = 0;
         }
@@ -220,16 +248,16 @@ contract CoreVault is
     }
 
     function delegate() external payable onlyMagma whenNotPaused {
-        _distributeToValidators(msg.value);
+        _distributeAmountEquallyToValidators(msg.value);
     }
 
-    function undelegate(uint256 amount) external onlyMagma whenNotPaused {
-        if (amount < minUserWithdrawAmount) {
+    function undelegate(uint256 _amount) external onlyMagma whenNotPaused {
+        if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
         }
         if (validators.length == 0) revert ErrNoValidators();
 
-        uint256 _amountPerValidator = amount / validators.length;
+        uint256 _amountPerValidator = _amount / validators.length;
         if (_amountPerValidator == 0) revert ErrAmountTooSmall();
 
         for (uint256 _i = 0; _i < validators.length; _i++) {
@@ -238,8 +266,7 @@ contract CoreVault is
             if (_effective < _amountPerValidator) {
                 revert ErrInsufficientDelegated(_amountPerValidator, _effective);
             }
-            uint8 _wid = _allocateWithdrawalId(_v);
-            _undelegate(_v, _amountPerValidator, _wid);
+            _allocateWIDandUndelegate(_v, _amountPerValidator);
             // Track pending; do not lower local delegated until completion
             pendingUndelegateByValidator[_v] += _amountPerValidator;
             totalPendingUndelegations += _amountPerValidator;
@@ -273,8 +300,7 @@ contract CoreVault is
         uint256 _nUsers = queueTxUserAddress.length;
         for (uint256 _i = 0; _i < _vCount; _i++) {
             uint64 _v = validators[_i];
-            uint8 _wid = _allocateWithdrawalId(_v);
-            _undelegate(_v, _perValidator, _wid);
+            uint8 _wid = _allocateWIDandUndelegate(_v, _perValidator);
             pendingUndelegateByValidator[_v] += _perValidator;
             emit SubmittedUndelegate(_wid, _perValidator, _vCount);
 
@@ -407,10 +433,21 @@ contract CoreVault is
             uint64 _v = validators[_i];
             if (delegatedAmount[_v] > _targetPerValidator) {
                 uint256 _excess = delegatedAmount[_v] - _targetPerValidator;
-                _undelegate(_v, _excess, ADMIN_WID);
-                // Track pending excess; keep local delegated until completion
-                pendingUndelegateByValidator[_v] += _excess;
-                pendingRedelegationTotal += _excess;
+
+                // Check if validator has sufficient active stake for undelegation
+                // Get actual stake from precompile to ensure we can undelegate
+                DelInfo memory _delInfo = _getDelegatorInfo(_v, address(this));
+                uint256 _availableStake = _delInfo.stake;
+
+                // Undelegate the minimum of what we want and what's available
+                uint256 _toUndelegate = _excess < _availableStake ? _excess : _availableStake;
+
+                if (_toUndelegate > 0) {
+                    _undelegate(_v, _toUndelegate, ADMIN_WID);
+                    // Track pending excess; keep local delegated until completion
+                    pendingUndelegateByValidator[_v] += _toUndelegate;
+                    pendingRedelegationTotal += _toUndelegate;
+                }
             }
         }
         emit RebalanceInitiated();
@@ -438,12 +475,87 @@ contract CoreVault is
         emit RebalanceCompleted();
     }
 
+    /**
+     * @notice Complete all pending withdrawals for admin withdrawal ID
+     * @dev Internal helper function that completes withdrawals and returns total amount withdrawn
+     * @return _totalWithdrawn The total amount withdrawn from all validators
+     */
+    function _completeAllPendingWithdrawals() internal returns (uint256 _totalWithdrawn) {
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _valId = validators[_i];
+            (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+            if (_exists && _amount > 0) {
+                _completeWithdrawal(_valId, ADMIN_WID);
+                _totalWithdrawn += _amount;
+            }
+        }
+    }
+
+    /**
+     * @notice Get validators sorted by their current stake (lowest first)
+     * @dev Internal helper function that builds array of validators with current stakes and sorts them
+     * @return _sortedValidators Array of ValidatorAmount structs sorted by stake amount (ascending)
+     */
+    function _getSortedValidatorsByStake() internal view returns (ValidatorAmount[] memory _sortedValidators) {
+        _sortedValidators = new ValidatorAmount[](validators.length);
+
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _valId = validators[_i];
+            DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+            _sortedValidators[_i] = ValidatorAmount(
+                _valId, _coreVaultDelInfo.stake + _coreVaultDelInfo.delta_stake + _coreVaultDelInfo.next_delta_stake
+            );
+        }
+
+        _sort(_sortedValidators);
+    }
+
+    /**
+     * @notice Distribute stake to under-target validators
+     * @dev Internal helper function that calculates targets and distributes stake to validators needing more
+     * @param _sortedValidators Array of validators sorted by current stake (lowest first)
+     * @param _totalAmountToDistribute Total amount available for distribution
+     */
+    function _distributeStakeToValidatorsAscending(
+        ValidatorAmount[] memory _sortedValidators,
+        uint256 _totalAmountToDistribute
+    ) internal {
+        if (_totalAmountToDistribute == 0) return;
+
+        // Calculate total current stake to determine new target
+        uint256 _currentTotalStake = 0;
+        for (uint256 _i = 0; _i < _sortedValidators.length; _i++) {
+            _currentTotalStake += _sortedValidators[_i].amount;
+        }
+
+        uint256 _newTotalStake = _currentTotalStake + _totalAmountToDistribute;
+        uint256 _targetAmountPerValidator = _newTotalStake / validators.length;
+        uint256 _remainingToDistribute = _totalAmountToDistribute;
+
+        // Distribute to under-target validators, starting with lowest stake
+        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingToDistribute > 0; _i++) {
+            uint64 _valId = _sortedValidators[_i].valId;
+            uint256 _currentAmount = _sortedValidators[_i].amount;
+
+            if (_currentAmount < _targetAmountPerValidator) {
+                uint256 _needed = _targetAmountPerValidator - _currentAmount;
+                uint256 _toDelegate = _needed > _remainingToDistribute ? _remainingToDistribute : _needed;
+
+                if (_toDelegate > 0) {
+                    _delegate(_valId, _toDelegate);
+                    delegatedAmount[_valId] += _toDelegate;
+                    _remainingToDistribute -= _toDelegate;
+                }
+            }
+        }
+    }
+
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
     /**
      * @dev Distributes the specified amount equally among all validators
      * @param amount The total amount to distribute
      */
-    function _distributeToValidators(uint256 amount) internal {
+    function _distributeAmountEquallyToValidators(uint256 amount) internal {
         if (validators.length == 0 || amount == 0) return;
 
         uint256 _amountPerValidator = amount / validators.length;
@@ -453,25 +565,10 @@ contract CoreVault is
         }
     }
 
-    function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint256 bitmap = withdrawalIdBitmap[valId];
-        uint8 start = nextWithdrawalId[valId];
-
-        // Find first free slot starting from cursor
-        for (uint16 i = 0; i < 256; i++) {
-            uint8 candidate = uint8(uint16(start) + i);
-            if (candidate == ADMIN_WID) continue;
-
-            uint256 mask = 1 << candidate;
-            if (bitmap & mask == 0) {
-                // Mark as used in bitmap
-                withdrawalIdBitmap[valId] |= mask;
-                nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
-                return candidate;
-            }
-        }
-        // If all 256 are occupied, revert; caller should withdraw some first
-        revert ErrNoFreeWithdrawalId();
+    function _allocateWIDandUndelegate(uint64 valId, uint256 amount) internal returns (uint8 wid) {
+        wid = withdrawalIdBitmaps[valId].allocateWithdrawalIdForCoreVault();
+        _undelegate(valId, amount, wid);
+        return wid;
     }
 
     /**
@@ -480,11 +577,7 @@ contract CoreVault is
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        // Don't clear the ADMIN_WID in bitmap since it's reserved and shouldn't be reused
-        if (withdrawalId == ADMIN_WID) return;
-
-        uint256 mask = 1 << withdrawalId;
-        withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
+        withdrawalIdBitmaps[valId].markWithdrawalCompletedForCoreVault(withdrawalId);
     }
 
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {
@@ -511,6 +604,22 @@ contract CoreVault is
             _total += delegatedAmount[validators[_i]];
         }
         return _total;
+    }
+
+    /**
+     * @dev Simple insertion sort for ValidatorAmount array (ascending by amount)
+     */
+    function _sort(ValidatorAmount[] memory _arr) internal pure {
+        uint256 _length = _arr.length;
+        for (uint256 _i = 1; _i < _length; _i++) {
+            ValidatorAmount memory key = _arr[_i];
+            uint256 _j = _i;
+            while (_j > 0 && _arr[_j - 1].amount > key.amount) {
+                _arr[_j] = _arr[_j - 1];
+                _j--;
+            }
+            _arr[_j] = key;
+        }
     }
 
     function _authorizeUpgrade(address) internal override {
