@@ -519,7 +519,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
         }
     }
 
-    function _authorizeUpgrade(address) internal override {
+    function _authorizeUpgrade(address) internal view override {
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }
 
