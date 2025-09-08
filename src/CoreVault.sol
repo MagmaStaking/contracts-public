@@ -224,6 +224,11 @@ contract CoreVault is
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // TODO: Claim rewards
+        // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
+        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            revert ErrNoPendingWithdrawRequest();
+        }
+
         // Get the withdrawal amount before completing withdrawal
         (bool exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
         if (!(exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
@@ -419,6 +424,10 @@ contract CoreVault is
         _rebalanceRedistribute();
     }
 
+    //--------------------------------------------------------------------------------------------------------------
+    // Internal functions
+    //--------------------------------------------------------------------------------------------------------------
+
     function _rebalanceInitiate() internal {
         if (validators.length == 0) return;
 
@@ -483,6 +492,12 @@ contract CoreVault is
     function _completeAllPendingWithdrawals() internal returns (uint256 _totalWithdrawn) {
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
+
+            // Check bitmap first - if ADMIN_WID is not in use, skip expensive precompile call
+            if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+                continue;
+            }
+
             (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (_exists && _amount > 0) {
                 _completeWithdrawal(_valId, ADMIN_WID);
