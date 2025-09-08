@@ -19,15 +19,9 @@ import {IGVault} from "../interfaces/IGVault.sol";
 abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    function depositMon() external payable whenNotPaused returns (uint256 shares) {
-        shares = _processNativeDeposit();
-        _delegateToCoreVault(msg.value);
-        emit Deposit(msg.sender, msg.sender, msg.value, shares);
-    }
-
     // TODO: referralId?
     function depositMon(bytes32 referralId) external payable whenNotPaused returns (uint256 shares) {
-        shares = _processNativeDeposit();
+        // shares = _processNativeDeposit();
         _delegateToCoreVault(msg.value);
         if (referralId != bytes32(0)) {
             emit Referral(msg.sender, msg.sender, msg.value, shares, referralId);
@@ -37,23 +31,9 @@ abstract contract MagmaNativeDepositModule is MagmaRoleManagementModule {
     // TODO: should be gVault and depositMonToVault
     function depositMonToVault(uint64 valId) external payable whenNotPaused returns (uint256 shares) {
         if (address(gVault) == address(0)) revert ErrGVaultNotSet();
-        shares = _processNativeDeposit();
+        // shares = _processNativeDeposit();
         _delegateToGVault(valId, msg.value);
         emit Deposit(msg.sender, msg.sender, msg.value, shares);
-    }
-
-    /**
-     * @dev Processes native asset deposit: validates amount, calculates shares, mints tokens
-     * @return shares The number of shares minted for the deposit
-     */
-    function _processNativeDeposit() private returns (uint256 shares) {
-        if (msg.value == 0) revert ErrZeroNativeAsset();
-        uint256 assets = msg.value;
-        uint256 supply = totalSupply();
-        uint256 totalAssetsBefore = totalAssets();
-        shares = (supply == 0) ? assets : assets.mulDiv(supply, totalAssetsBefore, Math.Rounding.Floor);
-        _mint(msg.sender, shares);
-        _delegatedNativeAssets += assets;
     }
 
     /**
