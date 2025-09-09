@@ -140,26 +140,7 @@
 //         assertTrue(magma.balanceOf(address(magma)) > 0);
 //     }
 
-//     function testOperatorApproval() public {
-//         // Alice approves Bob as operator
-//         vm.prank(alice);
-//         assertTrue(magma.setOperator(bob, true));
-
-//         assertTrue(magma.isOperator(alice, bob));
-
-//         // Bob can now act on behalf of Alice
-//         vm.prank(alice);
-//         magma.deposit(1000e18, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         vm.prank(bob);
-//         magma.requestWithdraw(500e18, alice, alice);
-
-//         assertEq(magma.pendingWithdrawRequest(alice), 500e18);
-//     }
-
+// TODO: test this one in redeem and deposit
 //     function testRevertInsufficientShares() public {
 //         vm.prank(alice);
 //         magma.deposit(100e18, alice);
@@ -170,6 +151,7 @@
 //         magma.requestWithdraw(1000e18, alice, alice);
 //     }
 
+// TODO: test this one in redeem and deposit
 //     function testRevertUnauthorized() public {
 //         vm.prank(alice);
 //         magma.deposit(1000e18, alice);
@@ -294,12 +276,6 @@
 //         assertEq(wmon.balanceOf(bob), wmonBeforeBob + assets);
 //     }
 
-//     function testRevertDepositMonZeroAmount() public {
-//         vm.expectRevert(ErrZeroNativeAsset.selector);
-//         vm.prank(alice);
-//         magma.depositMon{value: 0}();
-//     }
-
 //     function testRevertRedeemMonZeroShares() public {
 //         vm.expectRevert(ErrZeroShares.selector);
 //         vm.prank(alice);
@@ -356,6 +332,7 @@
 //         assertEq(magma.totalAssets(), 4 ether);
 //     }
 
+// TODO: do the pause for everything
 //     function testPauseBlocksDeposit() public {
 //         // First wrap some native currency and approve
 //         vm.prank(alice);

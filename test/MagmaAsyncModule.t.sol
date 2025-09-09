@@ -63,8 +63,8 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_Mint() public {
-        uint256 effectiveAssets = magma.totalAssets();
-        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
         uint256 assets = 5 ether;
 
         vm.deal(user, assets);
@@ -87,9 +87,9 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // 7540 vault assertions
         assertEq(assets, magma.mint(shares, user));
-        assertEq(assets, address(magma).balance + vaultMONBalance);
-        assertEq(wmon.balanceOf(address(magma)), 0);
-        assertEq(magma.totalAssets(), effectiveAssets + assets);
+        assertEq(assets, address(magma).balance + balanceBefore);
+        assertEq(address(magma).balance, balanceBefore);
+        assertEq(magma.totalAssets(), assetsBefore + assets);
 
         // User assertions
         assertEq(magma.balanceOf(user), shares);
@@ -100,8 +100,8 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_Deposit() public {
-        uint256 effectiveAssets = magma.totalAssets();
-        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
         uint256 assets = 5 ether;
 
         vm.deal(user, assets);
@@ -124,9 +124,9 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // 7540 vault assertions
         assertEq(shares, magma.deposit(assets, user));
-        assertEq(assets, address(magma).balance + vaultMONBalance);
+        assertEq(address(magma).balance, balanceBefore);
         assertEq(wmon.balanceOf(address(magma)), 0);
-        assertEq(magma.totalAssets(), effectiveAssets + assets);
+        assertEq(magma.totalAssets(), assetsBefore + assets);
 
         // User assertions
         assertEq(magma.balanceOf(user), shares);
@@ -137,8 +137,8 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_DepositWMON() public {
-        uint256 effectiveAssets = magma.totalAssets();
-        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
         uint256 assets = 5 ether;
 
         vm.deal(user, assets);
@@ -161,9 +161,9 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // 7540 vault assertions
         assertEq(shares, magma.depositWMON(assets, user, 3));
-        assertEq(assets, address(magma).balance + vaultMONBalance);
+        assertEq(address(magma).balance, balanceBefore);
         assertEq(wmon.balanceOf(address(magma)), 0);
-        assertEq(magma.totalAssets(), effectiveAssets + assets);
+        assertEq(magma.totalAssets(), assetsBefore + assets);
 
         // User assertions
         assertEq(magma.balanceOf(user), shares);
@@ -174,8 +174,8 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_DepositMON() public {
-        // uint256 effectiveAssets = magma.totalAssets();
-        // uint256 vaultMONBalance = address(magma).balance;
+        // uint256 assetsBefore = magma.totalAssets();
+        // uint256 balanceBefore = address(magma).balance;
         // uint256 assets = 5 ether;
 
         // vm.deal(user, assets);
@@ -199,9 +199,9 @@ contract MagmaAsyncModuleTest is BaseTest {
         // 7540 vault assertions
         // magma.depositMON{value: assets}(user, 3);
         // assertEq(shares, magma.depositMON{value: assets}(user, 3));
-        // assertEq(assets, address(magma).balance + vaultMONBalance);
+        // assertEq(address(magma).balance, balanceBefore);
         // assertEq(wmon.balanceOf(address(magma)), 0);
-        // assertEq(magma.totalAssets(), effectiveAssets + assets);
+        // assertEq(magma.totalAssets(), assetsBefore + assets);
 
         // // User assertions
         // assertEq(magma.balanceOf(user), shares);
@@ -211,11 +211,9 @@ contract MagmaAsyncModuleTest is BaseTest {
         // vm.stopPrank();
     }
 
-    // TODO: test deposit to another receiver and withdraw to another receiver
-
     function test_DepositToGVault() public {
-        uint256 effectiveAssets = magma.totalAssets();
-        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
         uint256 assets = 5 ether;
 
         vm.deal(user, assets);
@@ -240,15 +238,34 @@ contract MagmaAsyncModuleTest is BaseTest {
         emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
 
         assertEq(assets, magma.depositToGVault(assets, user, 3, 3));
-        /**
-         * TODO: this test is not passing because of gVault, also maybe this test is correct and not the coreVault tests
-         * the actual test should be assertEq(assets, vaultMONBalance);, please replace on the above depositTests
-         */
-        // assertEq(assets, address(magma).balance + vaultMONBalance);
-        assertEq(magma.totalAssets(), effectiveAssets + assets);
+        assertEq(address(magma).balance, balanceBefore);
+        assertEq(magma.totalAssets(), assetsBefore + assets);
 
         vm.stopPrank();
     }
+
+    // TODO: test deposit0 or mint0 all of them should revert
+    // TODO: test deposit to another receiver and withdraw to another receiver
+
+    //     function testOperatorApproval() public {
+    //     // Alice approves Bob as operator
+    //     vm.prank(alice);
+    //     assertTrue(magma.setOperator(bob, true));
+
+    //     assertTrue(magma.isOperator(alice, bob));
+
+    //     // Bob can now act on behalf of Alice
+    //     vm.prank(alice);
+    //     magma.deposit(1000e18, alice);
+
+    //     // Activate the delegated stakes in the mock
+    //     _activateStakes();
+
+    //     vm.prank(bob);
+    //     magma.requestWithdraw(500e18, alice, alice);
+
+    //     assertEq(magma.pendingWithdrawRequest(alice), 500e18);
+    // }
 
     // function testMaxWithdrawRedeem() public {
     //     // Setup: Alice deposits first
