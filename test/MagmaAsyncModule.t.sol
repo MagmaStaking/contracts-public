@@ -129,6 +129,45 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_DepositWMON() public {
+        uint256 effectiveAssets = magma.totalAssets();
+        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assets = 5 ether;
+
+        vm.deal(user, assets);
+        vm.startPrank(user);
+        wmon.deposit{value: assets}();
+
+        uint256 shares = magma.convertToShares(assets);
+        wmon.approve(address(magma), assets);
+
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(user, address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(address(0), user, shares);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(user, user, assets, shares);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Withdrawal(address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
+
+        // 7540 vault assertions
+        assertEq(shares, magma.depositWMON(assets, user, 3));
+        assertEq(assets, address(magma).balance + vaultMONBalance);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+        assertEq(magma.totalAssets(), effectiveAssets + assets);
+
+        // User assertions
+        assertEq(magma.balanceOf(user), shares);
+        assertEq(wmon.balanceOf(user), 0);
+        assertEq((user).balance, 0);
+
+        vm.stopPrank();
+    }
+
+    // TODO: test deposit to another receiver and withdraw to another receiver
+
     // function test_DepositToGVault() public {
     //     uint256 effectiveAssets = magma.totalAssets();
     //     uint256 vaultMONBalance = address(magma).balance;
