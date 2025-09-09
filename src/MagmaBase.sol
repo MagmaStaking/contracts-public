@@ -52,6 +52,11 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     // Mapping for operator approvals (ERC-7540)
     mapping(address controller => mapping(address operator => bool)) public isOperator;
 
+    /// @dev Emitted upon a successful deposit, will be sent on every deposit to facilitate on the indexer side
+    event DepositWithReferral(
+        address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 indexed referralId
+    );
+
     // Events for ERC-7540 compatibility and admin
     event RedeemRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
