@@ -39,6 +39,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
         coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return minted;
     }
 

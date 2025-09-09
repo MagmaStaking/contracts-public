@@ -4,6 +4,10 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 
 import {BaseTest} from "./BaseTest.t.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
+import {WrappedMonad} from "monad/WrappedMonad.sol";
+import {MagmaBase} from "src/MagmaBase.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
@@ -16,6 +20,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_Metadata() public view {
+        // TODO: Missing asset test here
         assertEq(magma.name(), "gMON");
         assertEq(magma.symbol(), "gMON");
         assertEq(magma.decimals(), 18);
@@ -42,9 +47,39 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_Mint() public {
-        // test shares
-        // test assets
+        uint256 effectiveAssets = magma.totalAssets();
+        uint256 vaultMONBalance = address(magma).balance;
+        uint256 assets = 5 ether;
+
+        vm.deal(address(11), assets);
+        vm.startPrank(address(11));
+        wmon.deposit{value: assets}();
+
+        // No fees on deposits so convertToShares should equal previewMint
+        uint256 expectedShares = magma.convertToShares(assets);
+        assertEq(assets, magma.previewMint(expectedShares));
+
+        wmon.approve(address(magma), assets);
+
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(address(11), address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(address(0), address(11), expectedShares);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(address(11), address(11), assets, expectedShares);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Withdrawal(address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.DepositWithReferral(address(11), address(11), assets, expectedShares, 0);
+
+        assertEq(assets, magma.mint(expectedShares, address(11)));
+        assertEq(assets, address(magma).balance + vaultMONBalance);
+        assertEq(magma.totalAssets(), effectiveAssets + assets);
+
+        vm.stopPrank();
     }
+
+    // TODO: test with referralId
 
     // function testSynchronousDeposit() public {
     //     uint256 depositAmount = 1000e18;
@@ -105,3 +140,6 @@ contract MagmaAsyncModuleTest is BaseTest {
 
 // TODO: think about tests in magmabase needed
 // TODO: see how to order all these tests and order MagmaAsyncModule as well
+// TODO: reentrancy
+// TODO: look at openzeppelin erc4626 tests
+// TODO: test all methods in https://eips.ethereum.org/EIPS/eip-4626#methods
