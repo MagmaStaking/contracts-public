@@ -23,6 +23,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
     // TODO: fr -> test this
+    // TODO: fr -> this would be changed by corevault
+    // TODO: gVault losses will be socialized
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -60,6 +62,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     // TODO: check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
+    // TODO: add referralId
     function depositToGVault(uint256 assets, address receiver, uint64 valId) external whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
