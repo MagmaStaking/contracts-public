@@ -60,11 +60,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     // TODO: (lossess will be socialized) check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
-    // TODO: add referralId
-    function depositToGVault(uint256 assets, address receiver, uint64 valId) external whenNotPaused returns (uint256) {
+    function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
+        external
+        whenNotPaused
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
         return shares;
     }
 

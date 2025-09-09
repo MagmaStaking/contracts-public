@@ -74,15 +74,18 @@ contract BaseTest is Test {
         // First register validators in the mock staking precompile
         _setupValidatorInStakingPrecompile(1);
         _setupValidatorInStakingPrecompile(2);
+        _setupValidatorInStakingPrecompile(3);
 
         // Advance epoch to activate the initial validator stakes
         _advanceEpoch();
 
         // Then add them to the CoreVault
-        vm.prank(admin);
+        vm.startPrank(admin);
         coreVault.addValidator(1);
-        vm.prank(admin);
         coreVault.addValidator(2);
+        gvault.addValidator(3);
+        gvault.changeValidatorCap(3, 5 ether);
+        vm.stopPrank();
     }
 
     // Helper function to register a validator in the staking precompile
