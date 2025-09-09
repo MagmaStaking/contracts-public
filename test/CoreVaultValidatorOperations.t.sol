@@ -50,7 +50,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ VALIDATOR ADDITION TESTS ============
 
-    function testAddValidator_Success() public {
+    function test_addValidator_Success() public {
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
 
@@ -62,13 +62,13 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(validators[0], VAL_1);
     }
 
-    function testAddValidator_RevertZeroValidatorId() public {
+    function test_addValidator_RevertZeroValidatorId() public {
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(ErrZeroValidatorId.selector));
         coreVault.addValidator(0);
     }
 
-    function testAddValidator_RevertAlreadyWhitelisted() public {
+    function test_addValidator_RevertAlreadyWhitelisted() public {
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
 
@@ -77,13 +77,13 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.addValidator(VAL_1);
     }
 
-    function testAddValidator_RevertNotAdmin() public {
+    function test_addValidator_RevertNotAdmin() public {
         vm.prank(USER_1);
         vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
         coreVault.addValidator(VAL_1);
     }
 
-    function testAddMultipleValidators() public {
+    function test_addMultipleValidators() public {
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
         coreVault.addValidator(VAL_2);
@@ -98,7 +98,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ STAKE REDISTRIBUTION TESTS ============
 
-    function testRedistributeToValidators_Success() public {
+    function test_redelegateToValidators_Success() public {
         // Step 1: Add VAL_1 and VAL_2, delegate some stake
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
@@ -134,9 +134,9 @@ contract CoreVaultValidatorOperations is BaseTest {
         // _rebalanceInitiate should try to undelegate 50 ether from each
 
         // Verify pending undelegations were initiated
-        assertTrue(coreVault.pendingRedelegationTotal() > 0);
-        assertTrue(coreVault.pendingUndelegateByValidator(VAL_1) > 0);
-        assertTrue(coreVault.pendingUndelegateByValidator(VAL_2) > 0);
+        assertTrue(coreVault.totalPendingRedelegation() > 0);
+        assertTrue(coreVault.pendingRedelegateByValidator(VAL_1) > 0);
+        assertTrue(coreVault.pendingRedelegateByValidator(VAL_2) > 0);
 
         // Step 3: Complete the withdrawals and redistribute
         // Advance epochs to make withdrawals ready
@@ -144,7 +144,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Redistribute the withdrawn funds
         vm.prank(admin);
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
 
         // Step 4: Verify final balanced distribution
         // All validators should now have equal stakes (100 ether each)
@@ -164,7 +164,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(val1Final + val2Final + val3Final, 300 ether);
     }
 
-    function testRedistributeToValidators_NoFundsAvailable() public {
+    function test_redelegateToValidators_NoFundsAvailable() public {
         // Setup validators but no available funds
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -173,14 +173,14 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // No withdrawals to complete, no funds to redistribute
         vm.prank(admin);
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
 
         // Should complete without error, no changes to state
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
         assertEq(coreVault.delegatedAmount(VAL_2), 0);
     }
 
-    function testRedistributeToValidators_SingleValidator() public {
+    function test_redelegateToValidators_SingleValidator() public {
         // Setup: Start with only VAL_1 and VAL_2, then remove VAL_2 to create scenario
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
@@ -221,7 +221,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Test redistribution with single validator
         vm.prank(admin);
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
 
         // VAL_1 should receive all redistributed funds from VAL_2's removal
         uint256 val1FinalStake = coreVault.delegatedAmount(VAL_1);
@@ -232,7 +232,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.getValidatorCount(), 1);
     }
 
-    function testRedistributeToValidators_MultipleWithdrawals() public {
+    function test_redelegateToValidators_MultipleWithdrawals() public {
         // Test redistribution when multiple validators are removed and funds need redistribution
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
@@ -284,7 +284,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Test redistribution - VAL_3 should get all funds from removed validators
         vm.prank(admin);
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
 
         // Verify VAL_3 received all redistributed funds (450 ether total)
         uint256 val3FinalStake = coreVault.delegatedAmount(VAL_3);
@@ -298,22 +298,24 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.getValidatorCount(), 1);
     }
 
-    function testRedistributeToValidators_AccessControl() public {
+    function test_redelegateToValidators_AccessControl() public {
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
 
-        // Test that only admin can call redistributeToValidators
+        // Test that only admin can call redelegateToValidators
         vm.prank(USER_1);
         vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
 
         // Admin should be able to call it
         vm.prank(admin);
-        coreVault.redistributeToValidators(); // Should not revert
+        coreVault.redelegateToValidators(); // Should not revert
     }
 
-    function testAddValidator_DoesNotImmediatelyRebalance() public {
+    function test_addValidator_DoesNotImmediatelyRebalance() public {
         // Test that adding a validator only initiates undelegation but doesn't complete redistribution
+        uint256 totalStake = 200 ether;
+
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
 
@@ -322,16 +324,17 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.addValidator(VAL_1);
 
         // Delegate stake to first validator
-        vm.deal(address(magma), 200 ether);
+        vm.deal(address(magma), totalStake);
         vm.prank(address(magma));
-        coreVault.delegate{value: 200 ether}(); // All goes to VAL_1
+        coreVault.delegate{value: totalStake}(); // All goes to VAL_1
 
         // Activate delegation
         _activatePendingDelegations();
         _activateAllStakes();
 
         uint256 val1StakeBeforeAdd = coreVault.delegatedAmount(VAL_1);
-        assertEq(val1StakeBeforeAdd, 200 ether);
+        assertEq(val1StakeBeforeAdd, totalStake);
+        assertEq(coreVault.totalAssets(), totalStake);
 
         // Add second validator - this should trigger rebalanceInitiate but not complete redistribution
         vm.prank(admin);
@@ -341,15 +344,14 @@ contract CoreVaultValidatorOperations is BaseTest {
         // VAL_1 has 100 ether excess that should be undelegated but not yet redistributed
 
         // Verify that undelegation was initiated but redistribution hasn't happened yet
-        assertTrue(coreVault.pendingRedelegationTotal() > 0, "Should have pending undelegations");
-        assertTrue(coreVault.pendingUndelegateByValidator(VAL_1) > 0, "VAL_1 should have pending undelegations");
+        assertEq(coreVault.totalAssets(), totalStake);
+        assertEq(coreVault.totalPendingRedelegation(), totalStake / 2, "Should have pending undelegations");
+        assertEq(
+            coreVault.pendingRedelegateByValidator(VAL_1), totalStake / 2, "VAL_1 should have pending undelegations"
+        );
 
         // VAL_1's tracked amount should be unchanged (undelegation is pending, not completed)
-        assertEq(
-            coreVault.delegatedAmount(VAL_1),
-            val1StakeBeforeAdd,
-            "VAL_1 stake should be unchanged until withdrawal completes"
-        );
+        assertEq(coreVault.delegatedAmount(VAL_1), totalStake / 2, "VAL_1 should have half of the total stake");
         assertEq(coreVault.delegatedAmount(VAL_2), 0, "VAL_2 should have no stake yet");
 
         // Complete the withdrawal process
@@ -357,21 +359,22 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Manual redistribution should complete the rebalancing
         vm.prank(admin);
-        coreVault.redistributeToValidators();
+        coreVault.redelegateToValidators();
+        assertEq(coreVault.totalAssets(), totalStake);
 
         // Now verify balanced distribution
         uint256 val1FinalStake = coreVault.delegatedAmount(VAL_1);
         uint256 val2FinalStake = coreVault.delegatedAmount(VAL_2);
 
         // Should be very close to equal (100 ether each)
-        assertTrue(val1FinalStake >= 99 ether && val1FinalStake <= 101 ether, "VAL_1 should be very close to 100 ether");
-        assertTrue(val2FinalStake >= 99 ether && val2FinalStake <= 101 ether, "VAL_2 should be very close to 100 ether");
-        assertEq(val1FinalStake + val2FinalStake, 200 ether);
+        assertEq(val1FinalStake, totalStake / 2, "VAL_1 should be very close to 100 ether");
+        assertEq(val2FinalStake, totalStake / 2, "VAL_2 should be very close to 100 ether");
+        assertEq(val1FinalStake + val2FinalStake, totalStake);
     }
 
     // ============ VALIDATOR REMOVAL STEP 1: INITIATION TESTS ============
 
-    function testInitiateValidatorRemoval_Success() public {
+    function test_initiateValidatorRemoval_Success() public {
         // Setup: Add 2 validators (can't remove the last one)
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -392,13 +395,13 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_2)); // VAL_2 should still be whitelisted
     }
 
-    function testInitiateValidatorRemoval_RevertNotWhitelisted() public {
+    function test_initiateValidatorRemoval_RevertNotWhitelisted() public {
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(ErrNotWhitelisted.selector));
         coreVault.initiateValidatorRemoval(VAL_1);
     }
 
-    function testInitiateValidatorRemoval_RevertNotAdmin() public {
+    function test_initiateValidatorRemoval_RevertNotAdmin() public {
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
 
@@ -407,7 +410,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.initiateValidatorRemoval(VAL_1);
     }
 
-    function testInitiateValidatorRemoval_WithMultipleValidators() public {
+    function test_initiateValidatorRemoval_WithMultipleValidators() public {
         // Setup: Add multiple validators
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -437,7 +440,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ VALIDATOR REMOVAL STEP 2: UNDELEGATION TESTS ============
 
-    function testExecuteValidatorUndelegation_Success() public {
+    function test_executeValidatorUndelegation_Success() public {
         // Setup: Add 2 validators (can't remove the last one)
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -458,10 +461,10 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Verify: Status changed to UNDELEGATING
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
         assertEq(coreVault.delegatedAmount(VAL_1), 0); // Delegated amount reset to 0
-        assertEq(coreVault.pendingRedelegationTotal(), 100 ether); // Pending redelegation increased
+        assertEq(coreVault.totalPendingRedelegation(), 100 ether); // Pending redelegation increased
     }
 
-    function testExecuteValidatorUndelegation_RevertInvalidStatus() public {
+    function test_executeValidatorUndelegation_RevertInvalidStatus() public {
         // Setup: Add validator without initiating removal
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
@@ -472,7 +475,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.executeValidatorUndelegation(VAL_1);
     }
 
-    function testExecuteValidatorUndelegation_RevertPendingStakeNotZero() public {
+    function test_executeValidatorUndelegation_RevertPendingStakeNotZero() public {
         // Setup: Add 2 validators and initiate removal
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -492,7 +495,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.executeValidatorUndelegation(VAL_1);
     }
 
-    function testExecuteValidatorUndelegation_RevertNotAdmin() public {
+    function test_executeValidatorUndelegation_RevertNotAdmin() public {
         // Setup: Add 2 validators
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -508,7 +511,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ VALIDATOR REMOVAL STEP 3: WITHDRAWAL COMPLETION TESTS ============
 
-    function testCompleteValidatorRemovalWithdrawal_Success() public {
+    function test_completeValidatorRemovalWithdrawal_Success() public {
         // Setup: Complete removal process up to undelegation
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
@@ -539,14 +542,14 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
     }
 
-    function testCompleteValidatorRemovalWithdrawal_RevertInvalidStatus() public {
+    function test_completeValidatorRemovalWithdrawal_RevertInvalidStatus() public {
         // Try to complete withdrawal without proper status
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(ErrInvalidStatus.selector));
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
     }
 
-    function testCompleteValidatorRemovalWithdrawal_WithdrawalReady() public {
+    function test_completeValidatorRemovalWithdrawal_WithdrawalReady() public {
         // Set up validators 1 and 2 in the mock precompile and CoreVault
         uint64 val1 = 1;
         uint64 val2 = 2;
@@ -597,7 +600,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ COMPREHENSIVE MULTI-STEP PROCESS TESTS ============
 
-    function testCompleteValidatorRemovalProcess() public {
+    function test_completeValidatorRemovalProcess() public {
         // Setup: Multiple validators for redistribution testing
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -628,7 +631,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
-        assertEq(coreVault.pendingRedelegationTotal(), val1InitialStake);
+        assertEq(coreVault.totalPendingRedelegation(), val1InitialStake);
 
         // Step 3: Wait for withdrawal delay and complete withdrawal
         _advanceEpochsForWithdrawal();
@@ -646,7 +649,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // (Exact redistribution depends on the implementation logic)
     }
 
-    function testValidatorRemovalWithUserDelegations() public {
+    function test_validatorRemovalWithUserDelegations() public {
         // Setup: Add validators and simulate user delegations
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
@@ -684,7 +687,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
     // ============ ERROR CONDITION TESTS ============
 
-    function testCannotRemoveLastValidator() public {
+    function test_cannotRemoveLastValidator() public {
         // This test ensures we cannot remove the last validator
         vm.prank(admin);
         coreVault.addValidator(VAL_1);
@@ -701,7 +704,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.getValidatorCount(), 1);
     }
 
-    function testStakeRedistributionOnValidatorRemoval() public {
+    function test_stakeRedistributionOnValidatorRemoval() public {
         // First set up validators in the mock precompile
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
@@ -718,12 +721,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         _setupValidatorStake(VAL_1, 600 ether); // Will be removed
         _setupValidatorStake(VAL_2, 200 ether); // Will receive redistributed stake
         _setupValidatorStake(VAL_3, 200 ether); // Will receive redistributed stake
-
-        // Use the actual delegation mechanism to set up real stakes
-        // This ensures CoreVault's internal state is properly updated
-        vm.deal(address(magma), 1000 ether);
-        vm.prank(address(magma));
-        coreVault.delegate{value: 1000 ether}();
 
         // Activate the delegations
         _activatePendingDelegations();
@@ -744,8 +741,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(initialValidator1Stake > 0);
         assertTrue(initialValidator2Stake > 0);
         assertTrue(initialValidator3Stake > 0);
-        assertEq(initialValidator1Stake, initialValidator2Stake);
-        assertEq(initialValidator2Stake, initialValidator3Stake);
+        assertEq(initialValidator2Stake, initialValidator3Stake, "VAL_2 and VAL_3 should have equal stake");
 
         // Step 1: Remove VAL_1
         vm.startPrank(admin);
@@ -755,11 +751,11 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Verify VAL_1 stake moved to pending redistribution
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
-        assertTrue(coreVault.pendingRedelegationTotal() > 0);
+        assertTrue(coreVault.totalPendingRedelegation() > 0);
 
         console.log("=== AFTER UNDELEGATION ===");
         console.log("VAL_1 stake:", coreVault.delegatedAmount(VAL_1));
-        console.log("Pending redistribution:", coreVault.pendingRedelegationTotal());
+        console.log("Pending redistribution:", coreVault.totalPendingRedelegation());
 
         // Step 2: Complete withdrawal to trigger redistribution
         _advanceEpochsForWithdrawal();
@@ -779,14 +775,14 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Verify redistribution behavior
         // VAL_2 and VAL_3 should have received additional stake
-        assertTrue(finalValidator2Stake >= initialValidator2Stake);
-        assertTrue(finalValidator3Stake >= initialValidator3Stake);
+        assertTrue(finalValidator2Stake >= initialValidator2Stake, "VAL_2 should have received additional stake");
+        assertTrue(finalValidator3Stake >= initialValidator3Stake, "VAL_3 should have received additional stake");
 
         // Total should be conserved (minus VAL_1's original stake, plus any redistributed funds)
-        assertEq(finalTotal, finalValidator2Stake + finalValidator3Stake);
+        assertEq(finalTotal, finalValidator2Stake + finalValidator3Stake, "Total should be conserved");
 
         // Pending redistribution should be cleared (allowing for small rounding differences)
-        assertTrue(coreVault.pendingRedelegationTotal() < 1 ether); // Allow small rounding errors
+        assertEq(coreVault.totalPendingRedelegation(), 0, "Pending redistribution should be cleared");
 
         // VAL_1 should be completely removed
         assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
@@ -798,7 +794,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_3));
     }
 
-    function testMultipleValidatorRemovalProcess() public {
+    function test_multipleValidatorRemovalProcess() public {
         // Set up validators in the mock precompile with specific IDs
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_1, 100 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_2, 100 ether);
@@ -886,7 +882,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.getValidatorCount(), 1);
     }
 
-    function testCanRemoveSecondToLastValidator() public {
+    function test_canRemoveSecondToLastValidator() public {
         // Set up validators in the mock precompile with specific IDs
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_1, 100 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_2, 100 ether);
@@ -946,7 +942,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.getValidatorCount(), 1);
     }
 
-    function testRemovalStateTransitions() public {
+    function test_removalStateTransitions() public {
         // Set up validators in the mock precompile with specific IDs
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_1, 100 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setupValidator(VAL_2, 100 ether);

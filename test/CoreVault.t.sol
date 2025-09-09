@@ -21,7 +21,7 @@ contract CoreVaultTest is BaseTest {
         magma.setVaults(address(coreVault), address(gvault));
     }
 
-    function testAddAndRemoveValidator() public {
+    function test_addAndRemoveValidator() public {
         uint64 v1 = uint64(uint160(address(0x101)));
         uint64 v2 = uint64(uint160(address(0x102)));
 
@@ -50,7 +50,7 @@ contract CoreVaultTest is BaseTest {
         assertFalse(coreVault.isWhitelisted(v1));
     }
 
-    function testAsyncValidatorRemoval() public {
+    function test_asyncValidatorRemoval() public {
         uint64 v1 = uint64(uint160(address(0x101)));
         uint64 v2 = uint64(uint160(address(0x102)));
 
@@ -95,7 +95,7 @@ contract CoreVaultTest is BaseTest {
         // The funds should now be available for redistribution to remaining validators
     }
 
-    function testRemoveValidatorWithStake() public {
+    function test_removeValidatorWithStake() public {
         uint64 v1 = uint64(uint160(address(0x101)));
         uint64 v2 = uint64(uint160(address(0x102)));
 
@@ -120,7 +120,7 @@ contract CoreVaultTest is BaseTest {
         assertTrue(coreVault.isWhitelisted(v2));
     }
 
-    function testGetDelegatorStakeFunction() public {
+    function test_getDelegatorStakeFunction() public {
         uint64 v1 = uint64(uint160(address(0x101)));
         uint64 v2 = uint64(uint160(address(0x102)));
 
