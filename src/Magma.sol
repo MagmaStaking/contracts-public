@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {MagmaNativeDepositModule} from "./MagmaNativeDepositModule.sol";
 import {MagmaAsyncModule} from "./MagmaAsyncModule.sol";
 import {MagmaVaultManager} from "./MagmaVaultManager.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
@@ -14,7 +13,7 @@ import {ErrNotAdmin} from "./MagmaErrorsModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
-contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, MagmaAsyncModule, MagmaVaultManager {
+contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultManager {
     function initialize(
         IERC20 asset_,
         string memory name_,
@@ -49,12 +48,12 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, Magm
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewWithdraw(uint256 assets) public view override returns (uint256) {
+    function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewRedeem(uint256 shares) public view override returns (uint256) {
+    function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
         revert();
     }
 
@@ -62,7 +61,11 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, Magm
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function withdraw(uint256 assets, address receiver, address controller) public override returns (uint256) {
+    function withdraw(uint256, /*assets*/ address, /*receiver*/ address /*controller*/ )
+        public
+        override
+        returns (uint256)
+    {
         revert();
     }
 
@@ -70,7 +73,11 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaNativeDepositModule, Magm
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function redeem(uint256 shares, address receiver, address controller) public override returns (uint256) {
+    function redeem(uint256, /*shares*/ address, /*receiver*/ address /*controller*/ )
+        public
+        override
+        returns (uint256)
+    {
         revert();
     }
 

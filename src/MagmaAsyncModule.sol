@@ -7,6 +7,7 @@ import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {
+    ErrGVaultNotSet,
     ErrZeroShares,
     ErrNativeTransferFailed,
     ErrNotAuthorized,
@@ -21,6 +22,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
+    // TODO: fr -> test this
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -32,22 +34,51 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
-    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
-        uint256 shares = super.deposit(assets, receiver);
-        WrappedMonad(payable(address(asset()))).withdraw(assets);
-        _delegatedNativeAssets += assets;
-        coreVault.delegate{value: assets};
-        return shares;
-    }
-
-    /// @dev Withdraws WMON to MON so it can stake it
     function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
         coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return minted;
+    }
+
+    function _deposit(uint256 assets, address receiver) private whenNotPaused returns (uint256) {
+        uint256 shares = super.deposit(assets, receiver);
+        WrappedMonad(payable(address(asset()))).withdraw(assets);
+        _delegatedNativeAssets += assets;
+        return shares;
+    }
+
+    /// @dev Withdraws WMON to MON so it can stake it
+    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
+        coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        return shares;
+    }
+
+    // TODO: check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
+    function depositToGVault(uint256 assets, address receiver, uint64 valId) external whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
+        gVault.delegate{value: assets}(receiver, valId);
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        return shares;
+    }
+
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
+    function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
+        uint256 shares = _deposit(assets, receiver);
+        coreVault.delegate{value: assets};
+        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
+        return shares;
+    }
+
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
+    function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
+        WrappedMonad(payable(address(asset()))).deposit{value: msg.value}();
+        return depositWMON(msg.value, receiver, referralId);
     }
 
     function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
@@ -109,8 +140,15 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
-    /// @param controller was designated by owner in _requestRedeem to manage the claim of the shares
-    /// @param receiveWMON States if the request should be fulfilled in WMON or MON
+    /**
+     * @param controller was designated by owner in _requestRedeem to manage the claim of the shares
+     * @param receiveWMON States if the request should be fulfilled in WMON or MON
+     * @dev Compares asset values at request time and claim time, using the lower value to protect against slashing.
+     * This prevents exploitation of price differences during the two-step redemption process. For example, if
+     * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
+     * the higher pre-slashing amount.
+     */
+    // TODO: see if we can change name of claimRequest to redeem after fixing inheritance chain, make two functions redeem and redeemMON
     function claimRequest(uint256 requestId, address controller, address receiver, bool receiveWMON)
         external
         whenNotPaused
@@ -122,8 +160,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime < block.timestamp) {
             revert ErrRequestPending();
         }
-        uint256 assets = request.assets;
         uint256 shares = request.assets;
+        uint256 assetsAtRequest = request.assets;
+        uint256 assetsAtClaim = convertToAssets(shares);
+        uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
         delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
