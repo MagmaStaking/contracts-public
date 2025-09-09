@@ -28,8 +28,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     function setOperator(address operator, bool approved) external returns (bool) {
-        isOperator[msg.sender][operator] = approved;
-        emit OperatorSet(msg.sender, operator, approved);
+        isOperator[_msgSender()][operator] = approved;
+        emit OperatorSet(_msgSender(), operator, approved);
         return true;
     }
 
@@ -40,7 +40,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
         coreVault.delegate{value: assets}();
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return minted;
     }
 
@@ -55,7 +55,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return shares;
     }
 
@@ -67,7 +67,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     {
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
 
@@ -75,14 +75,28 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
-        WrappedMonad(payable(address(asset()))).deposit{value: msg.value}();
-        return depositWMON(msg.value, receiver, referralId);
+        uint256 assets = msg.value;
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
+        }
+
+        uint256 shares = previewDeposit(assets);
+
+        _mint(receiver, shares);
+        emit Deposit(_msgSender(), receiver, assets, shares);
+
+        _delegatedNativeAssets += assets;
+        coreVault.delegate{value: assets}();
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
+
+        return shares;
     }
 
     function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
@@ -114,7 +128,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         returns (uint256 requestId)
     {
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == msg.sender || isOperator[owner][msg.sender])) {
+        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
             revert ErrNotAuthorized();
         }
         if (shares > balanceOf(owner)) {
@@ -131,7 +145,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _delegatedNativeAssets -= assets;
         isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, _requestIdCount, msg.sender, shares);
+        emit RedeemRequest(controller, owner, _requestIdCount, _msgSender(), shares);
         return _requestIdCount;
     }
 
@@ -157,7 +171,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         external
         whenNotPaused
     {
-        if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
             revert ErrNotAuthorized();
         }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
