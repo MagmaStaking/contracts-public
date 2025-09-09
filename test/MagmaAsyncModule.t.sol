@@ -12,6 +12,13 @@ import {MagmaBase} from "src/MagmaBase.sol";
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
         BaseTest.setUp();
+
+        _setupValidatorInStakingPrecompile(3);
+        _advanceEpoch();
+        vm.startPrank(admin);
+        gvault.addValidator(3);
+        gvault.changeValidatorCap(3, 5 ether);
+        vm.stopPrank();
     }
 
     function test_ERC165Support() public view {
