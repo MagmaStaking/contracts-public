@@ -15,6 +15,12 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertTrue(magma.supportsInterface(erc7540InterfaceId));
     }
 
+    function test_Metadata() public view {
+        assertEq(magma.name(), "gMON");
+        assertEq(magma.symbol(), "gMON");
+        assertEq(magma.decimals(), 18);
+    }
+
     // function testSynchronousDeposit() public {
     //     uint256 depositAmount = 1000e18;
 
@@ -57,12 +63,8 @@ contract MagmaAsyncModuleTest is BaseTest {
     //     assertEq(magma.totalAssets(), assets);
     // }
 
-    // function testDeploy() public {
-    //     // Test that the contract deploys successfully
-    //     assertTrue(address(magma) != address(0));
+    // function testAsset() public {
     //     assertEq(address(magma.asset()), address(wmon));
-    //     assertEq(magma.name(), "gMON");
-    //     assertEq(magma.symbol(), "gMON");
     // }
 
     // function testMaxWithdrawRedeem() public {
