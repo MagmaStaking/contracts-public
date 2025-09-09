@@ -233,7 +233,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
 
         assertEq(assets, magma.depositToGVault(assets, user, 3, 3));
-        // TODO: this test is not passing because of gVault, also maybe this test is correct and not the coreVault tests
+        /**
+         * TODO: this test is not passing because of gVault, also maybe this test is correct and not the coreVault tests
+         * the actual test should be assertEq(assets, vaultMONBalance);, please replace on the above depositTests
+         */
         // assertEq(assets, address(magma).balance + vaultMONBalance);
         assertEq(magma.totalAssets(), effectiveAssets + assets);
 
