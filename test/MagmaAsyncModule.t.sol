@@ -20,7 +20,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_Metadata() public view {
-        // TODO: Missing asset test here
+        assertEq(magma.asset(), address(wmon));
         assertEq(magma.name(), "gMON");
         assertEq(magma.symbol(), "gMON");
         assertEq(magma.decimals(), 18);
@@ -79,7 +79,74 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    // TODO: test with referralId
+    // function test_Deposit() public {
+    //     uint256 effectiveAssets = magma.totalAssets();
+    //     uint256 vaultMONBalance = address(magma).balance;
+    //     uint256 assets = 5 ether;
+
+    //     vm.deal(address(12), assets);
+    //     vm.startPrank(address(12));
+    //     wmon.deposit{value: assets}();
+
+    //     // TODO: this test of convertToShares and preview differently
+    //     // No fees on deposits so convertToShares should equal previewMint
+    //     uint256 expectedShares = magma.convertToShares(assets);
+    //     assertEq(assets, magma.previewMint(expectedShares));
+
+    //     wmon.approve(address(magma), assets);
+
+    //     vm.expectEmit(true, true, true, true);
+    //     emit WrappedMonad.Transfer(address(12), address(magma), assets);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit IERC20.Transfer(address(0), address(12), expectedShares);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit IERC4626.Deposit(address(12), address(12), assets, expectedShares);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit WrappedMonad.Withdrawal(address(magma), assets);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit MagmaBase.DepositWithReferral(address(12), address(12), assets, expectedShares, 0);
+
+    //     assertEq(assets, magma.mint(expectedShares, address(12)));
+    //     assertEq(assets, address(magma).balance + vaultMONBalance);
+    //     assertEq(magma.totalAssets(), effectiveAssets + assets);
+
+    //     vm.stopPrank();
+    // }
+
+    // function test_DepositToGVault() public {
+    //     uint256 effectiveAssets = magma.totalAssets();
+    //     uint256 vaultMONBalance = address(magma).balance;
+    //     uint256 assets = 5 ether;
+
+    //     vm.deal(address(11), assets);
+    //     vm.startPrank(address(11));
+    //     wmon.deposit{value: assets}();
+
+    //     // No fees on deposits so convertToShares should equal previewMint
+    //     uint256 expectedShares = magma.convertToShares(assets);
+    //     assertEq(assets, magma.previewMint(expectedShares));
+
+    //     wmon.approve(address(magma), assets);
+
+    //     vm.expectEmit(true, true, true, true);
+    //     emit WrappedMonad.Transfer(address(11), address(magma), assets);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit IERC20.Transfer(address(0), address(11), expectedShares);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit IERC4626.Deposit(address(11), address(11), assets, expectedShares);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit WrappedMonad.Withdrawal(address(magma), assets);
+    //     vm.expectEmit(true, true, true, true);
+    //     emit MagmaBase.DepositWithReferral(address(11), address(11), assets, expectedShares, 0);
+
+    //     assertEq(assets, magma.mint(expectedShares, address(11)));
+    //     assertEq(assets, address(magma).balance + vaultMONBalance);
+    //     assertEq(magma.totalAssets(), effectiveAssets + assets);
+
+    //     vm.stopPrank();
+    // }
+
+    // TODO: test with referralId, for depositWMON, and depositMON
 
     // function testSynchronousDeposit() public {
     //     uint256 depositAmount = 1000e18;
