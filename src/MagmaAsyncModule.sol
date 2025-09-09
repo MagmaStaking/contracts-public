@@ -22,6 +22,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
+    // TODO: fr -> test this
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -66,6 +67,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets};
@@ -73,6 +75,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
         WrappedMonad(payable(address(asset()))).deposit{value: msg.value}();
         return depositWMON(msg.value, receiver, referralId);
