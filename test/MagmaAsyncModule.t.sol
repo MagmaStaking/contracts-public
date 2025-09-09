@@ -21,6 +21,31 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.decimals(), 18);
     }
 
+    function test_RevertWhen_PreviewWithdraw() public {
+        vm.expectRevert();
+        magma.previewWithdraw(1);
+    }
+
+    function test_RevertWhen_PreviewRedeem() public {
+        vm.expectRevert();
+        magma.previewRedeem(1);
+    }
+
+    function test_RevertWhen_Withdraw() public {
+        vm.expectRevert();
+        magma.withdraw(1, address(1), address(1));
+    }
+
+    function test_RevertWhen_Redeem() public {
+        vm.expectRevert();
+        magma.redeem(1, address(1), address(1));
+    }
+
+    function test_Mint() public {
+        // test shares
+        // test assets
+    }
+
     // function testSynchronousDeposit() public {
     //     uint256 depositAmount = 1000e18;
 
@@ -77,3 +102,6 @@ contract MagmaAsyncModuleTest is BaseTest {
     //     assertEq(magma.maxRedeem(alice), 0);
     // }
 }
+
+// TODO: think about tests in magmabase needed
+// TODO: see how to order all these tests and order MagmaAsyncModule as well

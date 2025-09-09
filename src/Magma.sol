@@ -48,12 +48,12 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultMa
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewWithdraw(uint256 assets) public view override returns (uint256) {
+    function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewRedeem(uint256 shares) public view override returns (uint256) {
+    function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
         revert();
     }
 
@@ -61,7 +61,11 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultMa
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function withdraw(uint256 assets, address receiver, address controller) public override returns (uint256) {
+    function withdraw(uint256, /*assets*/ address, /*receiver*/ address /*controller*/ )
+        public
+        override
+        returns (uint256)
+    {
         revert();
     }
 
@@ -69,7 +73,11 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultMa
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function redeem(uint256 shares, address receiver, address controller) public override returns (uint256) {
+    function redeem(uint256, /*shares*/ address, /*receiver*/ address /*controller*/ )
+        public
+        override
+        returns (uint256)
+    {
         revert();
     }
 
