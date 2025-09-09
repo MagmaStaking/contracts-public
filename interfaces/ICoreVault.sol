@@ -44,7 +44,7 @@ interface ICoreVault {
     function minUserWithdrawAmount() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
-    function pendingRedelegationTotal() external view returns (uint256);
+    function totalPendingRedelegation() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
     function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
