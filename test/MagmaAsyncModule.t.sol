@@ -87,7 +87,6 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // 7540 vault assertions
         assertEq(assets, magma.mint(shares, user));
-        assertEq(assets, address(magma).balance + balanceBefore);
         assertEq(address(magma).balance, balanceBefore);
         assertEq(magma.totalAssets(), assetsBefore + assets);
 

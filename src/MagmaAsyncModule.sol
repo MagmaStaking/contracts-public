@@ -39,7 +39,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
-        coreVault.delegate{value: assets};
+        coreVault.delegate{value: assets}();
         emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return minted;
     }
@@ -54,7 +54,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /// @dev Withdraws WMON to MON so it can stake it
     function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets};
+        coreVault.delegate{value: assets}();
         emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
         return shares;
     }
@@ -74,7 +74,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets};
+        coreVault.delegate{value: assets}();
         emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
         return shares;
     }
