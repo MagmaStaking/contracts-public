@@ -50,101 +50,6 @@
 //         _activateDelegatedStakes();
 //     }
 
-//     function testDeploy() public {
-//         // Test that the contract deploys successfully
-//         assertTrue(address(magma) != address(0));
-//         assertEq(address(magma.asset()), address(wmon));
-//         assertEq(magma.name(), "gMON");
-//         assertEq(magma.symbol(), "gMON");
-//     }
-
-//     function testERC165Support() public {
-//         // Test ERC-165 interface support
-//         bytes4 erc7540InterfaceId = 0x2f0a18c5;
-//         assertTrue(magma.supportsInterface(erc7540InterfaceId));
-//     }
-
-//     function testSynchronousDeposit() public {
-//         uint256 depositAmount = 1000e18;
-
-//         // Alice deposits using wrapped tokens (WMON) - indirect approach
-//         vm.prank(alice);
-//         uint256 shares = magma.deposit(depositAmount, alice);
-
-//         assertEq(magma.balanceOf(alice), shares);
-//         // ERC4626 deposit unwraps WMON and delegates native; vault holds no WMON after deposit
-//         assertEq(wmon.balanceOf(address(magma)), 0);
-//         assertEq(magma.totalAssets(), depositAmount);
-//     }
-
-//     function testDepositComparison() public {
-//         uint256 depositAmount = 1 ether;
-
-//         // Method 1: Direct native deposit using depositMon
-//         vm.prank(alice);
-//         uint256 nativeShares = magma.depositMon{value: depositAmount}();
-
-//         // Method 2: Indirect deposit via WrappedMonad -> deposit
-//         vm.prank(bob);
-//         uint256 wrappedShares = magma.deposit(depositAmount, bob);
-
-//         // Both methods should give same result (1:1 initially)
-//         assertEq(nativeShares, wrappedShares);
-//         assertEq(magma.balanceOf(alice), depositAmount);
-//         assertEq(magma.balanceOf(bob), depositAmount);
-//         assertEq(magma.totalAssets(), depositAmount * 2);
-//     }
-
-//     function testSynchronousMint() public {
-//         uint256 sharesToMint = 1000e18;
-
-//         vm.prank(alice);
-//         uint256 assets = magma.mint(sharesToMint, alice);
-
-//         assertEq(magma.balanceOf(alice), sharesToMint);
-//         // Mint unwraps WMON and delegates native; vault holds no WMON after mint
-//         assertEq(wmon.balanceOf(address(magma)), 0);
-//         assertEq(magma.totalAssets(), assets);
-//     }
-
-//     function testMaxWithdrawRedeem() public {
-//         // Setup: Alice deposits first
-//         vm.prank(alice);
-//         magma.deposit(1000e18, alice);
-
-//         // Max withdraw/redeem should return 0 to force async flow
-//         assertEq(magma.maxWithdraw(alice), 0);
-//         assertEq(magma.maxRedeem(alice), 0);
-//     }
-
-//     function testRequestWithdraw() public {
-//         uint256 depositAmount = 1000e18;
-//         uint256 withdrawAmount = 500e18;
-
-//         // Setup: Alice deposits
-//         vm.prank(alice);
-//         magma.deposit(depositAmount, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         uint256 initialShares = magma.balanceOf(alice);
-
-//         // Alice requests withdrawal
-//         vm.prank(alice);
-//         uint256 requestId = magma.requestWithdraw(withdrawAmount, alice, alice);
-
-//         assertEq(requestId, 0); // Simplified implementation returns 0
-
-//         // Check pending request (non-zero is sufficient; exact equality can vary with rounding)
-//         assertGt(magma.pendingWithdrawRequest(alice), 0);
-//         assertEq(magma.pendingRedeemRequest(alice), 0);
-
-//         // Check shares moved to vault for locking
-//         assertGt(magma.balanceOf(address(magma)), 0);
-//         assertLt(magma.balanceOf(alice), initialShares);
-//     }
-
 //     function testRequestRedeem() public {
 //         uint256 depositAmount = 1000e18;
 //         uint256 redeemShares = 500e18;
@@ -171,66 +76,6 @@
 //         // Check shares are locked
 //         assertEq(magma.balanceOf(alice), initialShares - redeemShares);
 //         assertEq(magma.balanceOf(address(magma)), redeemShares);
-//     }
-
-//     function testLinearVestingClaimable() public {
-//         uint256 depositAmount = 1000e18;
-//         uint256 withdrawAmount = 500e18;
-
-//         // Setup: Alice deposits and requests withdrawal
-//         vm.prank(alice);
-//         magma.deposit(depositAmount, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         vm.prank(alice);
-//         magma.requestWithdraw(withdrawAmount, alice, alice);
-
-//         // Initially no claimable amount
-//         assertEq(magma.claimableWithdrawRequest(alice), 0);
-
-//         // After half the delay period, half should be claimable
-//         vm.warp(block.timestamp + DEFAULT_DELAY / 2);
-//         uint256 halfClaimable = magma.claimableWithdrawRequest(alice);
-//         assertApproxEqRel(halfClaimable, withdrawAmount / 2, 0.01e18); // 1% tolerance
-
-//         // After full delay, all should be claimable
-//         vm.warp(block.timestamp + DEFAULT_DELAY / 2);
-//         assertEq(magma.claimableWithdrawRequest(alice), withdrawAmount);
-//     }
-
-//     function testClaimWithdraw() public {
-//         uint256 depositAmount = 1000e18;
-//         uint256 withdrawAmount = 500e18;
-
-//         // Setup: Alice deposits and requests withdrawal
-//         vm.prank(alice);
-//         magma.deposit(depositAmount, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         vm.prank(alice);
-//         magma.requestWithdraw(withdrawAmount, alice, alice);
-
-//         // Fast forward past delay
-//         vm.warp(block.timestamp + DEFAULT_DELAY);
-
-//         // Simulate completed withdrawal by funding contract with ETH for wrapping
-//         vm.deal(address(magma), withdrawAmount);
-//         uint256 aliceAssetsBefore = wmon.balanceOf(alice);
-
-//         // Alice claims withdrawal
-//         vm.prank(alice);
-//         uint256 sharesBurned = magma.withdraw(withdrawAmount, alice, alice);
-
-//         // Check assets transferred
-//         assertEq(wmon.balanceOf(alice), aliceAssetsBefore + withdrawAmount);
-
-//         // Check request is cleared
-//         assertEq(magma.pendingWithdrawRequest(alice), 0);
-//         assertEq(magma.balanceOf(address(magma)), 0);
 //     }
 
 //     function testClaimRedeem() public {
@@ -375,25 +220,6 @@
 //     // Helper function to be called in tests after deposits
 //     function _activateStakes() internal {
 //         _activateDelegatedStakes();
-//     }
-
-//     function testDepositMon() public {
-//         uint256 depositAmount = 1 ether;
-
-//         uint256 aliceSharesBefore = magma.balanceOf(alice);
-//         uint256 vaultAssetsBefore = magma.totalAssets();
-
-//         // Alice deposits native MON
-//         vm.prank(alice);
-//         uint256 shares = magma.depositMon{value: depositAmount}();
-
-//         // Check shares were minted
-//         assertEq(magma.balanceOf(alice), aliceSharesBefore + shares);
-//         assertEq(shares, depositAmount); // 1:1 ratio initially
-
-//         // Check vault received the wrapped assets
-//         assertEq(magma.totalAssets(), vaultAssetsBefore + depositAmount);
-//         // totalAssets tracks delegated+held; underlying WrappedMonad is internal to tests
 //     }
 
 //     function testRedeemMon() public {

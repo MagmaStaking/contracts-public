@@ -166,6 +166,44 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_DepositMON() public {
+        // uint256 effectiveAssets = magma.totalAssets();
+        // uint256 vaultMONBalance = address(magma).balance;
+        // uint256 assets = 5 ether;
+
+        // vm.deal(user, assets);
+        // vm.startPrank(user);
+
+        // uint256 shares = magma.convertToShares(assets);
+
+        // vm.expectEmit(true, true, true, true);
+        // emit WrappedMonad.Deposit(address(magma), assets);
+        // vm.expectEmit(true, true, true, true);
+        // emit WrappedMonad.Transfer(user, address(magma), assets);
+        // vm.expectEmit(true, true, true, true);
+        // emit IERC20.Transfer(address(0), user, shares);
+        // vm.expectEmit(true, true, true, true);
+        // emit IERC4626.Deposit(user, user, assets, shares);
+        // vm.expectEmit(true, true, true, true);
+        // emit WrappedMonad.Withdrawal(address(magma), assets);
+        // vm.expectEmit(true, true, true, true);
+        // emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
+
+        // 7540 vault assertions
+        // magma.depositMON{value: assets}(user, 3);
+        // assertEq(shares, magma.depositMON{value: assets}(user, 3));
+        // assertEq(assets, address(magma).balance + vaultMONBalance);
+        // assertEq(wmon.balanceOf(address(magma)), 0);
+        // assertEq(magma.totalAssets(), effectiveAssets + assets);
+
+        // // User assertions
+        // assertEq(magma.balanceOf(user), shares);
+        // assertEq(wmon.balanceOf(user), 0);
+        // assertEq((user).balance, 0);
+
+        // vm.stopPrank();
+    }
+
     // TODO: test deposit to another receiver and withdraw to another receiver
 
     // function test_DepositToGVault() public {
@@ -199,26 +237,6 @@ contract MagmaAsyncModuleTest is BaseTest {
     //     assertEq(magma.totalAssets(), effectiveAssets + assets);
 
     //     vm.stopPrank();
-    // }
-
-    // TODO: test with referralId, for depositWMON, and depositMON
-
-    // function testDepositComparison() public {
-    //     uint256 depositAmount = 1 ether;
-
-    //     // Method 1: Direct native deposit using depositMon
-    //     vm.prank(alice);
-    //     uint256 nativeShares = magma.depositMon{value: depositAmount}();
-
-    //     // Method 2: Indirect deposit via WrappedMonad -> deposit
-    //     vm.prank(bob);
-    //     uint256 wrappedShares = magma.deposit(depositAmount, bob);
-
-    //     // Both methods should give same result (1:1 initially)
-    //     assertEq(nativeShares, wrappedShares);
-    //     assertEq(magma.balanceOf(alice), depositAmount);
-    //     assertEq(magma.balanceOf(bob), depositAmount);
-    //     assertEq(magma.totalAssets(), depositAmount * 2);
     // }
 
     // function testMaxWithdrawRedeem() public {
