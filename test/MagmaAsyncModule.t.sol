@@ -46,6 +46,15 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.redeem(1, address(1), address(1));
     }
 
+    // No fees on deposits so convertToShares should equal previewMint and convertToAssets should equal previewDeposit
+    function test_DepositHelpersRates() public view {
+        uint256 assets = 5 ether;
+        uint256 shares = magma.convertToShares(assets);
+        assertEq(assets, magma.previewMint(shares));
+        assertEq(assets, magma.convertToAssets(shares));
+        assertEq(shares, magma.previewDeposit(assets));
+    }
+
     function test_Mint() public {
         uint256 effectiveAssets = magma.totalAssets();
         uint256 vaultMONBalance = address(magma).balance;
@@ -55,24 +64,21 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.startPrank(address(11));
         wmon.deposit{value: assets}();
 
-        // No fees on deposits so convertToShares should equal previewMint
-        uint256 expectedShares = magma.convertToShares(assets);
-        assertEq(assets, magma.previewMint(expectedShares));
-
+        uint256 shares = magma.convertToShares(assets);
         wmon.approve(address(magma), assets);
 
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Transfer(address(11), address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(address(0), address(11), expectedShares);
+        emit IERC20.Transfer(address(0), address(11), shares);
         vm.expectEmit(true, true, true, true);
-        emit IERC4626.Deposit(address(11), address(11), assets, expectedShares);
+        emit IERC4626.Deposit(address(11), address(11), assets, shares);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(address(11), address(11), assets, expectedShares, 0);
+        emit MagmaBase.DepositWithReferral(address(11), address(11), assets, shares, 0);
 
-        assertEq(assets, magma.mint(expectedShares, address(11)));
+        assertEq(assets, magma.mint(shares, address(11)));
         assertEq(assets, address(magma).balance + vaultMONBalance);
         assertEq(magma.totalAssets(), effectiveAssets + assets);
 
@@ -209,4 +215,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: see how to order all these tests and order MagmaAsyncModule as well
 // TODO: reentrancy
 // TODO: look at openzeppelin erc4626 tests
-// TODO: test all methods in https://eips.ethereum.org/EIPS/eip-4626#methods
+// TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
