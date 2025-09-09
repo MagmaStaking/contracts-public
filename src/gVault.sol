@@ -26,8 +26,11 @@ import {
 } from "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
+import {BitMapLib} from "./utils/BitMapLib.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, IGVault {
+    using BitMapLib for BitMapLib.WithdrawalBitMap;
+
     IMagma public magma;
 
     // Whitelist of eligible validators (tracked by valId)
@@ -42,10 +45,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
     mapping(uint64 => address[]) public validatorUsers;
     mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
 
-    // Per-validator next withdrawal id cursor (0..255)
-    mapping(uint64 => uint8) private nextWithdrawalId;
-    // Per-validator withdrawal ID availability bitmap (bit set = ID in use)
-    mapping(uint64 => uint256) private withdrawalIdBitmap;
+    // Per-validator withdrawal ID bitmap management
+    mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
@@ -128,8 +129,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
         whitelistedValidators.push(valId);
 
         // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
-        uint256 adminMask = 1 << ADMIN_WID_REBALANCE;
-        withdrawalIdBitmap[valId] |= adminMask;
+        withdrawalIdBitmaps[valId].initForGVault();
 
         emit ValidatorAdded(valId);
     }
@@ -311,17 +311,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
     function _completeUndelegation(uint64 valId) internal {
         uint256 sum = queuedAmountByValidator[valId];
         if (sum == 0) return;
-        // allocate wid
+        // allocate wid - need to check precompile for actual availability
         uint8 wid;
         bool found = false;
-        uint8 start = nextWithdrawalId[valId];
+        uint8 start = withdrawalIdBitmaps[valId].getNextWithdrawalId();
         for (uint16 k = 0; k < 256; k++) {
             uint8 cand = uint8(uint16(start) + k);
             if (cand == ADMIN_WID_REBALANCE) continue;
             (bool exists,,,) = _getWithdrawalRequest(valId, address(this), cand);
             if (!exists) {
                 wid = cand;
-                nextWithdrawalId[valId] = uint8(uint16(cand) + 1);
+                // Mark as used in bitmap manually since we need to sync with precompile state
+                uint256 mask = 1 << cand;
+                withdrawalIdBitmaps[valId].bitmap |= mask;
+                withdrawalIdBitmaps[valId].nextWithdrawalId = uint8(uint16(cand) + 1);
                 found = true;
                 break;
             }
@@ -466,23 +469,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        uint256 bitmap = withdrawalIdBitmap[valId];
-        uint8 start = nextWithdrawalId[valId];
-
-        // Find first free slot starting from cursor
-        for (uint16 i = 0; i < 256; i++) {
-            uint8 candidate = uint8(uint16(start) + i);
-            if (candidate == ADMIN_WID_REBALANCE) continue; // skip reserved
-
-            uint256 mask = 1 << candidate;
-            if (bitmap & mask == 0) {
-                // Mark as used in bitmap
-                withdrawalIdBitmap[valId] |= mask;
-                nextWithdrawalId[valId] = uint8(uint16(candidate) + 1);
-                return candidate;
-            }
-        }
-        revert("gVault: no free withdrawal id");
+        return withdrawalIdBitmaps[valId].allocateWithdrawalIdForGVault();
     }
 
     /**
@@ -491,11 +478,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        // Don't clear the ADMIN_WID_REBALANCE in bitmap since it's reserved and shouldn't be reused
-        if (withdrawalId == ADMIN_WID_REBALANCE) return;
-
-        uint256 mask = 1 << withdrawalId;
-        withdrawalIdBitmap[valId] &= ~mask; // Clear the bit
+        withdrawalIdBitmaps[valId].markWithdrawalCompletedForGVault(withdrawalId);
     }
 
     // Helpers for reading user positions

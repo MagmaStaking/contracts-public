@@ -12,6 +12,27 @@ import {
  * @title MagmaDelegationModule
  * @dev Abstract thin adapter over Monad staking precompile. Inherit in vaults so msg.sender == delegator.
  */
+struct DelInfo {
+    uint256 stake; // Current active stake
+    uint256 acc; // Last checked accumulator
+    uint256 rewards; // Last checked rewards
+    uint256 delta_stake; // Stake to be activated next epoch
+    uint256 next_delta_stake; // Stake to be activated in 2 epochs
+    uint64 delta_epoch; // Epoch when delta_stake becomes active
+    uint64 next_delta_epoch; // Epoch when next_delta_stake becomes active
+}
+
+struct WithdrawalRequest {
+    uint256 amount; // Amount to undelegate from validator
+    uint256 acc; // Validator accumulator when undelegate was called
+    uint64 epoch; // Epoch when undelegate stake deactivates
+}
+
+struct Accumulator {
+    uint256 val; // Current accumulator value
+    uint256 refcount; // Reference count for this accumulator value
+}
+
 abstract contract MagmaDelegationModule {
     address internal constant STAKING_PRECOMPILE = address(0x0000000000000000000000000000000000001000);
     bytes4 internal constant SEL_DELEGATE = 0x00000002;
@@ -72,5 +93,13 @@ abstract contract MagmaDelegationModule {
             STAKING_PRECOMPILE.staticcall(abi.encodeWithSelector(SEL_GET_DELEGATOR, valId, delegator));
         if (!ok || ret.length == 0) return 0;
         (stake) = abi.decode(ret, (uint256));
+    }
+
+    function _getDelegatorInfo(uint64 valId, address delegator) internal view returns (DelInfo memory del) {
+        (bool ok, bytes memory ret) =
+            STAKING_PRECOMPILE.staticcall(abi.encodeWithSelector(SEL_GET_DELEGATOR, valId, delegator));
+        if (!ok || ret.length == 0) return DelInfo(0, 0, 0, 0, 0, 0, 0);
+        (del.stake, del.acc, del.rewards, del.delta_stake, del.next_delta_stake, del.delta_epoch, del.next_delta_epoch)
+        = abi.decode(ret, (uint256, uint256, uint256, uint256, uint256, uint64, uint64));
     }
 }

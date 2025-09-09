@@ -222,6 +222,12 @@ contract MockStakingPrecompile {
         DelInfo storage del = delegator[valId][msg.sender];
         uint64 activationEpoch = _getActivationEpoch();
 
+        // Track this delegator for this validator
+        if (!hasDelegator[valId][msg.sender]) {
+            validatorDelegators[valId].push(msg.sender);
+            hasDelegator[valId][msg.sender] = true;
+        }
+
         // Update validator stake
         val_execution[valId].stake += amount;
 
@@ -386,9 +392,16 @@ contract MockStakingPrecompile {
         (uint64 valId, address delegatorAddr) = abi.decode(msg.data[4:], (uint64, address));
 
         DelInfo memory del = delegator[valId][delegatorAddr];
-        // According to the docs: "Typed view for delegator info: return stake amount (first word)"
-        // The CoreVault expects only the stake amount, not the full struct
-        bytes memory result = abi.encode(del.stake);
+        // Return the full DelInfo struct as expected by CoreVault's _getDelegatorInfo
+        bytes memory result = abi.encode(
+            del.stake,
+            del.acc,
+            del.rewards,
+            del.delta_stake,
+            del.next_delta_stake,
+            del.delta_epoch,
+            del.next_delta_epoch
+        );
         assembly {
             return(add(result, 0x20), mload(result))
         }
@@ -498,11 +511,13 @@ contract MockStakingPrecompile {
             val_snapshot[valId] = val_consensus[valId];
         }
 
-        // Activate pending delegations
+        // Activate pending delegations - we need to track all active delegators
+        // For our test purposes, we'll activate pending stakes for known delegators
         for (uint256 i = 0; i < execution_valset.length; i++) {
-            // uint64 valId = execution_valset[i];
-            // Note: In a full implementation, we'd iterate through all delegators
-            // For simplicity, this mock doesn't track all delegators
+            uint64 valId = execution_valset[i];
+            // We need to activate pending stakes for any delegator that has them
+            // This is a simplified approach for testing
+            _activatePendingStakes(valId);
         }
 
         epoch++;
@@ -513,7 +528,12 @@ contract MockStakingPrecompile {
     }
 
     function setDelegatorStake(uint64 valId, address delegatorAddr, uint256 amount) external {
+        // Clear all pending stakes to avoid ErrPendingStakeNotZero issues
         delegator[valId][delegatorAddr].stake = amount;
+        delegator[valId][delegatorAddr].delta_stake = 0;
+        delegator[valId][delegatorAddr].next_delta_stake = 0;
+        delegator[valId][delegatorAddr].delta_epoch = 0;
+        delegator[valId][delegatorAddr].next_delta_epoch = 0;
 
         // Always create or update validator to match
         val_execution[valId] = ValExecution({
@@ -542,6 +562,63 @@ contract MockStakingPrecompile {
         delegator[valId][delegatorAddr].rewards = rewards;
     }
 
+    function setDelegatorPendingStake(uint64 valId, address delegatorAddr, uint256 deltaStake, uint256 nextDeltaStake)
+        external
+    {
+        delegator[valId][delegatorAddr].delta_stake = deltaStake;
+        delegator[valId][delegatorAddr].next_delta_stake = nextDeltaStake;
+    }
+
+    // Helper function to manually set up a validator with specific ID for testing
+    function setupValidator(uint64 valId, uint256 stake) external {
+        val_execution[valId] = ValExecution({
+            stake: stake,
+            acc: 0,
+            commission: 0,
+            keys: KeysPacked("", ""),
+            address_flags: 0,
+            unclaimed_rewards: 0
+        });
+
+        // Add to execution valset if not already present
+        bool found = false;
+        for (uint256 i = 0; i < execution_valset.length; i++) {
+            if (execution_valset[i] == valId) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            execution_valset.push(valId);
+        }
+    }
+
+    // Keep track of delegators for each validator
+    mapping(uint64 => address[]) public validatorDelegators;
+    mapping(uint64 => mapping(address => bool)) public hasDelegator;
+
+    function _activatePendingStakes(uint64 valId) internal {
+        address[] storage delegators = validatorDelegators[valId];
+        for (uint256 i = 0; i < delegators.length; i++) {
+            address delegatorAddr = delegators[i];
+            DelInfo storage del = delegator[valId][delegatorAddr];
+
+            // Activate delta_stake if the epoch matches
+            if (del.delta_epoch <= epoch && del.delta_stake > 0) {
+                del.stake += del.delta_stake;
+                del.delta_stake = 0;
+            }
+
+            // Move next_delta_stake to delta_stake if needed
+            if (del.next_delta_epoch <= epoch && del.next_delta_stake > 0) {
+                del.delta_stake = del.next_delta_stake;
+                del.delta_epoch = epoch + 1;
+                del.next_delta_stake = 0;
+                del.next_delta_epoch = 0;
+            }
+        }
+    }
+
     function addRewards(uint64 valId, uint256 blockReward) external {
         require(val_execution[valId].stake > 0, "Invalid validator");
 
@@ -564,6 +641,24 @@ contract MockStakingPrecompile {
 
     function debugValidatorStake(uint64 valId) external view returns (uint256) {
         return val_execution[valId].stake;
+    }
+
+    /**
+     * @dev Helper function to create a withdrawal request for testing
+     * This simulates a completed undelegation that's ready for withdrawal
+     */
+    function createWithdrawalRequest(
+        uint64 valId,
+        address delegatorAddr,
+        uint8 withdrawalId,
+        uint256 amount,
+        uint64 withdrawalEpoch
+    ) external {
+        withdrawal[valId][delegatorAddr][withdrawalId] =
+            WithdrawalRequest({amount: amount, acc: val_execution[valId].acc, epoch: withdrawalEpoch});
+
+        // Contract balance should already be sufficient for withdrawal
+        // In real scenario, this would come from validator unstaking
     }
 
     // Allow contract to receive ETH

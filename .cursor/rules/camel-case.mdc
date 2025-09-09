@@ -1,5 +1,5 @@
 ---
-description: files and function names should use CamelCase without underscores
+description: files and function names should use CamelCase without underscores, local variables should be prefixed with an underscore and global variables should never be prefixed with an underscore
 globs:
 alwaysApply: false
 ---
