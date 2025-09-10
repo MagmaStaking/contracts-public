@@ -61,3 +61,7 @@ error ErrMustPauseBeforeRemove();
 error ErrPendingStakeNotZero();
 error ErrInvalidStatus();
 error ErrNotEnoughValidators();
+
+// Withdrawal ordering errors
+error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
+error ErrExistingWithdrawalInProgress();
