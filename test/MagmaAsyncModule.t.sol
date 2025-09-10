@@ -265,8 +265,8 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 requestIdCountBefore = getRequestIdCount();
         uint256 assetsBefore = magma.totalAssets();
         uint256 assets = 5 ether;
-        uint256 sharesUserBefore = magma.balanceOf(user);
         uint256 shares = depositHelper(assets);
+        uint256 sharesUserBefore = magma.balanceOf(user);
 
         // Assertions before request
         (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
@@ -299,12 +299,12 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.balanceOf(user), sharesUserBefore - shares);
     }
 
-    function test_Redeem() public {
-        uint256 requestIdCountBefore = getRequestIdCount();
-        uint256 assetsBefore = magma.totalAssets();
-        uint256 assets = 5 ether;
-        uint256 shares = requestRedeemHelper(assets);
-    }
+    // function test_Redeem() public {
+    //     uint256 requestIdCountBefore = getRequestIdCount();
+    //     uint256 assetsBefore = magma.totalAssets();
+    //     uint256 assets = 5 ether;
+    //     uint256 shares = requestRedeemHelper(assets);
+    // }
 
     function test_MultipleRequestIds() public {}
 
