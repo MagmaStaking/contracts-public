@@ -59,21 +59,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.decimals(), 18);
     }
 
-    function test_RevertWhen_PreviewWithdraw() public {
-        vm.expectRevert();
-        magma.previewWithdraw(1);
-    }
-
-    function test_RevertWhen_PreviewRedeem() public {
-        vm.expectRevert();
-        magma.previewRedeem(1);
-    }
-
-    function test_RevertWhen_Withdraw() public {
-        vm.expectRevert();
-        magma.withdraw(1, address(1), address(1));
-    }
-
     // No fees on deposits so convertToShares should equal previewMint and convertToAssets should equal previewDeposit
     function test_DepositHelpersRates() public view {
         uint256 assets = 5 ether;
@@ -315,6 +300,21 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     // TODO: test deposit0 or mint0 all of them should revert, also claim 0
     // TODO: test deposit to another receiver and withdraw to another receiver
+
+    function test_RevertWhen_PreviewWithdraw() public {
+        vm.expectRevert();
+        magma.previewWithdraw(1);
+    }
+
+    function test_RevertWhen_PreviewRedeem() public {
+        vm.expectRevert();
+        magma.previewRedeem(1);
+    }
+
+    function test_RevertWhen_Withdraw() public {
+        vm.expectRevert();
+        magma.withdraw(1, address(1), address(1));
+    }
 
     // function test_OperatorApproval() public {
     //     // Alice approves Bob as operator
