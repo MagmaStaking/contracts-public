@@ -50,34 +50,6 @@
 //         _activateDelegatedStakes();
 //     }
 
-//     function testRequestRedeem() public {
-//         uint256 depositAmount = 1000e18;
-//         uint256 redeemShares = 500e18;
-
-//         // Setup: Alice deposits
-//         vm.prank(alice);
-//         magma.deposit(depositAmount, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         uint256 initialShares = magma.balanceOf(alice);
-
-//         // Alice requests redemption
-//         vm.prank(alice);
-//         uint256 requestId = magma.requestRedeem(redeemShares, alice, alice);
-
-//         assertEq(requestId, 0);
-
-//         // Check pending request
-//         assertEq(magma.pendingRedeemRequest(alice), redeemShares);
-//         assertEq(magma.pendingWithdrawRequest(alice), 0);
-
-//         // Check shares are locked
-//         assertEq(magma.balanceOf(alice), initialShares - redeemShares);
-//         assertEq(magma.balanceOf(address(magma)), redeemShares);
-//     }
-
 //     function testClaimRedeem() public {
 //         uint256 depositAmount = 1000e18;
 //         uint256 redeemShares = 500e18;
@@ -109,35 +81,6 @@
 //         // Check request is cleared
 //         assertEq(magma.pendingRedeemRequest(alice), 0);
 //         assertEq(magma.balanceOf(address(magma)), 0);
-//     }
-
-//     function testPartialClaim() public {
-//         uint256 depositAmount = 1000e18;
-//         uint256 withdrawAmount = 500e18;
-//         uint256 partialClaim = 200e18;
-
-//         // Setup: Alice deposits and requests withdrawal
-//         vm.prank(alice);
-//         magma.deposit(depositAmount, alice);
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         vm.prank(alice);
-//         magma.requestWithdraw(withdrawAmount, alice, alice);
-
-//         // Fast forward past delay
-//         vm.warp(block.timestamp + DEFAULT_DELAY);
-
-//         // Simulate completed withdrawal by funding contract with ETH for wrapping
-//         vm.deal(address(magma), withdrawAmount);
-//         // Alice claims partial withdrawal
-//         vm.prank(alice);
-//         magma.withdraw(partialClaim, alice, alice);
-
-//         // Check remaining request
-//         assertEq(magma.pendingWithdrawRequest(alice), withdrawAmount - partialClaim);
-//         assertTrue(magma.balanceOf(address(magma)) > 0);
 //     }
 
 // TODO: test this one in redeem and deposit
