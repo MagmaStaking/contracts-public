@@ -34,7 +34,6 @@ contract CoreVault is
     mapping(uint64 => ValidatorStatus) public validatorStatus;
     mapping(uint64 => bool) public isWhitelisted;
 
-    uint256 public totalDelegated;
     // Per-validator withdrawal ID bitmap management
     mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     // Per-validator amounts submitted for undelegation but not yet completed
@@ -76,6 +75,16 @@ contract CoreVault is
         uint64 valId;
         uint256 amount;
     }
+
+    struct WithdrawalRequestInfo {
+        address user;
+        uint256 amount;
+        uint64 validator;
+        uint8 withdrawalId;
+    }
+
+    // Storage for withdrawal requests - mapping from user to their withdrawal requests
+    mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
     /**
      * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
@@ -134,6 +143,10 @@ contract CoreVault is
         if (amount >= 10000 ether) revert ErrInvalidAmount(amount);
         minUserWithdrawAmount = amount;
     }
+
+    // --------------------------------------------------------------------------------------------------------------
+    // Validator management functions
+    // --------------------------------------------------------------------------------------------------------------
 
     /**
      * @notice Step 1: Add a validator and initiate rebalance phase 1 (undelegation)
@@ -263,29 +276,64 @@ contract CoreVault is
         emit ValidatorRemovalCompleted(_valId);
     }
 
+    // --------------------------------------------------------------------------------------------------------------
+    // Delegation functions
+    // --------------------------------------------------------------------------------------------------------------
+
     function delegate() external payable onlyMagma whenNotPaused {
         _distributeAmountEquallyToValidators(msg.value);
     }
 
-    function undelegate(uint256 _amount) external onlyMagma whenNotPaused {
+    function undelegate(uint256 _amount, address _user) external onlyMagma whenNotPaused {
         if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
         }
         if (validators.length == 0) revert ErrNoValidators();
 
-        uint256 _amountPerValidator = _amount / validators.length;
-        if (_amountPerValidator == 0) revert ErrAmountTooSmall();
+        // only one withdrawal per user
+        if (userWithdrawalRequests[_user].length > 0) revert ErrExistingWithdrawalInProgress();
 
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            uint64 _v = validators[_i];
-            uint256 _effective = _getTotalStakedToValidator(_v) + pendingUndelegateByValidator[_v];
-            if (_effective < _amountPerValidator) {
-                revert ErrInsufficientDelegated(_amountPerValidator, _effective);
+        // Get validators sorted by stake (highest first) and total stake in one go
+        (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
+            _getSortedValidatorsByActiveStakeDescendingWithTotal();
+
+        uint256 _remainingAmount = _amount;
+        uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
+
+        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+            uint64 _valId = _sortedValidators[_i].valId;
+            uint256 _availableStake = _sortedValidators[_i].amount; // Use stake from sorted array
+
+            if (_availableStake == 0) continue;
+
+            // Check if request exceeds 1/20th of total active stake
+            uint256 _maxAllowedFromValidator =
+                _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
+
+            uint256 _amountFromValidator = _remainingAmount;
+            if (_amountFromValidator > _maxAllowedFromValidator) {
+                _amountFromValidator = _maxAllowedFromValidator;
             }
-            _allocateWIDandUndelegate(_v, _amountPerValidator);
-            // Track pending; do not lower local delegated until completion
-            pendingUndelegateByValidator[_v] += _amountPerValidator;
-            totalPendingUndelegations += _amountPerValidator;
+            if (_amountFromValidator > _availableStake) {
+                _amountFromValidator = _availableStake;
+            }
+
+            if (_amountFromValidator > 0) {
+                uint8 _wid = _allocateWIDandUndelegate(_valId, _amountFromValidator);
+
+                // Store withdrawal request information
+                _storeWithdrawalRequest(_user, _amountFromValidator, _valId, _wid);
+
+                // Track pending; do not lower local delegated until completion
+                pendingUndelegateByValidator[_valId] += _amountFromValidator;
+                totalPendingUndelegations += _amountFromValidator;
+                _remainingAmount -= _amountFromValidator;
+            }
+        }
+
+        // If we couldn't fulfill the full amount, revert
+        if (_remainingAmount > 0) {
+            revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
         }
     }
 
@@ -598,6 +646,31 @@ contract CoreVault is
     }
 
     /**
+     * @notice Get validators sorted by their current stake (highest first) and active stake
+     * @dev Optimized version that calculates both sorted validators and active stake in one pass
+     * @return _sortedValidators Array of ValidatorAmount structs sorted by stake amount (descending)
+     * @return _activeStake Active stake across all validators
+     */
+    function _getSortedValidatorsByActiveStakeDescendingWithTotal()
+        internal
+        view
+        returns (ValidatorAmount[] memory _sortedValidators, uint256 _activeStake)
+    {
+        _sortedValidators = new ValidatorAmount[](validators.length);
+        _activeStake = 0;
+
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _valId = validators[_i];
+            DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+            uint256 _validatorStake = _coreVaultDelInfo.stake;
+            _sortedValidators[_i] = ValidatorAmount(_valId, _validatorStake);
+            _activeStake += _validatorStake;
+        }
+
+        _sortDescending(_sortedValidators);
+    }
+
+    /**
      * @notice Distribute stake to under-target validators
      * @dev Internal helper function that calculates targets and distributes stake to validators needing more
      * @param _sortedValidators Array of validators sorted by current stake (lowest first)
@@ -691,7 +764,69 @@ contract CoreVault is
         }
     }
 
-    function _authorizeUpgrade(address) internal override {
+    /**
+     * @dev Simple insertion sort for ValidatorAmount array (descending by amount)
+     */
+    function _sortDescending(ValidatorAmount[] memory _arr) internal pure {
+        uint256 _length = _arr.length;
+        for (uint256 _i = 1; _i < _length; _i++) {
+            ValidatorAmount memory key = _arr[_i];
+            uint256 _j = _i;
+            while (_j > 0 && _arr[_j - 1].amount < key.amount) {
+                _arr[_j] = _arr[_j - 1];
+                _j--;
+            }
+            _arr[_j] = key;
+        }
+    }
+
+    /**
+     * @dev Store withdrawal request information for tracking
+     * @param _user The user making the withdrawal request
+     * @param _amount The amount being withdrawn
+     * @param _validator The validator from which to withdraw
+     * @param _withdrawalId The withdrawal ID assigned
+     */
+    function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
+        userWithdrawalRequests[_user].push(
+            WithdrawalRequestInfo({user: _user, amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
+        );
+    }
+
+    /**
+     * @dev Get all withdrawal requests for a user
+     * @param _user The user address
+     * @return Array of withdrawal request information
+     */
+    function getUserWithdrawalRequests(address _user) external view returns (WithdrawalRequestInfo[] memory) {
+        return userWithdrawalRequests[_user];
+    }
+
+    /**
+     * @dev Get specific withdrawal request for a user by index
+     * @param _user The user address
+     * @param _index The index of the withdrawal request
+     * @return The withdrawal request information
+     */
+    function getUserWithdrawalRequest(address _user, uint256 _index)
+        external
+        view
+        returns (WithdrawalRequestInfo memory)
+    {
+        if (_index >= userWithdrawalRequests[_user].length) revert ErrInvalidAmount(_index);
+        return userWithdrawalRequests[_user][_index];
+    }
+
+    /**
+     * @dev Get total number of withdrawal requests for a user
+     * @param _user The user address
+     * @return The total count of withdrawal requests for the user
+     */
+    function getUserWithdrawalRequestCount(address _user) external view returns (uint256) {
+        return userWithdrawalRequests[_user].length;
+    }
+
+    function _authorizeUpgrade(address) internal view override {
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }
 

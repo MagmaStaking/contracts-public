@@ -40,7 +40,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
      * @dev Undelegate through CoreVault (undelegates equally from all validators)
      */
     function undelegate(uint256 amount) external {
-        coreVault.undelegate(amount);
+        coreVault.undelegate(amount, msg.sender);
     }
 
     /**
@@ -67,7 +67,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     }
 
     function _undelegate(uint256 assets) internal override {
-        coreVault.undelegate(assets);
+        coreVault.undelegate(assets, msg.sender);
     }
 
     function _completeUndelegationAndWrap(uint256 assets) internal override {
