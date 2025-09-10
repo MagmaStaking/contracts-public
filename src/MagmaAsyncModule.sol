@@ -158,6 +158,23 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
+    function redeem(uint256 requestId, address controller, address receiver)
+        public
+        override
+        whenNotPaused
+        returns (uint256 assets)
+    {
+        return _redeem(requestId, controller, receiver, true);
+    }
+
+    function redeemaMON(uint256 requestId, address controller, address receiver)
+        external
+        whenNotPaused
+        returns (uint256 assets)
+    {
+        return _redeem(requestId, controller, receiver, false);
+    }
+
     /**
      * @param controller was designated by owner in _requestRedeem to manage the claim of the shares
      * @param receiveWMON States if the request should be fulfilled in WMON or MON
@@ -166,10 +183,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
      */
-    // TODO: see if we can change name of claimRequest to redeem after fixing inheritance chain, make two functions redeem and redeemMON
-    function claimRequest(uint256 requestId, address controller, address receiver, bool receiveWMON)
-        external
+    function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
+        private
         whenNotPaused
+        returns (uint256)
     {
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
             revert ErrNotAuthorized();
@@ -197,5 +214,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         emit Withdraw(controller, receiver, address(this), assets, shares);
+
+        return assets;
     }
 }

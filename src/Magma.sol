@@ -69,16 +69,13 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule, MagmaVaultMa
         revert();
     }
 
-    /**
-     * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
-     * _requestRedeem and claimRequest.
-     */
-    function redeem(uint256, /*shares*/ address, /*receiver*/ address /*controller*/ )
+    /// @dev Redeem claim the request from requestRedeem
+    function redeem(uint256 shares, address receiver, address controller)
         public
-        override
+        override(MagmaAsyncModule, ERC4626Upgradeable)
         returns (uint256)
     {
-        revert();
+        return MagmaAsyncModule.redeem(shares, receiver, controller);
     }
 
     function totalAssets() public view override(MagmaAsyncModule, ERC4626Upgradeable) returns (uint256) {
