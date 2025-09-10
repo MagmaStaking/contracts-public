@@ -167,7 +167,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return _redeem(requestId, controller, receiver, true);
     }
 
-    function redeemaMON(uint256 requestId, address controller, address receiver)
+    function redeemMON(uint256 requestId, address controller, address receiver)
         external
         whenNotPaused
         returns (uint256 assets)
