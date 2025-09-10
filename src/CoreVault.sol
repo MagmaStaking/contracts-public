@@ -337,70 +337,6 @@ contract CoreVault is
         }
     }
 
-    function enqueueUndelegate(uint256 amount) external onlyMagma whenNotPaused {
-        if (amount == 0) revert ErrZeroAmount();
-        if (queueTxUserAddress.length >= MAX_QUEUE_ITEMS) revert ErrQueueFull();
-        queuedUndelegateAmount += amount;
-        queueTxUserAddress.push(msg.sender);
-        queueTxUserAmount.push(amount);
-        emit EnqueuedUndelegate(amount, msg.sender);
-    }
-
-    function _completeUndelegation() internal {
-        uint256 _sum = queuedUndelegateAmount;
-        if (_sum == 0) return;
-        uint256 _vCount = validators.length;
-        if (_vCount == 0) return;
-        uint256 _perValidator = _sum / _vCount;
-        if (_perValidator == 0) return;
-        // Ensure each validator has capacity
-        for (uint256 _i = 0; _i < _vCount; _i++) {
-            uint64 _v = validators[_i];
-            if (_getTotalStakedToValidator(_v) < _perValidator) {
-                return; // wait until capacity; no partials for simplicity
-            }
-        }
-        // Allocate wid per validator and submit equal-split, while attributing per-user amounts proportionally
-        uint256 _nUsers = queueTxUserAddress.length;
-        for (uint256 _i = 0; _i < _vCount; _i++) {
-            uint64 _v = validators[_i];
-            uint8 _wid = _allocateWIDandUndelegate(_v, _perValidator);
-            pendingUndelegateByValidator[_v] += _perValidator;
-            emit SubmittedUndelegate(_wid, _perValidator, _vCount);
-
-            // Attribute per-user shares for this (_v, _wid)
-            // Proportional split: userShare = userAmount * _perValidator / _sum, with last index receiving remainder
-            address[] storage _usersStore = pendingUserAddresses[_v][_wid];
-            uint256[] storage _amountsStore = pendingUserAmounts[_v][_wid];
-            // copy addresses
-            for (uint256 _j = 0; _j < _nUsers; _j++) {
-                _usersStore.push(queueTxUserAddress[_j]);
-            }
-            // compute scaled amounts
-            uint256 _remaining = _perValidator;
-            for (uint256 _j2 = 0; _j2 < _nUsers; _j2++) {
-                uint256 _alloc = (queueTxUserAmount[_j2] * _perValidator) / _sum;
-                // prevent over-allocation due to rounding
-                if (_alloc > _remaining) _alloc = _remaining;
-                _amountsStore.push(_alloc);
-                _remaining -= _alloc;
-            }
-            if (_nUsers > 0 && _remaining > 0) {
-                // add leftover to last entry
-                _amountsStore[_nUsers - 1] += _remaining;
-            }
-        }
-        totalPendingUndelegations += _perValidator * _vCount;
-        queuedUndelegateAmount = 0;
-        // Clear the queue after fully attributing this batch
-        delete queueTxUserAddress;
-        delete queueTxUserAmount;
-    }
-
-    function processPending() external {
-        _completeUndelegation();
-    }
-
     function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
         if (_tryWithdraw(_valId, _withdrawalId)) {
             // Mark the withdrawal as completed in the bitmap
@@ -416,68 +352,71 @@ contract CoreVault is
         }
     }
 
-    function _completeWithdrawal(uint64 valId, uint8 withdrawalId) internal {
-        // Read amount before withdrawing to update totalPendingUndelegations
-        (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), withdrawalId);
-        if (!(exists && amt > 0)) revert ErrNoPendingWithdrawRequest();
+    /**
+     * @notice Complete withdrawal for a specific user's undelegation requests
+     * @dev Processes all withdrawal requests for the user and returns total amount distributed
+     * @param _user The user whose withdrawal requests to complete
+     * @return _totalWithdrawn The actual amount successfully withdrawn and sent to the user
+     */
+    function completeUserWithdrawal(address _user) external nonReentrant onlyMagma returns (uint256 _totalWithdrawn) {
+        WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
+        if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
-        if (_tryWithdraw(valId, withdrawalId)) {
-            // Distribute expected amount to users in order; leave leftovers if any send fails
-            uint256 _remaining = amt;
-            uint256 _n = pendingUserAddresses[valId][withdrawalId].length;
-            uint256 _totalDistributed = 0;
-            uint256 _totalDue = 0;
+        _totalWithdrawn = 0;
+        uint256 _totalSuccessfulWithdrawals = 0;
 
-            for (uint256 _i = 0; _i < _n && _remaining > 0; _i++) {
-                address _u = pendingUserAddresses[valId][withdrawalId][_i];
-                uint256 _due = pendingUserAmounts[valId][withdrawalId][_i];
-                _totalDue += _due;
-                if (_due == 0 || _u == address(0)) continue;
-                if (_due > _remaining) {
-                    emit WithdrawalAmountMismatch(valId, withdrawalId, _totalDue, _totalDistributed, _due, _u);
-                    continue;
-                }
-                (bool _ok,) = _u.call{value: _due}("");
-                if (!_ok) {
-                    emit WithdrawalPaymentFailed(valId, withdrawalId, _u, _due);
-                    continue;
+        // Process each withdrawal request for this user
+        for (uint256 i = 0; i < _userRequests.length; i++) {
+            WithdrawalRequestInfo storage _request = _userRequests[i];
+            uint64 _valId = _request.validator;
+            uint8 _withdrawalId = _request.withdrawalId;
+
+            // Check if withdrawal is ready
+            (bool _exists, uint256 _availableAmount,,) = _getWithdrawalRequest(_valId, address(this), _withdrawalId);
+            if (!(_exists && _availableAmount > 0)) {
+                // Withdrawal not ready yet, skip this request
+                emit WithdrawalNotReady(_valId, _withdrawalId, _user, _availableAmount);
+                continue;
+            }
+
+            // Attempt to withdraw from precompile
+            if (_tryWithdraw(_valId, _withdrawalId)) {
+                _totalSuccessfulWithdrawals += _availableAmount;
+                emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
+
+                // Update pending undelegation tracking
+                if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
+                    pendingUndelegateByValidator[_valId] -= _availableAmount;
                 } else {
-                    _totalDistributed += _due;
-                    emit WithdrawalPaymentSuccess(valId, withdrawalId, _u, _due);
+                    pendingUndelegateByValidator[_valId] = 0;
                 }
-                _remaining -= _due;
-            }
-            delete pendingUserAddresses[valId][withdrawalId];
-            delete pendingUserAmounts[valId][withdrawalId];
-            // Mark withdrawal ID as free in bitmap
-            _markWithdrawalCompleted(valId, withdrawalId);
-            // Lower local delegated now that completion finalized
-            if (pendingUndelegateByValidator[valId] >= amt) {
-                pendingUndelegateByValidator[valId] -= amt;
+
+                totalPendingUndelegations =
+                    (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
+
+                // Mark withdrawal ID as completed
+                _markWithdrawalCompleted(_valId, _withdrawalId);
             } else {
-                pendingUndelegateByValidator[valId] = 0;
-            }
-
-            totalPendingUndelegations = (amt > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - amt);
-        } else {
-            emit WithdrawalFailed(valId, withdrawalId);
-        }
-    }
-
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external nonReentrant onlyMagma {
-        _completeWithdrawal(valId, withdrawalId);
-    }
-
-    // Convenience overload: try for all validators for this withdrawalId
-    function completeWithdrawal(uint8 withdrawalId) external nonReentrant onlyMagma {
-        uint256 _vCount = validators.length;
-        for (uint256 _i = 0; _i < _vCount; _i++) {
-            uint64 _v = validators[_i];
-            (bool _exists,,,) = _getWithdrawalRequest(_v, address(this), withdrawalId);
-            if (_exists) {
-                _completeWithdrawal(_v, withdrawalId);
+                emit WithdrawalFailed(_valId, _withdrawalId);
             }
         }
+
+        // Send all accumulated ETH to user in a single transaction
+        if (_totalSuccessfulWithdrawals > 0) {
+            (bool success,) = _user.call{value: _totalSuccessfulWithdrawals}("");
+            if (success) {
+                _totalWithdrawn = _totalSuccessfulWithdrawals;
+            } else {
+                // If the single payment fails, emit failure event
+                emit WithdrawalPaymentFailed(0, 0, _user, _totalSuccessfulWithdrawals);
+                _totalWithdrawn = 0;
+            }
+        }
+
+        // Clear all withdrawal requests for this user after processing
+        delete userWithdrawalRequests[_user];
+
+        emit UserWithdrawalCompleted(_user, _totalWithdrawn);
     }
 
     // Phase 1: initiate by undelegating excess from over-target validators
@@ -565,26 +504,7 @@ contract CoreVault is
         emit RebalanceInitiated();
     }
 
-    function _rebalanceRedistribute() internal {
-        if (validators.length == 0) return;
-
-        uint256 _totalDelegated = 0;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            _totalDelegated += _getTotalStakedToValidator(validators[_i]);
-        }
-        if (_totalDelegated == 0) return;
-
-        uint256 _targetPerValidator = _totalDelegated / validators.length;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            uint64 _v = validators[_i];
-            if (_getTotalStakedToValidator(_v) < _targetPerValidator) {
-                uint256 _deficit = _targetPerValidator - _getTotalStakedToValidator(_v);
-                _delegate(_v, _deficit);
-            }
-        }
-        finishedLastRebalance = true;
-        emit RebalanceCompleted();
-    }
+    function _rebalanceRedistribute() internal {}
 
     /**
      * @notice Complete all pending withdrawals for admin withdrawal ID
