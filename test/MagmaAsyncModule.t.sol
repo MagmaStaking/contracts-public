@@ -21,6 +21,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function getRequestIdCount() private view returns (uint256) {
+        return uint256(vm.load(address(magma), bytes32(uint256(5))));
+    }
+
     function depositHelper(uint256 assets) private returns (uint256) {
         uint256 shares = magma.convertToShares(assets);
 
@@ -36,8 +40,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         return shares;
     }
 
-    function getRequestIdCount() private view returns (uint256) {
-        return uint256(vm.load(address(magma), bytes32(uint256(5))));
+    function requestRedeemHelper(uint256 assets) private returns (uint256) {
+        uint256 shares = depositHelper(assets);
+        magma.requestRedeem(shares, user, user);
+
+        return shares;
     }
 
     function test_ERC165Support() public view {
@@ -258,8 +265,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 requestIdCountBefore = getRequestIdCount();
         uint256 assetsBefore = magma.totalAssets();
         uint256 assets = 5 ether;
+        uint256 sharesUserBefore = magma.balanceOf(user);
         uint256 shares = depositHelper(assets);
 
+        // Assertions before request
         (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
             magma.pendingRedeemRequests(user, requestIdCountBefore);
         assertEq(0, _pendingShares);
@@ -277,12 +286,24 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         (uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
             magma.pendingRedeemRequests(user, requestIdCountBefore);
+
+        // 7540 vault assertions
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
         assertEq(requestIdCountBefore + 1, getRequestIdCount());
         assertEq(shares, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
+
+        // user assertions
+        assertEq(magma.balanceOf(user), sharesUserBefore - shares);
+    }
+
+    function test_Redeem() public {
+        uint256 requestIdCountBefore = getRequestIdCount();
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 assets = 5 ether;
+        uint256 shares = requestRedeemHelper(assets);
     }
 
     function test_MultipleRequestIds() public {}
