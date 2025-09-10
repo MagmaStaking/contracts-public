@@ -122,10 +122,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
+    // TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
-        returns (uint256 requestId)
+        returns (uint256)
     {
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
@@ -136,7 +137,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         uint256 assets = convertToAssets(shares);
-        pendingRedeemRequests[controller][_requestIdCount] =
+        uint256 requestId = _requestIdCount;
+        pendingRedeemRequests[controller][requestId] =
             RedeemRequests({shares: shares, assets: assets, claimableTime: block.timestamp + DEFAULT_DELAY});
         _requestIdCount++;
 
@@ -145,8 +147,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _delegatedNativeAssets -= assets;
         isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, _requestIdCount, _msgSender(), shares);
-        return _requestIdCount;
+        emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
+        return requestId;
     }
 
     function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
@@ -160,6 +162,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     function redeem(uint256 requestId, address controller, address receiver)
         public
+        virtual
         override
         whenNotPaused
         returns (uint256 assets)
