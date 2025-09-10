@@ -21,6 +21,25 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function depositHelper(uint256 assets) private returns (uint256) {
+        uint256 shares = magma.convertToShares(assets);
+
+        vm.deal(user, assets);
+        vm.startPrank(user);
+        wmon.deposit{value: assets}();
+        wmon.approve(address(magma), assets);
+        assertEq(shares, magma.deposit(assets, user));
+        vm.stopPrank();
+
+        _activateAllStakes();
+
+        return shares;
+    }
+
+    function getRequestIdCount() private view returns (uint256) {
+        return uint256(vm.load(address(magma), bytes32(uint256(5))));
+    }
+
     function test_ERC165Support() public view {
         bytes4 erc7540InterfaceId = 0x620ee8e4;
         assertTrue(magma.supportsInterface(erc7540InterfaceId));
@@ -235,7 +254,36 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_ClaimableRedeemRequest() public {}
 
-    function test_RequestFlow() public {}
+    function test_RequestRedeem() public {
+        uint256 requestIdCountBefore = getRequestIdCount();
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 assets = 5 ether;
+        uint256 shares = depositHelper(assets);
+
+        (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
+        assertEq(0, _pendingShares);
+        assertEq(0, _pendingAssets);
+        assertEq(0, _claimableTime);
+        assertEq(0, magma.balanceOf(address(magma)));
+
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(user, address(magma), shares);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.RedeemRequest(user, user, getRequestIdCount(), user, shares);
+
+        vm.prank(user);
+        assertEq(requestIdCountBefore, magma.requestRedeem(shares, user, user));
+
+        (uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
+        assertEq(shares, pendingShares);
+        assertEq(assets, pendingAssets);
+        assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
+        assertEq(requestIdCountBefore + 1, getRequestIdCount());
+        assertEq(shares, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets());
+    }
 
     function test_MultipleRequestIds() public {}
 
@@ -284,3 +332,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: look at openzeppelin erc4626 tests
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
 // TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
+// TODO: test all reverts
