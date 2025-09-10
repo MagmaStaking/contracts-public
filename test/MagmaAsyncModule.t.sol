@@ -48,11 +48,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.withdraw(1, address(1), address(1));
     }
 
-    function test_RevertWhen_Redeem() public {
-        vm.expectRevert();
-        magma.redeem(1, address(1), address(1));
-    }
-
     // No fees on deposits so convertToShares should equal previewMint and convertToAssets should equal previewDeposit
     function test_DepositHelpersRates() public view {
         uint256 assets = 5 ether;
@@ -236,10 +231,23 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    // TODO: test deposit0 or mint0 all of them should revert
+    function test_PendingRedeemRequest() public {}
+
+    function test_ClaimableRedeemRequest() public {}
+
+    function test_RequestFlow() public {}
+
+    function test_MultipleRequestIds() public {}
+
+    // TODO: how do we know if the withdrawal is from gVault or not
+    function test_RequestFromGVaultFlow() public {}
+
+    // TODO: test claim in mon, test claim in wmon
+
+    // TODO: test deposit0 or mint0 all of them should revert, also claim 0
     // TODO: test deposit to another receiver and withdraw to another receiver
 
-    //     function testOperatorApproval() public {
+    // function test_OperatorApproval() public {
     //     // Alice approves Bob as operator
     //     vm.prank(alice);
     //     assertTrue(magma.setOperator(bob, true));
