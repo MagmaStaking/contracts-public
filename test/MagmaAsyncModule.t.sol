@@ -254,7 +254,15 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_PendingRedeemRequest() public {}
+    function test_PendingRedeemRequest() public {
+        uint256 assets = 5 ether;
+        address controller = address(123);
+        uint256 shares = depositHelper(assets);
+
+        vm.prank(user);
+        uint256 requestId = magma.requestRedeem(shares, controller, user);
+        assertEq(shares, magma.pendingRedeemRequest(requestId, controller));
+    }
 
     function test_ClaimableRedeemRequest() public {}
 
