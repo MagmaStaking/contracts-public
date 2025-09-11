@@ -398,7 +398,6 @@ contract CoreVault is
                 // Mark withdrawal ID as completed
                 _markWithdrawalCompleted(_valId, _withdrawalId);
             } else {
-                // TODO: test this edge case
                 revert ErrWithdrawalFailed(_valId, _withdrawalId);
             }
         }
@@ -407,7 +406,6 @@ contract CoreVault is
         if (_totalSuccessfulWithdrawals > 0) {
             (bool success,) = address(magma).call{value: _totalSuccessfulWithdrawals}("");
             if (!success) {
-                // TODO: test this edge case
                 revert ErrNativeTransferFailed();
             }
             _totalWithdrawn = _totalSuccessfulWithdrawals;

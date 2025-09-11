@@ -33,6 +33,8 @@ contract MockStakingPrecompile {
     uint256 public constant REWARD = 1 ether; // per block
     uint256 public constant UNIT_BIAS = 1e18;
 
+    bool public withdrawRevert = false;
+
     // Structs from the spec
     struct KeysPacked {
         bytes secp_pubkey; // 33 bytes
@@ -154,6 +156,10 @@ contract MockStakingPrecompile {
     bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
 
     // Helper functions
+    function setWithdrawRevert(bool _withdrawRevert) public {
+        withdrawRevert = _withdrawRevert;
+    }
+
     function _isInBoundaryPeriod() internal view returns (bool) {
         uint256 epochStart = ((epoch - 1) * EPOCH_LENGTH) + 1;
         uint256 boundaryBlock = epochStart + EPOCH_LENGTH - EPOCH_DELAY_PERIOD;
@@ -313,6 +319,9 @@ contract MockStakingPrecompile {
     }
 
     function _handleWithdraw() internal {
+        if (withdrawRevert) {
+            revert();
+        }
         (uint64 valId, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, uint8));
 
         WithdrawalRequest storage request = withdrawal[valId][msg.sender][withdrawalId];

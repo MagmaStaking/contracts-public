@@ -10,6 +10,7 @@ import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import "src/MagmaErrorsModule.sol";
+import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
@@ -489,6 +490,15 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectRevert(ErrRequestPending.selector);
         magma.redeem(requestId, user, user);
         vm.stopPrank();
+    }
+
+    function test_RevertWhen_RedeemWithdrawalFailed() public {
+        uint256 assets = 5 ether;
+        (uint256 requestId,) = requestRedeemHelper(assets);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setWithdrawRevert(true);
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ErrWithdrawalFailed.selector, 1, 0));
+        magma.redeem(requestId, user, user);
     }
 
     // function test_OperatorApproval() public {
