@@ -83,28 +83,6 @@
 //         assertEq(magma.balanceOf(address(magma)), 0);
 //     }
 
-// TODO: test this one in redeem and deposit
-//     function testRevertInsufficientShares() public {
-//         vm.prank(alice);
-//         magma.deposit(100e18, alice);
-
-//         // Try to request more than available
-//         vm.expectRevert();
-//         vm.prank(alice);
-//         magma.requestWithdraw(1000e18, alice, alice);
-//     }
-
-// TODO: test this one in redeem and deposit
-//     function testRevertUnauthorized() public {
-//         vm.prank(alice);
-//         magma.deposit(1000e18, alice);
-
-//         // Bob tries to request withdrawal for Alice without approval
-//         vm.expectRevert(ErrNotAuthorized.selector);
-//         vm.prank(bob);
-//         magma.requestWithdraw(500e18, alice, alice);
-//     }
-
 //     function testRevertNoPendingRequest() public {
 //         // Try to claim without pending request
 //         vm.expectRevert(ErrNoPendingWithdrawRequest.selector);

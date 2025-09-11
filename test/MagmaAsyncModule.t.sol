@@ -365,12 +365,9 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_MultipleRequestIds() public {}
 
-    // TODO: how do we know if the withdrawal is from gVault or not
     function test_RequestFromGVaultFlow() public {}
 
     // TODO: test claim in mon, test claim in wmon
-
-    // TODO: test deposit0 or mint0 all of them should revert, also claim 0
     // TODO: test deposit to another receiver and withdraw to another receiver
 
     function test_RevertWhen_PreviewWithdraw() public {
@@ -464,4 +461,3 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: reentrancy
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
 // TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
-// TODO: test all reverts
