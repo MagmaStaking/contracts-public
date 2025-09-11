@@ -54,9 +54,10 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function requestRedeemHelper(uint256 assets) private returns (uint256) {
         uint256 shares = depositHelper(assets);
-        magma.requestRedeem(shares, user, user);
+        vm.prank(user);
+        uint256 requestId = magma.requestRedeem(shares, user, user);
 
-        return shares;
+        return requestId;
     }
 
     function test_ERC165Support() public view {
@@ -356,19 +357,16 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.balanceOf(user), sharesUserBefore - shares);
     }
 
-    // function test_Redeem() public {
-    //     uint256 requestIdCountBefore = getRequestIdCount();
-    //     uint256 assetsBefore = magma.totalAssets();
-    //     uint256 assets = 5 ether;
-    //     uint256 shares = requestRedeemHelper(assets);
-    // }
+    function test_Redeem() public {
+        uint256 assets = 5 ether;
+        uint256 requestId = requestRedeemHelper(assets);
+        vm.prank(user);
+        //magma.redeem(requestId, user, user);
+    }
+
+    function test_RedeemMON() public {}
 
     function test_MultipleRequestIds() public {}
-
-    function test_RequestFromGVaultFlow() public {}
-
-    // TODO: test claim in mon, test claim in wmon
-    // TODO: test deposit to another receiver and withdraw to another receiver
 
     function test_RevertWhen_PreviewWithdraw() public {
         vm.expectRevert();
@@ -425,6 +423,14 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.requestRedeem(5, user, user);
     }
 
+    function test_RevertWhen_RedeemPending() public {
+        uint256 assets = 5 ether;
+        uint256 requestId = requestRedeemHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(ErrRequestPending.selector);
+        magma.redeem(requestId, user, user);
+    }
+
     // function test_OperatorApproval() public {
     //     // Alice approves Bob as operator
     //     vm.prank(alice);
@@ -461,3 +467,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: reentrancy
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
 // TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
+// TODO: test deposit to another receiver and withdraw to another receiver
