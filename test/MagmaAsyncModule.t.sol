@@ -57,6 +57,8 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
 
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+
         return requestId;
     }
 
@@ -361,7 +363,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 assets = 5 ether;
         uint256 requestId = requestRedeemHelper(assets);
         vm.prank(user);
-        //magma.redeem(requestId, user, user);
+        magma.redeem(requestId, user, user);
     }
 
     function test_RedeemMON() public {}
