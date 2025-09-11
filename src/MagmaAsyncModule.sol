@@ -22,7 +22,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> this would be changed by corevault, also test
+    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -122,7 +122,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
-    // TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
+    /**
+     * TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
+     * in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
+     */
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
@@ -147,6 +150,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             assets: assets,
             claimableTime: block.timestamp + DEFAULT_DELAY
         });
+        _ownerRequested[owner] = true;
 
         _transfer(owner, address(this), shares);
 
@@ -163,11 +167,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        return request.claimableTime >= block.timestamp ? request.shares : 0;
+        return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
     // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
-    // TODO: in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
     function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
@@ -203,7 +206,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             revert ErrNotAuthorized();
         }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        if (request.claimableTime < block.timestamp) {
+        if (request.claimableTime > block.timestamp) {
             revert ErrRequestPending();
         }
         uint256 shares = request.assets;
