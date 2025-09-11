@@ -115,8 +115,9 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @param owner Owner of the shares.
      * @dev An operator is just an account that can manage Requests on behalf of another account, either an owner or a
      * controller.
-     * @dev An owner can only do one request at the time. This was decided on the CoreVault.
-     * https://eips.ethereum.org/EIPS/eip-7540#request-ids
+     * @dev Since we are using requestIds, a controller can do multiple requests and multiple claims without being
+     * locked by former requests or claims. However, only one request per owner is allowed.
+     * https://eips.ethereum.org/EIPS/eip-7540#request-ids.
      * @dev Requests are not yield bearing; no yield will accrue after the request is made.
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
@@ -137,7 +138,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         uint256 assets = convertToAssets(shares);
-        redeemRequest[controller] =
+        uint256 requestId = _requestIdCount;
+        pendingRedeemRequests[controller][requestId] =
             RedeemRequests({shares: shares, assets: assets, claimableTime: block.timestamp + DEFAULT_DELAY});
 
         _transfer(owner, address(this), shares);
@@ -145,33 +147,37 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _delegatedNativeAssets -= assets;
         isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, 0, _msgSender(), shares);
-        return 0;
+        emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
+        return requestId;
     }
 
-    function pendingRedeemRequest(uint256, /*requestId*/ address controller) external view returns (uint256 shares) {
-        return redeemRequest[controller].shares;
+    function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
+        return pendingRedeemRequests[controller][requestId].shares;
     }
 
-    function claimableRedeemRequest(uint256, /*requestId*/ address controller) external view returns (uint256 shares) {
-        RedeemRequests memory request = redeemRequest[controller];
+    function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
+        RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
     // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
     // TODO: in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
-    function redeem(uint256, /*requestId*/ address controller, address receiver)
+    function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
         override
         whenNotPaused
         returns (uint256 assets)
     {
-        return _redeem(controller, receiver, true);
+        return _redeem(requestId, controller, receiver, true);
     }
 
-    function redeemMON(address controller, address receiver) external whenNotPaused returns (uint256 assets) {
-        return _redeem(controller, receiver, false);
+    function redeemMON(uint256 requestId, address controller, address receiver)
+        external
+        whenNotPaused
+        returns (uint256 assets)
+    {
+        return _redeem(requestId, controller, receiver, false);
     }
 
     /**
@@ -182,11 +188,15 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
      */
-    function _redeem(address controller, address receiver, bool receiveWMON) private whenNotPaused returns (uint256) {
+    function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
+        private
+        whenNotPaused
+        returns (uint256)
+    {
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
             revert ErrNotAuthorized();
         }
-        RedeemRequests memory request = redeemRequest[controller];
+        RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         if (request.claimableTime < block.timestamp) {
             revert ErrRequestPending();
         }
@@ -195,7 +205,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 assetsAtClaim = convertToAssets(shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
-        delete redeemRequest[controller];
+        delete pendingRedeemRequests[controller][requestId];
         _burn(address(this), shares);
 
         if (receiveWMON) {

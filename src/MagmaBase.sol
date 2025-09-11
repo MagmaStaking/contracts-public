@@ -44,8 +44,10 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
         uint256 claimableTime; // When assets become claimable
     }
 
-    // Mapping from controller to their pending redeem request
-    mapping(address controller => RedeemRequests) public redeemRequest;
+    uint256 internal _requestIdCount = 0;
+
+    // Mapping from controller to their pending withdrawal requests
+    mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
 
     // Mapping for operator approvals (ERC-7540)
     mapping(address controller => mapping(address operator => bool)) public isOperator;

@@ -22,6 +22,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function getRequestIdCount() private view returns (uint256) {
+        return uint256(vm.load(address(magma), bytes32(uint256(5))));
+    }
+
     function depositHelper(uint256 assets) private returns (uint256) {
         uint256 shares = magma.convertToShares(assets);
 
@@ -244,13 +248,15 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_ClaimableRedeemRequest() public {}
 
     function test_RequestRedeem() public {
+        uint256 requestIdCountBefore = getRequestIdCount();
         uint256 assetsBefore = magma.totalAssets();
         uint256 assets = 5 ether;
         uint256 shares = depositHelper(assets);
         uint256 sharesUserBefore = magma.balanceOf(user);
 
         // Assertions before request
-        (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) = magma.redeemRequest(user);
+        (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
         assertEq(0, _pendingShares);
         assertEq(0, _pendingAssets);
         assertEq(0, _claimableTime);
@@ -259,17 +265,19 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(user, address(magma), shares);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(user, user, 0, user, shares);
+        emit MagmaBase.RedeemRequest(user, user, getRequestIdCount(), user, shares);
 
         vm.prank(user);
         assertEq(0, magma.requestRedeem(shares, user, user));
 
-        (uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) = magma.redeemRequest(user);
+        (uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
 
         // 7540 vault assertions
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
+        assertEq(requestIdCountBefore + 1, getRequestIdCount());
         assertEq(shares, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
 
