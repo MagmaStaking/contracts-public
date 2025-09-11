@@ -280,7 +280,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         if (count > 0) {
             CoreVault.WithdrawalRequestInfo memory firstRequest = coreVault.getUserWithdrawalRequest(alice, 0);
-            assertEq(firstRequest.user, alice, "User should be Alice");
             assertEq(firstRequest.amount, allRequests[0].amount, "Amount should match");
         }
     }

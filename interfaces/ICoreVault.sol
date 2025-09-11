@@ -10,7 +10,6 @@ interface ICoreVault {
     function executeValidatorUndelegation(uint64 valId) external;
     function completeValidatorRemovalWithdrawal(uint64 valId) external;
     function adminRebalanceInitiate() external;
-    function adminRebalanceRedistribute() external;
     function pause() external;
     function unpause() external;
     function setMinQueueDelaySeconds(uint256 secondsDelay) external;
@@ -27,15 +26,9 @@ interface ICoreVault {
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
 
     // View functions
-    function magma() external view returns (IMagma);
     function isWhitelisted(uint64 valId) external view returns (bool);
     function delegatedAmount(uint64 valId) external view returns (uint256);
     function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
-    function queuedUndelegateAmount() external view returns (uint256);
-    function queueTxUserAddress(uint256 index) external view returns (address);
-    function queueTxUserAmount(uint256 index) external view returns (uint256);
-    function pendingUserAddresses(uint64 valId, uint8 withdrawalId, uint256 index) external view returns (address);
-    function pendingUserAmounts(uint64 valId, uint8 withdrawalId, uint256 index) external view returns (uint256);
     function minQueueDelaySeconds() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
     function minUserWithdrawAmount() external view returns (uint256);
@@ -54,7 +47,6 @@ interface ICoreVault {
     event ValidatorRemovalCompleted(uint64 indexed valId);
     event RebalanceInitiated();
     event RebalanceCompleted();
-    event EnqueuedUndelegate(uint256 amount, address indexed caller);
     event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
     // User withdrawal distribution events (mirrors gVault for consistency)
     event WithdrawalAmountMismatch(

@@ -28,7 +28,6 @@ interface IGVault {
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
 
     // View functions
-    function magma() external view returns (IMagma);
     function isWhitelisted(uint64 valId) external view returns (bool);
     function whitelistedValidators(uint256 index) external view returns (uint64);
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);

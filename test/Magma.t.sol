@@ -1,5 +1,5 @@
-// // SPDX-License-Identifier: MIT
-// pragma solidity ^0.8.13;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
 
 // import {BaseTest} from "./BaseTest.t.sol";
 // import {Magma} from "../src/Magma.sol";

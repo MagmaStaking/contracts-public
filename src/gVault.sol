@@ -27,11 +27,17 @@ import {
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
+import {VaultBase} from "./VaultBase.sol";
 
-contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, IGVault {
+contract gVault is
+    Initializable,
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable,
+    MagmaDelegationModule,
+    IGVault,
+    VaultBase
+{
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-
-    IMagma public magma;
 
     // Whitelist of eligible validators (tracked by valId)
     mapping(uint64 => bool) public isWhitelisted;
@@ -82,7 +88,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
 
     // Reserved admin-only withdrawal ID
     // ADMIN_WID_REBALANCE used for adminInitiateRebalanceBps and removing validator
-    uint8 internal constant ADMIN_WID_REBALANCE = 254;
+    uint8 internal constant ADMIN_WID_REBALANCE = 255;
 
     // Per-validator deposit caps; if zero, use defaultCapPercent of Magma.totalAssets()
     mapping(uint64 => uint256) public validatorCap;
@@ -99,30 +105,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
     // Accept native funds returned from delegation completion
     receive() external payable {}
 
-    modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
-        _;
-    }
-
-    modifier onlyMagmaAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-        _;
-    }
-
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyMagmaAdmin {
+    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
         minQueueDelaySeconds = secondsDelay;
     }
 
-    function pauseWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
+    function pauseWithdrawalsForValidator(uint64 valId) external onlyAdmin {
         pausedWithdrawalsForValidator[valId] = block.timestamp;
     }
 
-    function resumeWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
+    function resumeWithdrawalsForValidator(uint64 valId) external onlyAdmin {
         pausedWithdrawalsForValidator[valId] = 0;
     }
 
     // Admin: manage whitelist
-    function addValidator(uint64 valId) external onlyMagmaAdmin {
+    function addValidator(uint64 valId) external onlyAdmin {
         if (valId == 0) revert ErrZeroValidatorId();
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
         isWhitelisted[valId] = true;
@@ -134,7 +130,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
         emit ValidatorAdded(valId);
     }
 
-    function removeValidator(uint64 valId) external onlyMagmaAdmin {
+    function removeValidator(uint64 valId) external onlyAdmin {
         if (epochSeconds != 0) {
             if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
                 revert ErrEpochGuard();
@@ -205,20 +201,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
     }
 
     // Admin: set per-validator explicit cap (can increase or decrease)
-    function changeValidatorCap(uint64 valId, uint256 newCap) external onlyMagmaAdmin {
+    function changeValidatorCap(uint64 valId, uint256 newCap) external onlyAdmin {
         if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
         validatorCap[valId] = newCap;
         emit CapChanged(valId, newCap);
     }
 
     // Admin: update default cap percent (bps)
-    function setDefaultCapBps(uint256 newBps) external onlyMagmaAdmin {
+    function setDefaultCapBps(uint256 newBps) external onlyAdmin {
         if (newBps > 10_000) revert ErrInvalidBps();
         defaultCapBps = newBps;
         emit DefaultCapUpdated(newBps);
     }
 
-    function setMinUserWithdrawAmount(uint256 amount) external onlyMagmaAdmin {
+    function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
         if (amount >= 10000) revert ErrInvalidAmount(amount);
         minUserWithdrawAmount = amount;
     }
@@ -421,7 +417,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
 
     // Admin: initiate undelegation across all validators by basis points
     // This function is used when liquidity for CoreVault is depleted. Similar functionality exists in Lido v3.
-    function adminInitiateRebalanceBps(uint16 bps) external onlyMagmaAdmin {
+    function adminInitiateRebalanceBps(uint16 bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         if (epochSeconds != 0) {
             if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
@@ -446,7 +442,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
     }
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
-    function adminCompleteRebalance() public onlyMagmaAdmin nonReentrant {
+    function adminCompleteRebalance() public onlyAdmin nonReentrant {
         uint64[] memory list = whitelistedValidators;
         uint256 beforeBal = address(this).balance;
         uint256 n = list.length;

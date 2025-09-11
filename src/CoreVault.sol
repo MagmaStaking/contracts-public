@@ -11,6 +11,7 @@ import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {VaultBase} from "./VaultBase.sol";
 
 contract CoreVault is
     Initializable,
@@ -18,11 +19,10 @@ contract CoreVault is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable,
     MagmaDelegationModule,
-    ICoreVault
+    ICoreVault,
+    VaultBase
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-
-    IMagma public magma;
 
     uint64[] public validators;
 
@@ -39,14 +39,6 @@ contract CoreVault is
     mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     // Per-validator amounts submitted for undelegation but not yet completed
 
-    // Simple accrued undelegation amount to submit next
-    uint256 public queuedUndelegateAmount;
-    // Per-tx visibility (optional, for ops/debug)
-    address[] public queueTxUserAddress;
-    uint256[] public queueTxUserAmount;
-    // pending attribution keyed by (validator, withdrawalId)
-    mapping(uint64 => mapping(uint8 => address[])) public pendingUserAddresses;
-    mapping(uint64 => mapping(uint8 => uint256[])) public pendingUserAmounts;
     uint256 public minQueueDelaySeconds;
     uint256 public epochSeconds;
 
@@ -55,9 +47,6 @@ contract CoreVault is
 
     // Reserved admin-only withdrawal ID
     uint8 internal constant ADMIN_WID = 255;
-
-    // Max number of queued undelegation entries to prevent excessive gas
-    uint256 public constant MAX_QUEUE_ITEMS = 64;
 
     // Rebalance pacing guard
     uint256 public lastRebalanceTimestamp;
@@ -78,7 +67,6 @@ contract CoreVault is
     }
 
     struct WithdrawalRequestInfo {
-        address user;
         uint256 amount;
         uint64 validator;
         uint8 withdrawalId;
@@ -97,7 +85,7 @@ contract CoreVault is
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __Pausable_init();
-        magma = IMagma(_magma);
+        __VaultBase_init(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true;
@@ -105,16 +93,6 @@ contract CoreVault is
 
     // Accept native funds returned from precompile withdrawals
     receive() external payable {}
-
-    modifier onlyAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-        _;
-    }
-
-    modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
-        _;
-    }
 
     // whenNotPaused modifier is now inherited from PausableUpgradeable
 
@@ -168,24 +146,20 @@ contract CoreVault is
         _redelegateInitiate();
     }
 
+    // Phase 1: initiate by undelegating excess from over-target validators
+    function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
+        if (!finishedLastRebalance) revert ErrRebalanceInProgress();
+        finishedLastRebalance = false;
+        _redelegateInitiate();
+        lastRebalanceTimestamp = block.timestamp;
+    }
+
     /**
-     * @notice Step 2: Redistribute to validators
+     * @notice Step 2: Redistribute to validators called after addValidator and adminRebalanceInitiate
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
     function redelegateToValidators() external onlyAdmin {
-        // Step 1: Complete all pending withdrawals
-        uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
-
-        if (_totalAmountToDistribute == 0) return;
-
-        // Step 2: Get validators sorted by current stake (lowest first)
-        ValidatorAmount[] memory _sortedValidators = _getSortedValidatorsByStake();
-
-        // Step 3: Distribute stake to under-target validators in ascending order of stake
-        _distributeStakeToValidatorsAscending(_sortedValidators, _totalAmountToDistribute);
-
-        // Step 4: Update timestamp
-        lastRebalanceTimestamp = block.timestamp;
+        _redelegateRedistribute();
     }
 
     /**
@@ -420,19 +394,6 @@ contract CoreVault is
         emit UserWithdrawalCompleted(_user, _totalWithdrawn);
     }
 
-    // Phase 1: initiate by undelegating excess from over-target validators
-    function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
-        if (!finishedLastRebalance) revert ErrRebalanceInProgress();
-        finishedLastRebalance = false;
-        _redelegateInitiate();
-        lastRebalanceTimestamp = block.timestamp;
-    }
-
-    // Phase 2: redistribute by delegating to under-target validators
-    function adminRebalanceRedistribute() external onlyAdmin {
-        _rebalanceRedistribute();
-    }
-
     function getValidators() external view returns (uint64[] memory) {
         return validators;
     }
@@ -533,7 +494,21 @@ contract CoreVault is
         emit RebalanceInitiated();
     }
 
-    function _rebalanceRedistribute() internal {}
+    function _redelegateRedistribute() internal {
+        // Step 1: Complete all pending withdrawals
+        uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
+
+        if (_totalAmountToDistribute == 0) return;
+
+        // Step 2: Get validators sorted by current stake (lowest first)
+        ValidatorAmount[] memory _sortedValidators = _getSortedValidatorsByStake();
+
+        // Step 3: Distribute stake to under-target validators in ascending order of stake
+        _distributeStakeToValidatorsAscending(_sortedValidators, _totalAmountToDistribute);
+
+        // Step 4: Update timestamp
+        lastRebalanceTimestamp = block.timestamp;
+    }
 
     /**
      * @notice Complete all pending withdrawals for admin withdrawal ID
@@ -743,7 +718,7 @@ contract CoreVault is
      */
     function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
         userWithdrawalRequests[_user].push(
-            WithdrawalRequestInfo({user: _user, amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
+            WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
     }
 
