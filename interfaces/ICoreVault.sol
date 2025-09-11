@@ -19,12 +19,9 @@ interface ICoreVault {
     // Delegation functions (onlyMagma)
     function delegate() external payable;
     function undelegate(uint256 amount, address user) external;
-    function enqueueUndelegate(uint256 amount) external;
 
-    // Withdrawal completion functions
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external;
-    function completeWithdrawal(uint8 withdrawalId) external;
-    function processPending() external;
+    // Withdrawal completion function
+    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
 
     // Initialization
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;

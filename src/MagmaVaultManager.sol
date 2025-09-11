@@ -52,10 +52,12 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     }
 
     /**
-     * @dev Complete undelegation through CoreVault
+     * @dev Complete undelegation through CoreVault for a specific user
+     * @param user The user whose withdrawal requests to complete
+     * @return totalWithdrawn The actual amount successfully withdrawn and sent to the user
      */
-    function completeUndelegation(uint64 valId, uint8 withdrawalId) external {
-        coreVault.completeWithdrawal(valId, withdrawalId);
+    function completeUndelegation(address user) external returns (uint256 totalWithdrawn) {
+        return coreVault.completeUserWithdrawal(user);
     }
 
     /**
