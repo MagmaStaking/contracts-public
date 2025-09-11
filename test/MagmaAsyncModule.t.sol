@@ -423,6 +423,14 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.requestRedeem(5, user, user);
     }
 
+    function test_RevertWhen_RedeemNotAuthorized() public {
+        uint256 assets = 5 ether;
+        uint256 requestId = requestRedeemHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(ErrNotAuthorized.selector);
+        magma.redeem(requestId, address(2), user);
+    }
+
     function test_RevertWhen_RedeemPending() public {
         uint256 assets = 5 ether;
         uint256 requestId = requestRedeemHelper(assets);
