@@ -39,6 +39,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     /// @dev https://eips.ethereum.org/EIPS/eip-7540#no-event-for-claimable-state
     /// @dev https://eips.ethereum.org/EIPS/eip-7540#request-lifecycle
     struct RedeemRequests {
+        address owner; // Owner of the shares
         uint256 shares; // Amount of shares to redeem
         uint256 assets; // Amount of assets to withdraw
         uint256 claimableTime; // When assets become claimable
@@ -48,6 +49,8 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
 
     // Mapping from controller to their pending withdrawal requests
     mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
+
+    mapping(address owner => bool) internal _ownerRequested;
 
     // Mapping for operator approvals (ERC-7540)
     mapping(address controller => mapping(address operator => bool)) public isOperator;

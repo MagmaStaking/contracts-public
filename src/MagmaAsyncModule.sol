@@ -123,12 +123,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
     // TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
-    // TODO: change to one request per user and check with reverts
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
         returns (uint256)
     {
+        if (_ownerRequested[owner]) {
+            revert ErrRequestPending();
+        }
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
             revert ErrNotAuthorized();
@@ -139,8 +141,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
         uint256 assets = convertToAssets(shares);
         uint256 requestId = _requestIdCount;
-        pendingRedeemRequests[controller][requestId] =
-            RedeemRequests({shares: shares, assets: assets, claimableTime: block.timestamp + DEFAULT_DELAY});
+        pendingRedeemRequests[controller][requestId] = RedeemRequests({
+            owner: owner,
+            shares: shares,
+            assets: assets,
+            claimableTime: block.timestamp + DEFAULT_DELAY
+        });
 
         _transfer(owner, address(this), shares);
 
@@ -205,7 +211,9 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 assetsAtClaim = convertToAssets(shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
+        address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
+        _ownerRequested[owner] = false;
         _burn(address(this), shares);
 
         if (receiveWMON) {

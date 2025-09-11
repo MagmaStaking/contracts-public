@@ -8,7 +8,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
-import {ErrZeroNativeAsset} from "src/MagmaErrorsModule.sol";
+import {ErrZeroAmount} from "src/MagmaErrorsModule.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
@@ -20,10 +20,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         gvault.addValidator(3);
         gvault.changeValidatorCap(3, 5 ether);
         vm.stopPrank();
-    }
-
-    function getRequestIdCount() private view returns (uint256) {
-        return uint256(vm.load(address(magma), bytes32(uint256(5))));
     }
 
     function depositHelper(uint256 assets) private returns (uint256) {
@@ -248,15 +244,16 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_ClaimableRedeemRequest() public {}
 
     function test_RequestRedeem() public {
-        uint256 requestIdCountBefore = getRequestIdCount();
+        uint256 requestIdCountBefore = 0;
         uint256 assetsBefore = magma.totalAssets();
         uint256 assets = 5 ether;
         uint256 shares = depositHelper(assets);
         uint256 sharesUserBefore = magma.balanceOf(user);
 
         // Assertions before request
-        (uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
+        (address _owner, uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
             magma.pendingRedeemRequests(user, requestIdCountBefore);
+        assertEq(address(0), _owner);
         assertEq(0, _pendingShares);
         assertEq(0, _pendingAssets);
         assertEq(0, _claimableTime);
@@ -265,19 +262,19 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(user, address(magma), shares);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(user, user, getRequestIdCount(), user, shares);
+        emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
         vm.prank(user);
         assertEq(0, magma.requestRedeem(shares, user, user));
 
-        (uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
+        (address owner, uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
             magma.pendingRedeemRequests(user, requestIdCountBefore);
 
         // 7540 vault assertions
+        assertEq(user, owner);
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
-        assertEq(requestIdCountBefore + 1, getRequestIdCount());
         assertEq(shares, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
 
@@ -323,7 +320,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.startPrank(user);
         wmon.deposit{value: assets}();
         wmon.approve(address(magma), assets);
-        vm.expectRevert(ErrZeroNativeAsset.selector);
+        vm.expectRevert(ErrZeroAmount.selector);
         magma.deposit(assets, user);
         vm.stopPrank();
     }

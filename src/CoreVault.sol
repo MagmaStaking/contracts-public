@@ -575,7 +575,7 @@ contract CoreVault is
             revert ErrNoValidators();
         }
         if (amount == 0) {
-            revert ErrZeroNativeAsset();
+            revert ErrZeroAmount();
         }
 
         uint256 _amountPerValidator = amount / validators.length;
