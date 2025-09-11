@@ -22,20 +22,24 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    function depositHelper(uint256 assets) private returns (uint256) {
+    function _depositHelper(uint256 assets, address depositor) private returns (uint256) {
         uint256 shares = magma.convertToShares(assets);
+        vm.deal(depositor, shares);
+        vm.startPrank(depositor);
+        wmon.deposit{value: shares}();
+        wmon.approve(address(magma), shares);
+        assertEq(shares, magma.deposit(shares, depositor));
+        vm.stopPrank();
+        return shares;
+    }
+
+    function depositHelper(uint256 assets) private returns (uint256) {
         /**
          * As a helper deposit 100 more stake so the original amount can easily be withdrawn taking into account the
          * _onetwentiethThreshold
          */
-        uint256 sharesToDeposit = magma.convertToShares(assets * 100);
-
-        vm.deal(user, sharesToDeposit);
-        vm.startPrank(user);
-        wmon.deposit{value: sharesToDeposit}();
-        wmon.approve(address(magma), sharesToDeposit);
-        assertEq(sharesToDeposit, magma.deposit(sharesToDeposit, user));
-        vm.stopPrank();
+        _depositHelper(assets * 100, address(1000));
+        uint256 shares = _depositHelper(assets, user);
 
         _activateAllStakes();
 
@@ -281,8 +285,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
         assertEq(shares, magma.balanceOf(address(magma)));
-        // TODO: fix this
-        //assertEq(assetsBefore, magma.totalAssets());
+        assertEq(assetsBefore, magma.totalAssets() + assets);
 
         // user assertions
         assertEq(magma.balanceOf(user), sharesUserBefore - shares);

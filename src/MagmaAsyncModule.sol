@@ -22,7 +22,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> this would be changed by corevault, also test
+    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
