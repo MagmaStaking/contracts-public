@@ -8,7 +8,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
-import {ErrZeroAmount, ErrRequestPending, ErrZeroShares, ErrNotAuthorized} from "src/MagmaErrorsModule.sol";
+import "src/MagmaErrorsModule.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
@@ -399,6 +399,12 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_RevertWhen_RequestRedeemNotAuthorized() public {
         vm.expectRevert(ErrNotAuthorized.selector);
+        magma.requestRedeem(5, user, user);
+    }
+
+    function test_RevertWhen_RequestRedeemInsufficientShares() public {
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientShares.selector, 5, 0));
         magma.requestRedeem(5, user, user);
     }
 
