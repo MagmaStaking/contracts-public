@@ -206,7 +206,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             revert ErrNotAuthorized();
         }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        if (request.claimableTime < block.timestamp) {
+        if (request.claimableTime > block.timestamp) {
             revert ErrRequestPending();
         }
         uint256 shares = request.assets;
