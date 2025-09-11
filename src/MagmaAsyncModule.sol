@@ -22,7 +22,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations
+    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations,
+    // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -209,7 +210,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) {
             revert ErrRequestPending();
         }
-        uint256 shares = request.assets;
+        uint256 shares = request.shares;
         uint256 assetsAtRequest = request.assets;
         uint256 assetsAtClaim = convertToAssets(shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
@@ -217,20 +218,32 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
+
+        uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
+        /*         if (amountReceived < assets) {
+            // recalculate at this moment how much you can claim, give the user back a proportional amount of the shares, becausse unstake is from one validad that can be slashed
+            // to reproduce this in the compile, set the amount to be less than requesyed originally
+
+            // TODO:: another case, if it is 0, user should receive all his shares
+            _burn(address(this), (calculate shares));
+        } else {
+            _burn(address(this), shares);
+        } */
         _burn(address(this), shares);
 
         if (receiveWMON) {
-            WrappedMonad(payable(address(asset()))).deposit{value: assets}();
-            WrappedMonad(payable(address(asset()))).transfer(receiver, assets);
+            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
+            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawn);
         } else {
-            (bool sent,) = payable(receiver).call{value: assets}("");
+            (bool sent,) = payable(receiver).call{value: totalWithdrawn}("");
             if (!sent) {
                 revert ErrNativeTransferFailed();
             }
         }
 
-        emit Withdraw(controller, receiver, address(this), assets, shares);
+        // TODO: change how many shares were emitted in case of edge error where is less than expectedAssets
+        emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
 
-        return assets;
+        return totalWithdrawn;
     }
 }
