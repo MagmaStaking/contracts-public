@@ -80,14 +80,20 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
     ICoreVault public coreVault;
     IGVault public gVault;
 
-    function __MagmaBase_init(IERC20 asset_, string memory name_, string memory symbol_, address admin_)
-        internal
-        onlyInitializing
-    {
+    function __MagmaBase_init(
+        IERC20 asset_,
+        string memory name_,
+        string memory symbol_,
+        address admin_,
+        uint256 rewardsFee_,
+        address rewardsFeeReceiver_
+    ) internal onlyInitializing {
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
         admin = admin_;
+        rewardsFee = rewardsFee_;
+        rewardsFeeReceiver = rewardsFeeReceiver_;
     }
 
     /**

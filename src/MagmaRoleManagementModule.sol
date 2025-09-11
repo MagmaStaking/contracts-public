@@ -38,4 +38,14 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
         coreVault = ICoreVault(_coreVault);
         gVault = IGVault(_gVault);
     }
+
+    function setRewardsFee(uint256 _rewardsFee) external {
+        if (msg.sender != admin) revert ErrNotAdmin();
+        rewardsFee = _rewardsFee;
+    }
+
+    function setRewardsFeeReceiver(address _rewardsFeeReceiver) external {
+        if (msg.sender != admin) revert ErrNotAdmin();
+        rewardsFeeReceiver = _rewardsFeeReceiver;
+    }
 }

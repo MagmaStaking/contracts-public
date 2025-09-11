@@ -18,13 +18,10 @@ interface ICoreVault {
 
     // Delegation functions (onlyMagma)
     function delegate() external payable;
-    function undelegate(uint256 amount) external;
-    function enqueueUndelegate(uint256 amount) external;
+    function undelegate(uint256 amount, address user) external;
 
-    // Withdrawal completion functions
-    function completeWithdrawal(uint64 valId, uint8 withdrawalId) external;
-    function completeWithdrawal(uint8 withdrawalId) external;
-    function processPending() external;
+    // Withdrawal completion function
+    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
 
     // Initialization
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
@@ -44,7 +41,7 @@ interface ICoreVault {
     function minUserWithdrawAmount() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
-    function pendingRedelegationTotal() external view returns (uint256);
+    function totalPendingRedelegation() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
     function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
@@ -77,4 +74,8 @@ interface ICoreVault {
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     event ValidatorRemovalInitiated(uint64 indexed valId);
+
+    event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
+    event RewardsFeeTransferFailed(uint256 indexed amount);
+    event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 }

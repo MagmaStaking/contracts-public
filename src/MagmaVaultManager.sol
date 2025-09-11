@@ -40,7 +40,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
      * @dev Undelegate through CoreVault (undelegates equally from all validators)
      */
     function undelegate(uint256 amount) external {
-        coreVault.undelegate(amount);
+        coreVault.undelegate(amount, msg.sender);
     }
 
     /**
@@ -52,10 +52,12 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     }
 
     /**
-     * @dev Complete undelegation through CoreVault
+     * @dev Complete undelegation through CoreVault for a specific user
+     * @param user The user whose withdrawal requests to complete
+     * @return totalWithdrawn The actual amount successfully withdrawn and sent to the user
      */
-    function completeUndelegation(uint64 valId, uint8 withdrawalId) external {
-        coreVault.completeWithdrawal(valId, withdrawalId);
+    function completeUndelegation(address user) external returns (uint256 totalWithdrawn) {
+        return coreVault.completeUserWithdrawal(user);
     }
 
     /**
@@ -67,7 +69,7 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     }
 
     function _undelegate(uint256 assets) internal override {
-        coreVault.undelegate(assets);
+        coreVault.undelegate(assets, msg.sender);
     }
 
     function _completeUndelegationAndWrap(uint256 assets) internal override {
