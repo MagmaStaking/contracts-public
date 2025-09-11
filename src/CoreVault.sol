@@ -664,7 +664,12 @@ contract CoreVault is
      * @param amount The total amount to distribute
      */
     function _distributeAmountEquallyToValidators(uint256 amount) internal {
-        if (validators.length == 0 || amount == 0) return;
+        if (validators.length == 0) {
+            revert ErrNoValidators();
+        }
+        if (amount == 0) {
+            revert ErrZeroAmount();
+        }
 
         uint256 _amountPerValidator = amount / validators.length;
         for (uint256 _i = 0; _i < validators.length; _i++) {

@@ -22,14 +22,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> test this
+    // TODO: fr -> this would be changed by corevault, also test
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
 
     function setOperator(address operator, bool approved) external returns (bool) {
-        isOperator[msg.sender][operator] = approved;
-        emit OperatorSet(msg.sender, operator, approved);
+        isOperator[_msgSender()][operator] = approved;
+        emit OperatorSet(_msgSender(), operator, approved);
         return true;
     }
 
@@ -39,8 +39,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
-        coreVault.delegate{value: assets};
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        coreVault.delegate{value: assets}();
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return minted;
     }
 
@@ -54,31 +54,48 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /// @dev Withdraws WMON to MON so it can stake it
     function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets};
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        coreVault.delegate{value: assets}();
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return shares;
     }
 
-    // TODO: check deposit and withdrawal of gVault, what if gVault was 100% vanished, standard calculation does not work, what if the vault you deposit is already with a lower assets to shares ratio
-    function depositToGVault(uint256 assets, address receiver, uint64 valId) external whenNotPaused returns (uint256) {
+    function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
+        external
+        whenNotPaused
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, 0);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets};
-        emit DepositWithReferral(msg.sender, receiver, assets, shares, referralId);
+        coreVault.delegate{value: assets}();
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
-        WrappedMonad(payable(address(asset()))).deposit{value: msg.value}();
-        return depositWMON(msg.value, receiver, referralId);
+        uint256 assets = msg.value;
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) {
+            revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
+        }
+
+        uint256 shares = previewDeposit(assets);
+
+        _mint(receiver, shares);
+        emit Deposit(_msgSender(), receiver, assets, shares);
+
+        _delegatedNativeAssets += assets;
+        coreVault.delegate{value: assets}();
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
+
+        return shares;
     }
 
     function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
@@ -98,19 +115,24 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @param owner Owner of the shares.
      * @dev An operator is just an account that can manage Requests on behalf of another account, either an owner or a
      * controller.
-     * @dev Since we are using requestIds, an owner can do multiple requests and multiple claims without being locked by
-     * former requests or claims: https://eips.ethereum.org/EIPS/eip-7540#request-ids.
+     * @dev Since we are using requestIds, a controller can do multiple requests and multiple claims without being
+     * locked by former requests or claims. However, only one request per owner is allowed.
+     * https://eips.ethereum.org/EIPS/eip-7540#request-ids.
      * @dev Requests are not yield bearing; no yield will accrue after the request is made.
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
+    // TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
-        returns (uint256 requestId)
+        returns (uint256)
     {
+        if (_ownerRequested[owner]) {
+            revert ErrRequestPending();
+        }
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == msg.sender || isOperator[owner][msg.sender])) {
+        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
             revert ErrNotAuthorized();
         }
         if (shares > balanceOf(owner)) {
@@ -118,17 +140,21 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         uint256 assets = convertToAssets(shares);
-        pendingRedeemRequests[controller][_requestIdCount] =
-            RedeemRequests({shares: shares, assets: assets, claimableTime: block.timestamp + DEFAULT_DELAY});
-        _requestIdCount++;
+        uint256 requestId = _requestIdCount;
+        pendingRedeemRequests[controller][requestId] = RedeemRequests({
+            owner: owner,
+            shares: shares,
+            assets: assets,
+            claimableTime: block.timestamp + DEFAULT_DELAY
+        });
 
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
         isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
 
-        emit RedeemRequest(controller, owner, _requestIdCount, msg.sender, shares);
-        return _requestIdCount;
+        emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
+        return requestId;
     }
 
     function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
@@ -140,6 +166,26 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime >= block.timestamp ? request.shares : 0;
     }
 
+    // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
+    // TODO: in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
+    function redeem(uint256 requestId, address controller, address receiver)
+        public
+        virtual
+        override
+        whenNotPaused
+        returns (uint256 assets)
+    {
+        return _redeem(requestId, controller, receiver, true);
+    }
+
+    function redeemMON(uint256 requestId, address controller, address receiver)
+        external
+        whenNotPaused
+        returns (uint256 assets)
+    {
+        return _redeem(requestId, controller, receiver, false);
+    }
+
     /**
      * @param controller was designated by owner in _requestRedeem to manage the claim of the shares
      * @param receiveWMON States if the request should be fulfilled in WMON or MON
@@ -148,12 +194,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
      */
-    // TODO: see if we can change name of claimRequest to redeem after fixing inheritance chain, make two functions redeem and redeemMON
-    function claimRequest(uint256 requestId, address controller, address receiver, bool receiveWMON)
-        external
+    function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
+        private
         whenNotPaused
+        returns (uint256)
     {
-        if (!(controller == msg.sender || isOperator[controller][msg.sender])) {
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
             revert ErrNotAuthorized();
         }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
@@ -165,7 +211,9 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 assetsAtClaim = convertToAssets(shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
+        address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
+        _ownerRequested[owner] = false;
         _burn(address(this), shares);
 
         if (receiveWMON) {
@@ -179,5 +227,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         emit Withdraw(controller, receiver, address(this), assets, shares);
+
+        return assets;
     }
 }
