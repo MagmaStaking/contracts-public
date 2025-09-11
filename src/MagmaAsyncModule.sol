@@ -164,7 +164,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        return request.claimableTime >= block.timestamp ? request.shares : 0;
+        return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
     // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
