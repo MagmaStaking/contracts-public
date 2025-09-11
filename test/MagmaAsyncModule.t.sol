@@ -433,10 +433,12 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_RevertWhen_RedeemPending() public {
         uint256 assets = 5 ether;
-        uint256 requestId = requestRedeemHelper(assets);
-        vm.prank(user);
+        uint256 shares = depositHelper(assets);
+        vm.startPrank(user);
+        uint256 requestId = magma.requestRedeem(shares, user, user);
         vm.expectRevert(ErrRequestPending.selector);
         magma.redeem(requestId, user, user);
+        vm.stopPrank();
     }
 
     // function test_OperatorApproval() public {
