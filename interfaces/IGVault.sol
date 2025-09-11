@@ -7,11 +7,9 @@ import {IBaseVault} from "./IBaseVault.sol";
 interface IGVault is IBaseVault {
     // Admin functions
     function addValidator(uint64 valId) external;
-    function removeValidator(uint64 valId) external;
     function changeValidatorCap(uint64 valId, uint256 newCap) external;
     function setDefaultCapBps(uint256 newBps) external;
     function setMinQueueDelaySeconds(uint256 secondsDelay) external;
-    function setMinUserWithdrawAmount(uint256 amount) external;
     function pauseWithdrawalsForValidator(uint64 valId) external;
     function resumeWithdrawalsForValidator(uint64 valId) external;
     function adminInitiateRebalanceBps(uint16 bps) external;
@@ -38,7 +36,6 @@ interface IGVault is IBaseVault {
     function lastRebalanceTimestamp() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
-    function minUserWithdrawAmount() external view returns (uint256);
     function queuedAmountByValidator(uint64 valId) external view returns (uint256);
     function queuedUserAmount(uint64 valId, address user) external view returns (uint256);
     function queueTxUserAddress(uint64 valId, uint256 index) external view returns (address);
@@ -82,5 +79,4 @@ interface IGVault is IBaseVault {
     event WithdrawalPaymentSuccess(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 }

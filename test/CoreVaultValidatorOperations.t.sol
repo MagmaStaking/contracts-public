@@ -519,7 +519,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Verify: Status changed
         assertFalse(coreVault.isWhitelisted(VAL_1));
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.PAUSED));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.PAUSED));
         assertEq(coreVault.getValidatorCount(), 1); // VAL_2 should remain active
         assertTrue(coreVault.isWhitelisted(VAL_2)); // VAL_2 should still be whitelisted
     }
@@ -588,7 +588,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.executeValidatorUndelegation(VAL_1);
 
         // Verify: Status changed to UNDELEGATING
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));
         assertEq(coreVault.delegatedAmount(VAL_1), 0); // Delegated amount reset to 0
         assertEq(coreVault.totalPendingRedelegation(), 100 ether); // Pending redelegation increased
     }
@@ -668,7 +668,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
         // Verify: Status cleared
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
     }
 
     function test_completeValidatorRemovalWithdrawal_RevertInvalidStatus() public {
@@ -724,7 +724,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.completeValidatorRemovalWithdrawal(val1);
 
         // Validator status should be cleared to NONE
-        assertEq(uint256(coreVault.validatorStatus(val1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(val1)), uint256(IBaseVault.ValidatorStatus.NONE));
     }
 
     // ============ COMPREHENSIVE MULTI-STEP PROCESS TESTS ============
@@ -758,7 +758,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.prank(admin);
         coreVault.executeValidatorUndelegation(VAL_1);
 
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
         assertEq(coreVault.totalPendingRedelegation(), val1InitialStake);
 
@@ -769,7 +769,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
         // Verify final state
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
         assertTrue(coreVault.isWhitelisted(VAL_2));
         assertTrue(coreVault.isWhitelisted(VAL_3));
         assertEq(coreVault.getValidatorCount(), 2);
@@ -914,7 +914,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.totalPendingRedelegation(), 0, "Pending redistribution should be cleared");
 
         // VAL_1 should be completely removed
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
         assertFalse(coreVault.isWhitelisted(VAL_1));
         assertEq(coreVault.getValidatorCount(), 2);
 
@@ -1091,26 +1091,26 @@ contract CoreVaultValidatorOperations is BaseTest {
         _activatePendingDelegations();
 
         // Initial state
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
         assertTrue(coreVault.isWhitelisted(VAL_1));
 
         // After initiation
         vm.prank(admin);
         coreVault.initiateValidatorRemoval(VAL_1);
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.PAUSED));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.PAUSED));
         assertFalse(coreVault.isWhitelisted(VAL_1));
 
         // After undelegation
         vm.prank(admin);
         coreVault.executeValidatorUndelegation(VAL_1);
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.UNDELEGATING));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));
 
         // After withdrawal completion
         _advanceEpochsForWithdrawal();
 
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
-        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(CoreVault.ValidatorStatus.NONE));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
     }
 
     // ============ HELPER FUNCTIONS ============

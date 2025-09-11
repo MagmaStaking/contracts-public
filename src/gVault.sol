@@ -8,13 +8,14 @@ import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
+import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-
     // Track user positions: amount delegated per validator id
+
     mapping(address => mapping(uint64 => uint256)) public delegatedAmountOf; // user => valId => amount
     mapping(address => uint64[]) public userValidators; // user => list of valIds with non-zero positions
     mapping(address => mapping(uint64 => bool)) public userHasValidator; // user => valId => in list
@@ -22,13 +23,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     mapping(uint64 => address[]) public validatorUsers;
     mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
 
-    // Per-validator withdrawal ID bitmap management
-    mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
     bool public finishedLastRebalance = true;
-    uint256 public minUserWithdrawAmount;
 
     // Max number of queued undelegation entries per validator to prevent excessive gas
     uint256 public constant MAX_QUEUE_ITEMS_PER_VALIDATOR = 64;
@@ -116,70 +114,68 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         emit ValidatorRemovalInitiated(_valId);
     }
 
-    function removeValidator(uint64 valId) external onlyAdmin {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
+    /**
+     * @notice Step 2: Remove validator from validators array this function forces all stake to be in an active state
+     * @dev Remove validator from validators array
+     * @param _valId The validator ID to remove
+     */
+    function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        if (validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
+
+        DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+
+        if (_coreVaultDelInfo.delta_stake > 0 || _coreVaultDelInfo.next_delta_stake > 0) {
+            revert ErrPendingStakeNotZero();
         }
 
-        if (
-            !(
-                pausedWithdrawalsForValidator[valId] > 0
-                    && (block.timestamp - pausedWithdrawalsForValidator[valId]) > epochSeconds
-            )
-        ) revert ErrMustPauseBeforeRemove();
+        // TODO: Claim rewards here as well and distribute to remaining validators
 
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
+        uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
 
-        // 1) Undelegate all vault-level stake from this validator
-        uint256 vaultAmt = _getDelegatorStake(valId, address(this));
-        if (vaultAmt > 0) {
-            uint8 wid = ADMIN_WID_REBALANCE;
-            _undelegate(valId, vaultAmt, wid);
+        // Undelegate all from this validator first
+        if (_amountToRedelegate > 0) {
+            _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
+
+            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
+            emit ValidatorRemoved(_valId);
+        } else {
+            delete validatorStatus[_valId];
+            emit ValidatorRemovalCompleted(_valId);
+        }
+    }
+
+    /**
+     * @dev Complete the withdrawal process for a removed validator
+     * This should be called after the WITHDRAWAL_DELAY period has passed
+     * @param _valId The validator ID that was removed
+     */
+    function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
+
+        // TODO: Claim rewards
+        // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
+        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            revert ErrNoPendingWithdrawRequest();
         }
 
-        // 2) Clear all user positions for this validator
-        address[] storage users = validatorUsers[valId];
-        uint256 n = users.length;
-        for (uint256 i = 0; i < n; i++) {
-            address user = users[i];
-            if (userHasValidator[user][valId]) {
-                uint256 curr = delegatedAmountOf[user][valId];
-                if (curr > 0) {
-                    // zero the position
-                    delegatedAmountOf[user][valId] = 0;
-                    emit PositionUpdated(user, valId, curr, false);
-                }
-                // remove validator from user's list
-                uint64[] storage list = userValidators[user];
-                uint256 m = list.length;
-                for (uint256 j = 0; j < m; j++) {
-                    if (list[j] == valId) {
-                        list[j] = list[m - 1];
-                        list.pop();
-                        break;
-                    }
-                }
-                userHasValidator[user][valId] = false;
-                validatorHasUser[valId][user] = false;
-            }
-        }
-        // reset the reverse index array
-        delete validatorUsers[valId];
+        // Get the withdrawal amount before completing withdrawal
+        (bool exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+        if (!(exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
-        // 3) Remove validator from whitelist array and map
-        uint256 len = validators.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (validators[i] == valId) {
-                validators[i] = validators[len - 1];
-                validators.pop();
-                break;
-            }
+        // Complete the withdrawal using the admin withdrawal ID
+        _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
+
+        // TODO: Send funds to CoreVault
+
+        // Reduce the pending redistribution amount by the amount we just redistributed
+        if (totalPendingRedelegation >= _withdrawalAmount) {
+            totalPendingRedelegation -= _withdrawalAmount;
+        } else {
+            totalPendingRedelegation = 0;
         }
-        isWhitelisted[valId] = false;
-        emit ValidatorRemoved(valId);
-        lastRebalanceTimestamp = block.timestamp;
+
+        delete validatorStatus[_valId];
+        emit ValidatorRemovalCompleted(_valId);
     }
 
     function getvalidators() external view returns (uint64[] memory) {
@@ -198,11 +194,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (newBps > 10_000) revert ErrInvalidBps();
         defaultCapBps = newBps;
         emit DefaultCapUpdated(newBps);
-    }
-
-    function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
-        if (amount >= 10000) revert ErrInvalidAmount(amount);
-        minUserWithdrawAmount = amount;
     }
 
     function _maxCapFor(uint64 valId) internal view returns (uint256) {
@@ -452,15 +443,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
         return withdrawalIdBitmaps[valId].allocateWithdrawalId();
-    }
-
-    /**
-     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
-     * @param valId The validator ID
-     * @param withdrawalId The withdrawal ID to mark as free
-     */
-    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
     }
 
     // Helpers for reading user positions

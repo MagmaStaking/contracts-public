@@ -13,7 +13,6 @@ interface ICoreVault is IBaseVault {
     function pause() external;
     function unpause() external;
     function setMinQueueDelaySeconds(uint256 secondsDelay) external;
-    function setMinUserWithdrawAmount(uint256 amount) external;
 
     // Delegation functions (onlyMagma)
     function delegate() external payable;
@@ -30,7 +29,6 @@ interface ICoreVault is IBaseVault {
     function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
     function minQueueDelaySeconds() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
-    function minUserWithdrawAmount() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
@@ -59,7 +57,6 @@ interface ICoreVault is IBaseVault {
     event WithdrawalPaymentSuccess(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
     event RewardsFeeTransferFailed(uint256 indexed amount);

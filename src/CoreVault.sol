@@ -23,26 +23,10 @@ contract CoreVault is
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    enum ValidatorStatus {
-        NONE,
-        PAUSED,
-        UNDELEGATING
-    }
-
-    mapping(uint64 => ValidatorStatus) public validatorStatus;
-
-    // Per-validator withdrawal ID bitmap management
-    mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     // Per-validator amounts submitted for undelegation but not yet completed
 
     uint256 public minQueueDelaySeconds;
     uint256 public epochSeconds;
-
-    // Minimum user undelegation amount
-    uint256 public minUserWithdrawAmount;
-
-    // Reserved admin-only withdrawal ID
-    uint8 internal constant ADMIN_WID = 255;
 
     // Rebalance pacing guard
     uint256 public lastRebalanceTimestamp;
@@ -107,12 +91,6 @@ contract CoreVault is
 
     function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
         minQueueDelaySeconds = secondsDelay;
-    }
-
-    // Minimum user withdraw amount default amount is missing precision
-    function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
-        if (amount >= 10000 ether) revert ErrInvalidAmount(amount);
-        minUserWithdrawAmount = amount;
     }
 
     // --------------------------------------------------------------------------------------------------------------
@@ -248,6 +226,7 @@ contract CoreVault is
     // --------------------------------------------------------------------------------------------------------------
 
     function delegate() external payable onlyMagma whenNotPaused {
+        // TODO: Allow gVault to delegate to CoreVault
         _distributeAmountEquallyToValidators(msg.value);
     }
 
@@ -301,21 +280,6 @@ contract CoreVault is
         // If we couldn't fulfill the full amount, revert
         if (_remainingAmount > 0) {
             revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
-        }
-    }
-
-    function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
-        if (_tryWithdraw(_valId, _withdrawalId)) {
-            // Mark the withdrawal as completed in the bitmap
-            _markWithdrawalCompleted(_valId, _withdrawalId);
-
-            if (pendingRedelegateByValidator[_valId] >= _amt) {
-                pendingRedelegateByValidator[_valId] -= _amt;
-            } else {
-                pendingRedelegateByValidator[_valId] = 0;
-            }
-        } else {
-            emit WithdrawalFailed(_valId, _withdrawalId);
         }
     }
 
@@ -643,15 +607,6 @@ contract CoreVault is
         wid = withdrawalIdBitmaps[valId].allocateWithdrawalId();
         _undelegate(valId, amount, wid);
         return wid;
-    }
-
-    /**
-     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
-     * @param valId The validator ID
-     * @param withdrawalId The withdrawal ID to mark as free
-     */
-    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
     }
 
     /**
