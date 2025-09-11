@@ -57,8 +57,6 @@ interface IGVault is IBaseVault {
         returns (uint64[] memory validators, uint256[] memory amounts);
 
     // Events
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
     event PositionUpdated(address indexed user, uint64 indexed valId, uint256 amount, bool isDelegate);
     event CapChanged(uint64 indexed valId, uint256 newCap);
     event DefaultCapUpdated(uint256 newDefaultBps);

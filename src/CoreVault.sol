@@ -51,10 +51,6 @@ contract CoreVault is
     mapping(uint64 => uint256) public pendingUndelegateByValidator;
     uint256 public totalPendingUndelegations;
 
-    // Pending redelegations totals
-    mapping(uint64 => uint256) public pendingRedelegateByValidator;
-    uint256 public totalPendingRedelegation;
-
     bool public finishedLastRebalance;
 
     struct ValidatorAmount {
@@ -656,16 +652,6 @@ contract CoreVault is
      */
     function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
         withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
-    }
-
-    function _removeFromArray(uint64[] storage array, uint64 valId) internal {
-        for (uint256 i = 0; i < array.length; i++) {
-            if (array[i] == valId) {
-                array[i] = array[array.length - 1];
-                array.pop();
-                break;
-            }
-        }
     }
 
     /**

@@ -5,6 +5,7 @@ import {BaseTest} from "./BaseTest.t.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {CoreVault} from "../src/CoreVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {console} from "forge-std/console.sol";
 import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 import {
@@ -513,7 +514,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Test: Initiate removal
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
-        emit ICoreVault.ValidatorRemovalInitiated(VAL_1);
+        emit IBaseVault.ValidatorRemovalInitiated(VAL_1);
         coreVault.initiateValidatorRemoval(VAL_1);
 
         // Verify: Status changed
@@ -583,7 +584,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Step 2: Execute undelegation
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
-        emit ICoreVault.ValidatorRemoved(VAL_1);
+        emit IBaseVault.ValidatorRemoved(VAL_1);
         coreVault.executeValidatorUndelegation(VAL_1);
 
         // Verify: Status changed to UNDELEGATING
@@ -663,7 +664,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Complete withdrawal
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
-        emit ICoreVault.ValidatorRemovalCompleted(VAL_1);
+        emit IBaseVault.ValidatorRemovalCompleted(VAL_1);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
         // Verify: Status cleared
@@ -719,7 +720,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Should complete successfully when withdrawal is ready
         vm.prank(admin);
         vm.expectEmit(true, false, false, false);
-        emit ICoreVault.ValidatorRemovalCompleted(val1);
+        emit IBaseVault.ValidatorRemovalCompleted(val1);
         coreVault.completeValidatorRemovalWithdrawal(val1);
 
         // Validator status should be cleared to NONE

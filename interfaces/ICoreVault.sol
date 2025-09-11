@@ -7,7 +7,6 @@ import {IBaseVault} from "./IBaseVault.sol";
 interface ICoreVault is IBaseVault {
     // Admin functions
     function addValidator(uint64 valId) external;
-    function initiateValidatorRemoval(uint64 valId) external;
     function executeValidatorUndelegation(uint64 valId) external;
     function completeValidatorRemovalWithdrawal(uint64 valId) external;
     function adminRebalanceInitiate() external;
@@ -34,7 +33,6 @@ interface ICoreVault is IBaseVault {
     function minUserWithdrawAmount() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
-    function totalPendingRedelegation() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
     function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
@@ -42,9 +40,7 @@ interface ICoreVault is IBaseVault {
     function getTotalDelegated() external view returns (uint256);
 
     // Events
-    event ValidatorAdded(uint64 indexed valId);
-    event ValidatorRemoved(uint64 indexed valId);
-    event ValidatorRemovalCompleted(uint64 indexed valId);
+
     event RebalanceInitiated();
     event RebalanceCompleted();
     event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
@@ -64,8 +60,6 @@ interface ICoreVault is IBaseVault {
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
-
-    event ValidatorRemovalInitiated(uint64 indexed valId);
 
     event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
     event RewardsFeeTransferFailed(uint256 indexed amount);

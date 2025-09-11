@@ -102,6 +102,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         emit ValidatorAdded(valId);
     }
 
+    function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        isWhitelisted[_valId] = false;
+        _removeFromArray(validators, _valId);
+
+        uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
+        if (_totalStakedToValidator > 0) {
+            pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
+            totalPendingRedelegation += _totalStakedToValidator;
+        }
+
+        emit ValidatorRemovalInitiated(_valId);
+    }
+
     function removeValidator(uint64 valId) external onlyAdmin {
         if (epochSeconds != 0) {
             if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {

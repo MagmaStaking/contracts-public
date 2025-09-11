@@ -11,6 +11,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     mapping(uint64 => bool) public override isWhitelisted;
     uint64[] public override validators;
 
+    // Pending redelegations totals
+    mapping(uint64 => uint256) public override pendingRedelegateByValidator;
+    uint256 public override totalPendingRedelegation;
+
     IMagma public magma;
 
     function __VaultBase_init(address _magma) internal {
@@ -30,5 +34,15 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.delta_stake + _delInfo.next_delta_stake;
+    }
+
+    function _removeFromArray(uint64[] storage array, uint64 valId) internal {
+        for (uint256 i = 0; i < array.length; i++) {
+            if (array[i] == valId) {
+                array[i] = array[array.length - 1];
+                array.pop();
+                break;
+            }
+        }
     }
 }
