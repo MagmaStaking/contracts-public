@@ -8,7 +8,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
-import {ErrZeroAmount} from "src/MagmaErrorsModule.sol";
+import {ErrZeroAmount, ErrRequestPending} from "src/MagmaErrorsModule.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public override {
@@ -376,6 +376,18 @@ contract MagmaAsyncModuleTest is BaseTest {
         wmon.approve(address(magma), assets);
         vm.expectRevert(ErrZeroAmount.selector);
         magma.deposit(assets, user);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_RequestPending() public {
+        uint256 assets = 6 ether;
+        uint256 shares = depositHelper(assets);
+
+        vm.startPrank(user);
+        assertEq(0, magma.requestRedeem(shares / 2, user, user));
+        vm.expectRevert(ErrRequestPending.selector);
+        magma.requestRedeem(shares / 2, user, user);
+
         vm.stopPrank();
     }
 
