@@ -65,6 +65,7 @@ error ErrNotEnoughValidators();
 // Withdrawal ordering errors
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
 error ErrExistingWithdrawalInProgress();
+error ErrWithdrawalFailed(uint64 valId, uint8 withdrawalId);
 
 // Events for user withdrawal completion
 event WithdrawalNotReady(
