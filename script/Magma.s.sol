@@ -20,11 +20,27 @@ contract MagmaScript is Script {
         address underlyingAssetAddress = vm.envAddress("UNDERLYING_ASSET");
         require(underlyingAssetAddress != address(0), "missing UNDERLYING_ASSET");
 
+        address feeReceiverAddress = vm.envAddress("FEE_RECEIVER");
+        require(feeReceiverAddress != address(0), "missing FEE_RECEIVER");
+
+        uint256 rewardsFee = vm.envUint("REWARDS_FEE"); // rewards fee in basis points, ie over 1000.
+        require(rewardsFee != 0, "missing REWARDS_FEE");
+
         // Deploy UUPS proxy and initialize
         address magmaProxy = Upgrades.deployUUPSProxy(
             "Magma.sol",
             abi.encodeCall(
-                Magma.initialize, (IERC20(underlyingAssetAddress), "gMON", "gMON", msg.sender, address(0), address(0))
+                Magma.initialize,
+                (
+                    IERC20(underlyingAssetAddress),
+                    "gMON",
+                    "gMON",
+                    msg.sender,
+                    address(0),
+                    address(0),
+                    rewardsFee,
+                    feeReceiverAddress
+                )
             )
         );
         magma = Magma(payable(magmaProxy));

@@ -74,4 +74,8 @@ interface ICoreVault {
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     event ValidatorRemovalInitiated(uint64 indexed valId);
+
+    event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
+    event RewardsFeeTransferFailed(uint256 indexed amount);
+    event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 }

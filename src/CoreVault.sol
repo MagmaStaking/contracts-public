@@ -10,6 +10,7 @@ import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract CoreVault is
     Initializable,
@@ -456,9 +457,37 @@ contract CoreVault is
     function delegatedAmount(uint64 _valId) external view returns (uint256) {
         return _getTotalStakedToValidator(_valId);
     }
+
+    function claimAndCompoundRewards() external {
+        _claimAndCompoundRewards();
+    }
     //--------------------------------------------------------------------------------------------------------------
     // Internal functions
     //--------------------------------------------------------------------------------------------------------------
+
+    function _claimAndCompoundRewards() internal {
+        uint256 _startingBalance = address(this).balance;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint256 _before = address(this).balance;
+            _claim(validators[_i]);
+            emit RewardsClaimed(validators[_i], address(this).balance - _before);
+        }
+        uint256 _endingBalance = address(this).balance;
+        uint256 _rewards = _endingBalance - _startingBalance;
+
+        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 1000, Math.Rounding.Ceil);
+
+        // send fee to fee receiver
+        (bool _ok,) = magma.rewardsFeeReceiver().call{value: _fee}("");
+        if (!_ok) {
+            emit RewardsFeeTransferFailed(_fee);
+        } else {
+            emit RewardsFeeTransferSuccess(_fee, magma.rewardsFeeReceiver());
+        }
+
+        uint256 _remaining = _rewards - _fee;
+        _distributeAmountEquallyToValidators(_remaining);
+    }
 
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;

@@ -25,4 +25,8 @@ interface IMagma {
     function rebalanceVaults() external;
     // Payable hook used by gVault to forward funds
     function onRebalanceFundsReceived() external payable;
+
+    // Rewards functions
+    function rewardsFee() external view returns (uint256);
+    function rewardsFeeReceiver() external view returns (address);
 }
