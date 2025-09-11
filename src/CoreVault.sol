@@ -18,13 +18,10 @@ contract CoreVault is
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable,
     PausableUpgradeable,
-    MagmaDelegationModule,
     ICoreVault,
     VaultBase
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-
-    uint64[] public validators;
 
     enum ValidatorStatus {
         NONE,
@@ -33,7 +30,6 @@ contract CoreVault is
     }
 
     mapping(uint64 => ValidatorStatus) public validatorStatus;
-    mapping(uint64 => bool) public isWhitelisted;
 
     // Per-validator withdrawal ID bitmap management
     mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
@@ -140,7 +136,7 @@ contract CoreVault is
         isWhitelisted[_valId] = true;
 
         // Initialize bitmap with ADMIN_WID marked as reserved
-        withdrawalIdBitmaps[_valId].initForCoreVault();
+        withdrawalIdBitmaps[_valId].init();
 
         emit ValidatorAdded(_valId);
         _redelegateInitiate();
@@ -458,11 +454,6 @@ contract CoreVault is
         return _total;
     }
 
-    function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
-        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.delta_stake + _delInfo.next_delta_stake;
-    }
-
     function _redelegateInitiate() internal {
         if (validators.length == 0) return;
 
@@ -653,7 +644,7 @@ contract CoreVault is
     }
 
     function _allocateWIDandUndelegate(uint64 valId, uint256 amount) internal returns (uint8 wid) {
-        wid = withdrawalIdBitmaps[valId].allocateWithdrawalIdForCoreVault();
+        wid = withdrawalIdBitmaps[valId].allocateWithdrawalId();
         _undelegate(valId, amount, wid);
         return wid;
     }
@@ -664,7 +655,7 @@ contract CoreVault is
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompletedForCoreVault(withdrawalId);
+        withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
     }
 
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {

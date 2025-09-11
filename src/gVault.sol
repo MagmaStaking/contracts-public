@@ -5,43 +5,14 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {
-    ErrNotMagma,
-    ErrNotAdmin,
-    ErrZeroValidatorId,
-    ErrAlreadyWhitelisted,
-    ErrEpochGuard,
-    ErrMustPauseBeforeRemove,
-    ErrNotWhitelisted,
-    ErrInvalidBps,
-    ErrInvalidAmount,
-    ErrBelowMinWithdraw,
-    ErrCapZero,
-    ErrExceedsCap,
-    ErrZeroAddress,
-    ErrInsufficientPosition,
-    ErrRebalanceInProgress,
-    ErrQueueFull,
-    ErrForwardFailed
-} from "./MagmaErrorsModule.sol";
+import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 
-contract gVault is
-    Initializable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable,
-    MagmaDelegationModule,
-    IGVault,
-    VaultBase
-{
+contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-
-    // Whitelist of eligible validators (tracked by valId)
-    mapping(uint64 => bool) public isWhitelisted;
-    uint64[] public whitelistedValidators;
 
     // Track user positions: amount delegated per validator id
     mapping(address => mapping(uint64 => uint256)) public delegatedAmountOf; // user => valId => amount
@@ -97,6 +68,7 @@ contract gVault is
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
+        __VaultBase_init(_magma);
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
@@ -122,10 +94,10 @@ contract gVault is
         if (valId == 0) revert ErrZeroValidatorId();
         if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
         isWhitelisted[valId] = true;
-        whitelistedValidators.push(valId);
+        validators.push(valId);
 
         // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
-        withdrawalIdBitmaps[valId].initForGVault();
+        withdrawalIdBitmaps[valId].init();
 
         emit ValidatorAdded(valId);
     }
@@ -183,11 +155,11 @@ contract gVault is
         delete validatorUsers[valId];
 
         // 3) Remove validator from whitelist array and map
-        uint256 len = whitelistedValidators.length;
+        uint256 len = validators.length;
         for (uint256 i = 0; i < len; i++) {
-            if (whitelistedValidators[i] == valId) {
-                whitelistedValidators[i] = whitelistedValidators[len - 1];
-                whitelistedValidators.pop();
+            if (validators[i] == valId) {
+                validators[i] = validators[len - 1];
+                validators.pop();
                 break;
             }
         }
@@ -196,8 +168,8 @@ contract gVault is
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    function getWhitelistedValidators() external view returns (uint64[] memory) {
-        return whitelistedValidators;
+    function getvalidators() external view returns (uint64[] memory) {
+        return validators;
     }
 
     // Admin: set per-validator explicit cap (can increase or decrease)
@@ -425,7 +397,7 @@ contract gVault is
             }
         }
         if (bps > 10_000) revert ErrInvalidBps();
-        uint64[] memory list = whitelistedValidators;
+        uint64[] memory list = validators;
         uint256 n = list.length;
         for (uint256 i = 0; i < n; i++) {
             uint64 v = list[i];
@@ -443,7 +415,7 @@ contract gVault is
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
-        uint64[] memory list = whitelistedValidators;
+        uint64[] memory list = validators;
         uint256 beforeBal = address(this).balance;
         uint256 n = list.length;
         for (uint256 i = 0; i < n; i++) {
@@ -465,7 +437,7 @@ contract gVault is
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
     function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        return withdrawalIdBitmaps[valId].allocateWithdrawalIdForGVault();
+        return withdrawalIdBitmaps[valId].allocateWithdrawalId();
     }
 
     /**
@@ -474,7 +446,7 @@ contract gVault is
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompletedForGVault(withdrawalId);
+        withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
     }
 
     // Helpers for reading user positions

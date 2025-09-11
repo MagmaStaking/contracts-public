@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {IMagma} from "./IMagma.sol";
+import {IBaseVault} from "./IBaseVault.sol";
 
-interface ICoreVault {
+interface ICoreVault is IBaseVault {
     // Admin functions
     function addValidator(uint64 valId) external;
     function initiateValidatorRemoval(uint64 valId) external;
@@ -26,7 +27,6 @@ interface ICoreVault {
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
 
     // View functions
-    function isWhitelisted(uint64 valId) external view returns (bool);
     function delegatedAmount(uint64 valId) external view returns (uint256);
     function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
     function minQueueDelaySeconds() external view returns (uint256);

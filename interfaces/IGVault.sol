@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {IMagma} from "./IMagma.sol";
+import {IBaseVault} from "./IBaseVault.sol";
 
-interface IGVault {
+interface IGVault is IBaseVault {
     // Admin functions
     function addValidator(uint64 valId) external;
     function removeValidator(uint64 valId) external;
@@ -28,8 +29,6 @@ interface IGVault {
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
 
     // View functions
-    function isWhitelisted(uint64 valId) external view returns (bool);
-    function whitelistedValidators(uint256 index) external view returns (uint64);
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
     function userValidators(address user, uint256 index) external view returns (uint64);
     function userHasValidator(address user, uint64 valId) external view returns (bool);
@@ -51,7 +50,6 @@ interface IGVault {
     function pausedWithdrawalsForValidator(uint64 valId) external view returns (uint256);
     function validatorCap(uint64 valId) external view returns (uint256);
     function defaultCapBps() external view returns (uint256);
-    function getWhitelistedValidators() external view returns (uint64[] memory);
     function getUserValidators(address user) external view returns (uint64[] memory);
     function getUserPositions(address user)
         external
