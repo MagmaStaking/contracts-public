@@ -615,12 +615,12 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
         uint256 initialTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-        uint256 initialAliceBalance = alice.balance;
+        uint256 initialMagmaBalance = address(magma).balance;
 
         console.log("Initial state:");
         console.log("  Total assets:", initialTotalAssets);
         console.log("  Pending undelegations:", initialTotalPendingUndelegations);
-        console.log("  Alice balance:", initialAliceBalance);
+        console.log("  Magma balance:", initialMagmaBalance);
 
         // Step 1: Alice makes undelegation request
         vm.prank(address(magma));
@@ -664,40 +664,28 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Check final state
         uint256 finalTotalAssets = coreVault.totalAssets();
         uint256 finalTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-        uint256 finalAliceBalance = alice.balance;
+        uint256 finalMagmaBalance = address(magma).balance;
 
         console.log("After completion:");
         console.log("  Total assets:", finalTotalAssets);
         console.log("  Pending undelegations:", finalTotalPendingUndelegations);
-        console.log("  Alice balance:", finalAliceBalance);
+        console.log("  Magma balance:", finalMagmaBalance);
         console.log("  Actual withdrawn:", actualWithdrawn);
 
-        // Asset integrity checks
-        if (actualWithdrawn > 0) {
-            // If withdrawal was successful
-            assertEq(
-                finalAliceBalance,
-                initialAliceBalance + actualWithdrawn,
-                "Alice balance should increase by withdrawn amount"
-            );
-            assertEq(
-                finalTotalPendingUndelegations,
-                afterRequestPendingUndelegations - actualWithdrawn,
-                "Pending should decrease by withdrawn amount"
-            );
+        // If withdrawal was successful
+        assertEq(
+            finalMagmaBalance,
+            initialMagmaBalance + actualWithdrawn,
+            "Magma balance should increase by withdrawn amount"
+        );
+        assertEq(
+            finalTotalPendingUndelegations,
+            afterRequestPendingUndelegations - actualWithdrawn,
+            "Pending should decrease by withdrawn amount"
+        );
 
-            // Total assets should remain the same after completion (no additional change)
-            assertEq(finalTotalAssets, afterRequestTotalAssets, "Total assets should not change during completion");
-        } else {
-            // If no withdrawal occurred (not ready in mock)
-            assertEq(finalAliceBalance, initialAliceBalance, "Alice balance should not change if no withdrawal");
-            assertEq(
-                finalTotalPendingUndelegations,
-                afterRequestPendingUndelegations,
-                "Pending should not change if no withdrawal"
-            );
-            assertEq(finalTotalAssets, afterRequestTotalAssets, "Total assets should not change if no withdrawal");
-        }
+        // Total assets should remain the same after completion (no additional change)
+        assertEq(finalTotalAssets, afterRequestTotalAssets, "Total assets should not change during completion");
 
         // Requests should be cleared regardless
         CoreVault.WithdrawalRequestInfo[] memory finalRequests = coreVault.getUserWithdrawalRequests(alice);
