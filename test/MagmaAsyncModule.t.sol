@@ -417,6 +417,59 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_RedeemMON() public {}
 
+    function test_RedeemWithdrawalSlashed() public {
+        uint256 assets = 6 ether;
+        uint256 expectedAssets = assets / 2;
+        (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
+        uint256 sharesBefore = magma.balanceOf(address(magma));
+        uint256 userWMONBefore = wmon.balanceOf(address(user));
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 sharesAfterSlash = magma.convertToShares(expectedAssets);
+
+        // Assertions before redeem
+        (address owner, uint256 pendingShares, uint256 pendingAssets,) = magma.pendingRedeemRequests(user, requestId);
+        assertEq(user, owner);
+        assertEq(shares, pendingShares);
+        assertEq(assets, pendingAssets);
+
+        MockStakingPrecompile(STAKING_PRECOMPILE).setSlashDivider(2);
+
+        vm.expectEmit(true, true, true, true);
+        emit UserWithdrawalCompleted(user, expectedAssets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(address(magma), user, shares - sharesAfterSlash);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(address(magma), address(0), sharesAfterSlash);
+
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Deposit(address(magma), expectedAssets);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(address(magma), user, expectedAssets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(user, user, address(magma), expectedAssets, sharesAfterSlash);
+
+        vm.prank(user);
+        assertEq(expectedAssets, magma.redeem(requestId, user, user));
+
+        // 7540 vault assertions
+        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime) =
+            magma.pendingRedeemRequests(user, requestId);
+        assertEq(address(0), _owner);
+        assertEq(0, _shares);
+        assertEq(0, _assets);
+        assertEq(0, _claimableTime);
+
+        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets());
+        assertEq(address(magma).balance, 0);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // User assertions
+        assertEq(wmon.balanceOf(address(user)), userWMONBefore + expectedAssets);
+        assertEq(magma.balanceOf(address(user)), shares - sharesAfterSlash);
+        assertEq(user.balance, 0);
+    }
+
     function test_MultipleRequestIds() public {}
 
     function test_RevertWhen_PreviewWithdraw() public {
@@ -541,3 +594,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
 // TODO: test flow, one controller, two different owners at the same time
+// TODO: forge fmt option faster
