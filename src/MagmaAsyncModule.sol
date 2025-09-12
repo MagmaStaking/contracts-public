@@ -22,7 +22,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations
+    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations,
+    // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -122,10 +123,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
-    /**
-     * TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
-     * in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
-     */
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
@@ -152,6 +149,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         });
         _ownerRequested[owner] = true;
 
+        // TODO: test operator instead of owner transfering here
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
@@ -209,28 +207,34 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) {
             revert ErrRequestPending();
         }
-        uint256 shares = request.assets;
         uint256 assetsAtRequest = request.assets;
-        uint256 assetsAtClaim = convertToAssets(shares);
+        uint256 assetsAtClaim = convertToAssets(request.shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
+
+        uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
+        uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
+
+        if (shares < request.shares) {
+            _transfer(address(this), receiver, request.shares - shares);
+        }
         _burn(address(this), shares);
 
         if (receiveWMON) {
-            WrappedMonad(payable(address(asset()))).deposit{value: assets}();
-            WrappedMonad(payable(address(asset()))).transfer(receiver, assets);
+            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
+            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawn);
         } else {
-            (bool sent,) = payable(receiver).call{value: assets}("");
+            (bool sent,) = payable(receiver).call{value: totalWithdrawn}("");
             if (!sent) {
                 revert ErrNativeTransferFailed();
             }
         }
 
-        emit Withdraw(controller, receiver, address(this), assets, shares);
+        emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
 
-        return assets;
+        return totalWithdrawn;
     }
 }

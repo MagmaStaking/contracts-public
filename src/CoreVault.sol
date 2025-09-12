@@ -398,20 +398,17 @@ contract CoreVault is
                 // Mark withdrawal ID as completed
                 _markWithdrawalCompleted(_valId, _withdrawalId);
             } else {
-                emit WithdrawalFailed(_valId, _withdrawalId);
+                revert ErrWithdrawalFailed(_valId, _withdrawalId);
             }
         }
 
         // Send all accumulated ETH to user in a single transaction
         if (_totalSuccessfulWithdrawals > 0) {
-            (bool success,) = _user.call{value: _totalSuccessfulWithdrawals}("");
-            if (success) {
-                _totalWithdrawn = _totalSuccessfulWithdrawals;
-            } else {
-                // If the single payment fails, emit failure event
-                emit WithdrawalPaymentFailed(0, 0, _user, _totalSuccessfulWithdrawals);
-                _totalWithdrawn = 0;
+            (bool success,) = address(magma).call{value: _totalSuccessfulWithdrawals}("");
+            if (!success) {
+                revert ErrNativeTransferFailed();
             }
+            _totalWithdrawn = _totalSuccessfulWithdrawals;
         }
 
         // Clear all withdrawal requests for this user after processing
