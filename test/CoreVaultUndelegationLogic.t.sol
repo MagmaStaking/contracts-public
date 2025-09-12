@@ -956,9 +956,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
         uint256 initialTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-        uint256 initialAliceBalance = alice.balance;
-        uint256 initialBobBalance = bob.balance;
-        uint256 initialCharlieBalance = charlie.balance;
+        uint256 initialMagmaBalance = address(magma).balance;
 
         console.log("Initial state:");
         console.log("  Total assets:", initialTotalAssets);
@@ -1036,16 +1034,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         assertEq(coreVault.getUserWithdrawalRequests(bob).length, 0, "Bob requests cleared");
         assertEq(coreVault.getUserWithdrawalRequests(charlie).length, 0, "Charlie requests cleared");
 
-        // Verify user balance changes (simplified to avoid stack too deep)
-        if (aliceWithdrawn > 0) {
-            assertEq(alice.balance, initialAliceBalance + aliceWithdrawn, "Alice balance should increase");
-        }
-        if (bobWithdrawn > 0) {
-            assertEq(bob.balance, initialBobBalance + bobWithdrawn, "Bob balance should increase");
-        }
-        if (charlieWithdrawn > 0) {
-            assertEq(charlie.balance, initialCharlieBalance + charlieWithdrawn, "Charlie balance should increase");
-        }
+        assertEq(address(magma).balance, initialMagmaBalance + totalWithdrawn, "Magma balance should increase");
 
         console.log("Balance changes verified");
 
