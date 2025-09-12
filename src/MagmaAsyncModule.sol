@@ -123,10 +123,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
-    /**
-     * TODO: think case where requestRedeem fails due to undelegate failing by being slashes, then redeem should revert
-     * in completeUserWithdrawal returns totalWithdrawn in case there is slash event it failed
-     */
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
         whenNotPaused
@@ -153,6 +149,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         });
         _ownerRequested[owner] = true;
 
+        // TODO: test operator instead of owner transfering here
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
@@ -210,9 +207,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) {
             revert ErrRequestPending();
         }
-        uint256 shares = request.shares;
         uint256 assetsAtRequest = request.assets;
-        uint256 assetsAtClaim = convertToAssets(shares);
+        uint256 assetsAtClaim = convertToAssets(request.shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
 
         address owner = pendingRedeemRequests[controller][requestId].owner;
@@ -220,15 +216,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _ownerRequested[owner] = false;
 
         uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
-        /*         if (amountReceived < assets) {
-            // recalculate at this moment how much you can claim, give the user back a proportional amount of the shares, becausse unstake is from one validad that can be slashed
-            // to reproduce this in the compile, set the amount to be less than requesyed originally
+        uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
 
-            // TODO:: another case, if it is 0, user should receive all his shares
-            _burn(address(this), (calculate shares));
-        } else {
-            _burn(address(this), shares);
-        } */
+        if (shares < request.shares) {
+            _transfer(address(this), receiver, request.shares - shares);
+        }
         _burn(address(this), shares);
 
         if (receiveWMON) {
@@ -241,7 +233,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             }
         }
 
-        // TODO: change how many shares were emitted in case of edge error where is less than expectedAssets
         emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
 
         return totalWithdrawn;
