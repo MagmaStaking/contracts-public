@@ -87,12 +87,16 @@ contract MockStakingPrecompile {
         // Ensure state is properly initialized
         epoch = 1;
         current_block = 1;
+        slashDivider = 1;
+        withdrawRevert = false;
     }
 
     // Initialize function for when deployed via vm.etch (bypasses constructor)
     function initialize() external {
         epoch = 1;
         current_block = 1;
+        slashDivider = 1;
+        withdrawRevert = false;
     }
 
     // Mappings from the spec
