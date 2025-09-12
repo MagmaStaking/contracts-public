@@ -34,6 +34,7 @@ contract MockStakingPrecompile {
     uint256 public constant UNIT_BIAS = 1e18;
 
     bool public withdrawRevert = false;
+    uint256 public slashDivider = 1;
 
     // Structs from the spec
     struct KeysPacked {
@@ -158,6 +159,10 @@ contract MockStakingPrecompile {
     // Helper functions
     function setWithdrawRevert(bool _withdrawRevert) public {
         withdrawRevert = _withdrawRevert;
+    }
+
+    function setSlashDivider(uint256 divider) public {
+        slashDivider = divider;
     }
 
     function _isInBoundaryPeriod() internal view returns (bool) {
@@ -420,7 +425,7 @@ contract MockStakingPrecompile {
         (uint64 valId, address delegatorAddr, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, address, uint8));
 
         WithdrawalRequest memory request = withdrawal[valId][delegatorAddr][withdrawalId];
-        bytes memory result = abi.encode(request.amount, request.acc, request.epoch);
+        bytes memory result = abi.encode(request.amount / slashDivider, request.acc, request.epoch);
         assembly {
             return(add(result, 0x20), mload(result))
         }
