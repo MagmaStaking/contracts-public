@@ -8,6 +8,7 @@ import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
@@ -89,29 +90,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // Admin: manage whitelist
     function addValidator(uint64 valId) external onlyAdmin {
-        if (valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
-        isWhitelisted[valId] = true;
-        validators.push(valId);
-
-        // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
-        withdrawalIdBitmaps[valId].init();
-
-        emit ValidatorAdded(valId);
+        _registerValidator(valId);
     }
 
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
-        isWhitelisted[_valId] = false;
-        _removeFromArray(validators, _valId);
-
-        uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
-        if (_totalStakedToValidator > 0) {
-            pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
-            totalPendingRedelegation += _totalStakedToValidator;
-        }
-
-        emit ValidatorRemovalInitiated(_valId);
+        _initiateValidatorRemoval(_valId);
     }
 
     /**
@@ -120,28 +103,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
-        if (validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
-
-        DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
-
-        if (_coreVaultDelInfo.delta_stake > 0 || _coreVaultDelInfo.next_delta_stake > 0) {
-            revert ErrPendingStakeNotZero();
-        }
-
-        // TODO: Claim rewards here as well and distribute to remaining validators
-
-        uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
-
-        // Undelegate all from this validator first
-        if (_amountToRedelegate > 0) {
-            _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
-
-            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
-            emit ValidatorRemoved(_valId);
-        } else {
-            delete validatorStatus[_valId];
-            emit ValidatorRemovalCompleted(_valId);
-        }
+        _executeValidatorUndelegation(_valId);
     }
 
     /**
@@ -150,32 +112,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
-        if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
+        uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
 
-        // TODO: Claim rewards
-        // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
-        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
-            revert ErrNoPendingWithdrawRequest();
+        // Send withdrawal amount to CoreVault
+        if (_withdrawalAmount > 0) {
+            address coreVaultAddress = magma.coreVault();
+            ICoreVault(coreVaultAddress).delegate{value: _withdrawalAmount}();
         }
-
-        // Get the withdrawal amount before completing withdrawal
-        (bool exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-        if (!(exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
-
-        // Complete the withdrawal using the admin withdrawal ID
-        _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
-
-        // TODO: Send funds to CoreVault
-
-        // Reduce the pending redistribution amount by the amount we just redistributed
-        if (totalPendingRedelegation >= _withdrawalAmount) {
-            totalPendingRedelegation -= _withdrawalAmount;
-        } else {
-            totalPendingRedelegation = 0;
-        }
-
-        delete validatorStatus[_valId];
-        emit ValidatorRemovalCompleted(_valId);
     }
 
     function getvalidators() external view returns (uint64[] memory) {
@@ -200,10 +143,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 cap = validatorCap[valId];
         if (cap != 0) return cap;
 
-        (bool ok, bytes memory data) = address(magma).staticcall(abi.encodeWithSignature("totalAssets()"));
-        // TVL bps based cap
-        if (!ok || data.length == 0) return 0;
-        uint256 total = abi.decode(data, (uint256));
+        uint256 total = magma.totalAssets();
         return (total * defaultCapBps) / 10_000;
     }
 
@@ -213,19 +153,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Cap check
         uint256 cap = _maxCapFor(valId);
         if (cap == 0) revert ErrCapZero();
-        uint256 newAmt = delegatedAmountOf[user][valId] + msg.value;
+        uint256 newAmt = _getTotalStakedToValidator(valId) + msg.value;
         if (newAmt > cap) revert ErrExceedsCap();
         _delegate(valId, msg.value);
         // Update position
-        delegatedAmountOf[user][valId] = newAmt;
-        if (!userHasValidator[user][valId]) {
-            userHasValidator[user][valId] = true;
-            userValidators[user].push(valId);
-            if (!validatorHasUser[valId][user]) {
-                validatorHasUser[valId][user] = true;
-                validatorUsers[valId].push(user);
-            }
-        }
+        delegatedAmountOf[user][valId] += msg.value;
+        // TODO: Update this to be shares of user to validator
+        userHasValidator[user][valId] = true;
         emit PositionUpdated(user, valId, msg.value, true);
     }
 
@@ -438,11 +372,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             if (!sent) revert ErrForwardFailed();
         }
         emit AdminCompletedRebalance(delta);
-    }
-
-    // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
-    function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        return withdrawalIdBitmaps[valId].allocateWithdrawalId();
     }
 
     // Helpers for reading user positions

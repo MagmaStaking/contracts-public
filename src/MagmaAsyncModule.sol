@@ -24,7 +24,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     // TODO: fr -> this would be changed by corevault, also test
     function totalAssets() public view virtual override returns (uint256) {
-        return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
+        return coreVault.totalAssets() + gVault.totalAssets();
     }
 
     function setOperator(address operator, bool approved) external returns (bool) {
