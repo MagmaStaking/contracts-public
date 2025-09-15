@@ -606,8 +606,14 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.requestRedeem(0, user, user);
     }
 
-    // TODO:
-    function test_RevertWhen_RequestRedeemZeroAddress() public {}
+    // test_RevertWhen_RequestRedeemZeroAddressController will never be necessary since address zero cannot be authorized
+    function test_RevertWhen_RequestRedeemZeroAddressController() public {
+        uint256 assets = 5 ether;
+        uint256 shares = depositHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(ErrZeroAddress.selector);
+        magma.requestRedeem(shares, address(0), user);
+    }
 
     function test_RevertWhen_RequestRedeemNotAuthorized() public {
         vm.expectRevert(ErrNotAuthorized.selector);
