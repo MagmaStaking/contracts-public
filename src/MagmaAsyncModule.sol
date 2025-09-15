@@ -12,7 +12,8 @@ import {
     ErrNativeTransferFailed,
     ErrNotAuthorized,
     ErrInsufficientShares,
-    ErrRequestPending
+    ErrRequestPending,
+    ErrZeroAddress
 } from "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
@@ -129,6 +130,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         whenNotPaused
         returns (uint256)
     {
+        if (controller == address(0)) revert ErrZeroAddress();
         if (_ownerRequested[owner]) {
             revert ErrRequestPending();
         }
