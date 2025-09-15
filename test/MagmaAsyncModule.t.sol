@@ -512,6 +512,56 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_MultipleRequestIds() public {}
 
+    function test_SetOperator() public {
+        vm.prank(user);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.OperatorSet(user, address(15), true);
+        magma.setOperator(address(15), true);
+    }
+
+    function test_ControllerReceiverOperatorFlow() public {
+        address userOperator = address(15);
+        address controller = address(25);
+        address controllerOperator = address(35);
+        address receiver = address(35);
+        uint256 assets = 5 ether;
+        uint256 receiverWMONBefore = wmon.balanceOf(receiver);
+        uint256 shares = depositHelper(assets);
+
+        vm.prank(user);
+        magma.setOperator(userOperator, true);
+        vm.prank(controller);
+        magma.setOperator(controllerOperator, true);
+
+        // Test operator of users requests redemptions that will be handled by a different controller
+        vm.prank(userOperator);
+        uint256 requestId = magma.requestRedeem(shares, controller, user);
+        uint256 sharesBefore = magma.balanceOf(address(magma));
+        uint256 assetsBefore = magma.totalAssets();
+
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
+
+        // Test controller operator will handle redemption to a different receiver
+        vm.prank(controllerOperator);
+        assertEq(assets, magma.redeem(requestId, controller, receiver));
+
+        // 7540 vault assertions
+        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets(), "Magma total Assets should not have changed");
+        assertEq(address(magma).balance, 0, "MON balance of Magma should be 0");
+        assertEq(wmon.balanceOf(address(magma)), 0, "WMON balance of Magma should be 0");
+
+        // Receiver assertions
+        assertEq(
+            wmon.balanceOf(receiver),
+            receiverWMONBefore + assets,
+            "WMON balance of Magma should be equal to pass balance + assets redeemed"
+        );
+        assertEq(magma.balanceOf(receiver), 0);
+        assertEq(receiver.balance, 0);
+    }
+
     function test_RevertWhen_PreviewWithdraw() public {
         vm.expectRevert();
         magma.previewWithdraw(1);
@@ -550,11 +600,14 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_RevertWhen_RequestRedeem0Shares() public {
+    function test_RevertWhen_RequestRedeemZeroShares() public {
         vm.prank(user);
         vm.expectRevert(ErrZeroShares.selector);
         magma.requestRedeem(0, user, user);
     }
+
+    // TODO:
+    function test_RevertWhen_RequestRedeemZeroAddress() public {}
 
     function test_RevertWhen_RequestRedeemNotAuthorized() public {
         vm.expectRevert(ErrNotAuthorized.selector);
@@ -573,6 +626,17 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         vm.expectRevert(ErrNotAuthorized.selector);
         magma.redeem(requestId, address(2), user);
+    }
+
+    // TODO:
+    function test_RevertWhen_RedeemNoRequest() public {
+        /*         uint256 assets = 5 ether;
+        uint256 shares = depositHelper(assets);
+        vm.startPrank(user);
+        uint256 requestId = magma.requestRedeem(shares, user, user);
+        vm.expectRevert(ErrRequestPending.selector);
+        magma.redeem(requestId, user, user);
+        vm.stopPrank(); */
     }
 
     function test_RevertWhen_RedeemPending() public {
@@ -630,7 +694,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: reentrancy
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
 // TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
-// TODO: test deposit to another receiver and withdraw to another receiver
+// TODO: test deposit to another receiver
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
 // TODO: test flow, one controller, two different owners at the same time
