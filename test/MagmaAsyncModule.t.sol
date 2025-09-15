@@ -510,6 +510,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
+    // TODO:
     function test_MultipleRequestIds() public {}
 
     function test_SetOperator() public {
@@ -634,15 +635,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         magma.redeem(requestId, address(2), user);
     }
 
-    // TODO:
     function test_RevertWhen_RedeemNoRequest() public {
-        /*         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
-        vm.startPrank(user);
-        uint256 requestId = magma.requestRedeem(shares, user, user);
-        vm.expectRevert(ErrRequestPending.selector);
-        magma.redeem(requestId, user, user);
-        vm.stopPrank(); */
+        vm.prank(user);
+        vm.expectRevert(RequestInexistent.selector);
+        magma.redeem(0, user, user);
     }
 
     function test_RevertWhen_RedeemPending() public {
