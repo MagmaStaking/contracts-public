@@ -214,61 +214,7 @@ contract CoreVault is
      * @return _totalWithdrawn The actual amount successfully withdrawn and sent to the user
      */
     function completeUserWithdrawal(address _user) external nonReentrant onlyMagma returns (uint256 _totalWithdrawn) {
-        WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
-        if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
-
-        _totalWithdrawn = 0;
-        uint256 _totalSuccessfulWithdrawals = 0;
-
-        // Process each withdrawal request for this user
-        for (uint256 i = 0; i < _userRequests.length; i++) {
-            WithdrawalRequestInfo storage _request = _userRequests[i];
-            uint64 _valId = _request.validator;
-            uint8 _withdrawalId = _request.withdrawalId;
-
-            // Check if withdrawal is ready
-            (bool _exists, uint256 _availableAmount,,) = _getWithdrawalRequest(_valId, address(this), _withdrawalId);
-            if (!(_exists && _availableAmount > 0)) {
-                // Withdrawal not ready yet, skip this request
-                emit WithdrawalNotReady(_valId, _withdrawalId, _user, _availableAmount);
-                continue;
-            }
-
-            // Attempt to withdraw from precompile
-            if (_tryWithdraw(_valId, _withdrawalId)) {
-                _totalSuccessfulWithdrawals += _availableAmount;
-                emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
-
-                // Update pending undelegation tracking
-                if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
-                    pendingUndelegateByValidator[_valId] -= _availableAmount;
-                } else {
-                    pendingUndelegateByValidator[_valId] = 0;
-                }
-
-                totalPendingUndelegations =
-                    (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
-
-                // Mark withdrawal ID as completed
-                _markWithdrawalCompleted(_valId, _withdrawalId);
-            } else {
-                revert ErrWithdrawalFailed(_valId, _withdrawalId);
-            }
-        }
-
-        // Send all accumulated ETH to user in a single transaction
-        if (_totalSuccessfulWithdrawals > 0) {
-            (bool success,) = address(magma).call{value: _totalSuccessfulWithdrawals}("");
-            if (!success) {
-                revert ErrNativeTransferFailed();
-            }
-            _totalWithdrawn = _totalSuccessfulWithdrawals;
-        }
-
-        // Clear all withdrawal requests for this user after processing
-        delete userWithdrawalRequests[_user];
-
-        emit UserWithdrawalCompleted(_user, _totalWithdrawn);
+        return _completeUserWithdrawal(_user);
     }
 
     function getValidators() external view returns (uint64[] memory) {

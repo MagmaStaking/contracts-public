@@ -19,34 +19,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     mapping(address => mapping(uint64 => uint256)) public delegatedSharesOf; // user => valId => shares
     mapping(uint64 => uint256) public totalSharesByValidator; // valId => total shares issued for this validator
-    mapping(address => uint64[]) public userValidators; // user => list of valIds with non-zero positions
-    mapping(address => mapping(uint64 => bool)) public userHasValidator; // user => valId => in list
-
-    mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
 
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
     bool public finishedLastRebalance = true;
 
-    // Max number of queued undelegation entries per validator to prevent excessive gas
-    uint256 public constant MAX_QUEUE_ITEMS_PER_VALIDATOR = 64;
-
-    // pending withdrawals
-    // Pending withdrawals per validator (sum of amounts successfully submitted but not yet withdrawn)
-    mapping(uint64 => uint256) public pendingTotalByValidator;
-    // per transaction view into each batched withdrawal
-    // validatorId -> withdrawalId -> data
-    mapping(uint64 => mapping(uint64 => address[])) public pendingUserAddress;
-    mapping(uint64 => mapping(uint64 => uint256[])) public pendingUserAmount;
-    // validatorId -> withdrawalId
-    mapping(uint64 => uint8) public pendingValidatorWithdrawalId;
-
     // pause withdrawals for a validator an epoch before removing
     mapping(uint64 => uint256) public pausedWithdrawalsForValidator;
-
-    // Reserved admin-only withdrawal ID
-    // ADMIN_WID_REBALANCE used for adminInitiateRebalanceBps and removing validator
 
     // Per-validator deposit caps; if zero, use defaultCapPercent of Magma.totalAssets()
     mapping(uint64 => uint256) public validatorCap;
@@ -63,10 +43,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // Accept native funds returned from delegation completion
     receive() external payable {}
-
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
-        minQueueDelaySeconds = secondsDelay;
-    }
 
     function pauseWithdrawalsForValidator(uint64 valId) external onlyAdmin {
         pausedWithdrawalsForValidator[valId] = block.timestamp;
@@ -164,12 +140,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         delegatedSharesOf[user][valId] += sharesToMint;
         totalSharesByValidator[valId] += sharesToMint;
 
-        // Track user-validator relationship
-        if (!userHasValidator[user][valId]) {
-            userValidators[user].push(valId);
-            userHasValidator[user][valId] = true;
-        }
-
         emit PositionUpdated(user, valId, msg.value, true);
     }
 
@@ -194,14 +164,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         delegatedSharesOf[user][_valId] -= sharesToBurn;
         totalSharesByValidator[_valId] -= sharesToBurn;
 
-        // Clean up if user has no more shares with this validator
-        if (delegatedSharesOf[user][_valId] == 0) {
-            userHasValidator[user][_valId] = false;
-            validatorHasUser[_valId][user] = false;
-            // Remove from arrays (simplified - could be optimized)
-            _removeValidatorFromUser(user, _valId);
-        }
-
         if (amount > 0) {
             uint8 _wid = _allocateWIDandUndelegate(_valId, amount);
 
@@ -214,67 +176,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
     }
 
-    function completeUserWithdrawal(address user) external nonReentrant returns (uint256 totalWithdrawn) {
-        WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[user];
-        if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
-
-        totalWithdrawn = 0;
-        uint256 _totalSuccessfulWithdrawals = 0;
-
-        // Process withdrawal requests for this specific user and validator
-        for (uint256 i = 0; i < _userRequests.length; i++) {
-            WithdrawalRequestInfo storage _request = _userRequests[i];
-            uint64 _valId = _request.validator;
-            uint8 _withdrawalId = _request.withdrawalId;
-
-            // Check if withdrawal is ready
-            (bool _exists, uint256 _availableAmount,,) = _getWithdrawalRequest(_valId, address(this), _withdrawalId);
-            if (!(_exists && _availableAmount > 0)) {
-                // Withdrawal not ready yet, skip this request
-                emit WithdrawalNotReady(_valId, _withdrawalId, user, _availableAmount);
-                continue;
-            }
-
-            // Attempt to withdraw from precompile
-            if (_tryWithdraw(_valId, _withdrawalId)) {
-                _totalSuccessfulWithdrawals += _availableAmount;
-                emit WithdrawalPaymentSuccess(_valId, _withdrawalId, user, _availableAmount);
-
-                // Update pending undelegation tracking
-                if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
-                    pendingUndelegateByValidator[_valId] -= _availableAmount;
-                } else {
-                    pendingUndelegateByValidator[_valId] = 0;
-                }
-
-                totalPendingUndelegations =
-                    (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
-
-                // Mark withdrawal ID as completed
-                _markWithdrawalCompleted(_valId, _withdrawalId);
-
-                // Remove this request from the array by swapping with the last element
-                _userRequests[i] = _userRequests[_userRequests.length - 1];
-                _userRequests.pop();
-                i--; // Adjust index since we moved an element to this position
-            } else {
-                emit WithdrawalFailed(_valId, _withdrawalId);
-            }
-        }
-
-        // Send all accumulated ETH to user in a single transaction
-        if (_totalSuccessfulWithdrawals > 0) {
-            (bool success,) = user.call{value: _totalSuccessfulWithdrawals}("");
-            if (success) {
-                totalWithdrawn = _totalSuccessfulWithdrawals;
-            } else {
-                // If the single payment fails, emit failure event
-                emit WithdrawalPaymentFailed(0, 0, user, _totalSuccessfulWithdrawals);
-                totalWithdrawn = 0;
-            }
-        }
-
-        emit UserWithdrawalCompleted(user, totalWithdrawn);
+    function completeUserWithdrawal(address _user) external nonReentrant returns (uint256 _totalWithdrawn) {
+        return _completeUserWithdrawal(_user);
     }
 
     // Admin: initiate undelegation across all validators by basis points
@@ -323,41 +226,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             if (!sent) revert ErrForwardFailed();
         }
         emit AdminCompletedRebalance(delta);
-    }
-
-    // Helpers for reading user positions
-    function getUserValidators(address user) external view returns (uint64[] memory) {
-        return userValidators[user];
-    }
-
-    function getUserPositions(address user)
-        external
-        view
-        returns (uint64[] memory validators, uint256[] memory amounts)
-    {
-        uint64[] memory list = userValidators[user];
-        uint256 n = list.length;
-        validators = new uint64[](n);
-        amounts = new uint256[](n);
-        for (uint256 i = 0; i < n; i++) {
-            uint64 v = list[i];
-            validators[i] = v;
-            amounts[i] = _convertToAssets(v, delegatedSharesOf[user][v]); // Convert shares to assets internally
-        }
-    }
-
-    /**
-     * @dev Remove validator from user's validator list
-     */
-    function _removeValidatorFromUser(address user, uint64 valId) internal {
-        uint64[] storage validators = userValidators[user];
-        for (uint256 i = 0; i < validators.length; i++) {
-            if (validators[i] == valId) {
-                validators[i] = validators[validators.length - 1];
-                validators.pop();
-                break;
-            }
-        }
     }
 
     /**
