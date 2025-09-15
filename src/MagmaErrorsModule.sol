@@ -39,6 +39,7 @@ error ErrEpochGuard();
 error ErrRebalanceInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
+error RequestInexistent();
 
 // External call failures
 error ErrDelegateFailed();

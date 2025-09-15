@@ -13,7 +13,8 @@ import {
     ErrNotAuthorized,
     ErrInsufficientShares,
     ErrRequestPending,
-    ErrZeroAddress
+    ErrZeroAddress,
+    RequestInexistent
 } from "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
@@ -85,9 +86,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
         uint256 assets = msg.value;
         uint256 maxAssets = maxDeposit(receiver);
-        if (assets > maxAssets) {
-            revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
-        }
+        if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
 
         uint256 shares = previewDeposit(assets);
 
@@ -131,16 +130,10 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         returns (uint256)
     {
         if (controller == address(0)) revert ErrZeroAddress();
-        if (_ownerRequested[owner]) {
-            revert ErrRequestPending();
-        }
+        if (_ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
-            revert ErrNotAuthorized();
-        }
-        if (shares > balanceOf(owner)) {
-            revert ErrInsufficientShares(shares, balanceOf(owner));
-        }
+        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
+        if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
         uint256 assets = convertToAssets(shares);
         uint256 requestId = _requestIdCount;
@@ -207,13 +200,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         whenNotPaused
         returns (uint256)
     {
-        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
-            revert ErrNotAuthorized();
-        }
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        if (request.claimableTime > block.timestamp) {
-            revert ErrRequestPending();
-        }
+        if (request.claimableTime > block.timestamp) revert ErrRequestPending();
+        if (request.claimableTime == 0) revert RequestInexistent();
+
         uint256 assetsAtRequest = request.assets;
         uint256 assetsAtClaim = convertToAssets(request.shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
