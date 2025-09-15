@@ -16,55 +16,6 @@
 //         _activateDelegatedStakes();
 //     }
 
-//     function testRedeemMon() public {
-//         uint256 depositAmount = 2 ether;
-//         uint256 redeemShares = 1 ether;
-
-//         // Native deposit
-//         vm.prank(alice);
-//         magma.depositMon{value: depositAmount}();
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         uint256 aliceSharesBefore = magma.balanceOf(alice);
-
-//         // Async claim: request and redeem ERC20 asset to Alice
-//         vm.prank(alice);
-//         magma.requestRedeem(redeemShares, alice, alice);
-//         vm.warp(block.timestamp + 1 days);
-//         // Simulate completed withdrawal by funding contract with ETH for wrapping
-//         vm.deal(address(magma), redeemShares);
-//         uint256 wmonBefore = wmon.balanceOf(alice);
-//         vm.prank(alice);
-//         uint256 assets = magma.redeem(redeemShares, alice, alice);
-//         assertEq(wmon.balanceOf(alice), wmonBefore + assets);
-//         assertEq(magma.balanceOf(alice), aliceSharesBefore - redeemShares);
-//     }
-
-//     function testRedeemMonToReceiver() public {
-//         uint256 depositAmount = 2 ether;
-//         uint256 redeemShares = 1 ether;
-
-//         // Native deposit
-//         vm.prank(alice);
-//         magma.depositMon{value: depositAmount}();
-
-//         // Activate the delegated stakes in the mock
-//         _activateStakes();
-
-//         // Async claim to receiver in ERC20 asset
-//         vm.prank(alice);
-//         magma.requestRedeem(redeemShares, bob, alice);
-//         vm.warp(block.timestamp + 1 days);
-//         // Simulate completed withdrawal by funding contract with ETH for wrapping
-//         vm.deal(address(magma), redeemShares);
-//         uint256 wmonBeforeBob = wmon.balanceOf(bob);
-//         vm.prank(bob);
-//         uint256 assets = magma.redeem(redeemShares, bob, bob);
-//         assertEq(wmon.balanceOf(bob), wmonBeforeBob + assets);
-//     }
-
 //     function testRedeemMonWithAllowance() public {
 //         uint256 depositAmount = 2 ether;
 //         uint256 redeemShares = 1 ether;
@@ -86,22 +37,6 @@
 //         vm.prank(bob);
 //         uint256 assets = magma.redeem(redeemShares, bob, bob);
 //         assertEq(wmon.balanceOf(bob), wmonBeforeBob + assets);
-//     }
-
-//     function testRevertRedeemMonZeroShares() public {
-//         vm.expectRevert(ErrZeroShares.selector);
-//         vm.prank(alice);
-//         magma.redeemMon(0, alice, alice);
-//     }
-
-//     function testRevertRedeemMonZeroAddress() public {
-//         // Alice needs shares first
-//         vm.prank(alice);
-//         magma.depositMon{value: 1 ether}();
-
-//         vm.expectRevert(ErrZeroAddress.selector);
-//         vm.prank(alice);
-//         magma.redeemMon(1 ether, address(0), alice);
 //     }
 
 //     function testRevertRedeemMonInsufficientAllowance() public {
