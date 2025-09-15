@@ -24,6 +24,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations,
     // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
+    // TODO: also delete:  _delegatedNativeAssets -= assets, after above
     function totalAssets() public view virtual override returns (uint256) {
         return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
     }
@@ -149,11 +150,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         });
         _ownerRequested[owner] = true;
 
-        // TODO: test operator instead of owner transfering here
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
-        isGVault ? _undelegateFromValidator(valId, assets) : _undelegate(assets);
+        // TODO: fix _undelegateFromValidator so it is gVault.
+        isGVault ? _undelegateFromValidator(valId, assets) : coreVault.undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;
@@ -168,7 +169,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
-    // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
+    /**
+     * TODO:
+     * 1. keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
+     * 2. How do we track on this redemption if withdrawal from gVault is possible
+     */
     function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
@@ -215,6 +220,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
+        // TODO: gVault here case
         uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
         uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
 
