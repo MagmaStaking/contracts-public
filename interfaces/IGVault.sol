@@ -15,13 +15,14 @@ interface IGVault is IBaseVault {
     function adminInitiateRebalanceBps(uint16 bps) external;
     function adminCompleteRebalance() external;
 
+    // Withdrawal completion function
+    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
+
     // Delegation functions (onlyMagma)
     function delegate(address user, uint64 valId) external payable;
     function undelegate(address user, uint64 valId, uint256 amount) external;
 
     // Withdrawal completion functions
-    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external;
-    function processPending(uint64 valId) external;
 
     // Initialization
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
@@ -30,16 +31,12 @@ interface IGVault is IBaseVault {
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
     function userValidators(address user, uint256 index) external view returns (uint64);
     function userHasValidator(address user, uint64 valId) external view returns (bool);
-    function validatorUsers(uint64 valId, uint256 index) external view returns (address);
     function validatorHasUser(uint64 valId, address user) external view returns (bool);
     function minQueueDelaySeconds() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
-    function queuedAmountByValidator(uint64 valId) external view returns (uint256);
-    function queuedUserAmount(uint64 valId, address user) external view returns (uint256);
-    function queueTxUserAddress(uint64 valId, uint256 index) external view returns (address);
-    function queueTxUserAmount(uint64 valId, uint256 index) external view returns (uint256);
+
     function pendingTotalByValidator(uint64 valId) external view returns (uint256);
     function pendingUserAddress(uint64 valId, uint64 withdrawalId, uint256 index) external view returns (address);
     function pendingUserAmount(uint64 valId, uint64 withdrawalId, uint256 index) external view returns (uint256);
@@ -53,7 +50,6 @@ interface IGVault is IBaseVault {
         view
         returns (uint64[] memory validators, uint256[] memory amounts);
 
-    // Events
     event PositionUpdated(address indexed user, uint64 indexed valId, uint256 amount, bool isDelegate);
     event CapChanged(uint64 indexed valId, uint256 newCap);
     event DefaultCapUpdated(uint256 newDefaultBps);

@@ -28,10 +28,6 @@ contract CoreVault is
     uint256 public minQueueDelaySeconds;
     uint256 public epochSeconds;
 
-    // Pending withdrawals totals
-    mapping(uint64 => uint256) public pendingUndelegateByValidator;
-    uint256 public totalPendingUndelegations;
-
     // Rebalance pacing guard
     uint256 public lastRebalanceTimestamp;
 
@@ -41,15 +37,6 @@ contract CoreVault is
         uint64 valId;
         uint256 amount;
     }
-
-    struct WithdrawalRequestInfo {
-        uint256 amount;
-        uint64 validator;
-        uint8 withdrawalId;
-    }
-
-    // Storage for withdrawal requests - mapping from user to their withdrawal requests
-    mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
     /**
      * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
@@ -527,12 +514,6 @@ contract CoreVault is
         }
     }
 
-    function _allocateWIDandUndelegate(uint64 valId, uint256 amount) internal returns (uint8 wid) {
-        wid = withdrawalIdBitmaps[valId].allocateWithdrawalId();
-        _undelegate(valId, amount, wid);
-        return wid;
-    }
-
     /**
      * @dev Simple insertion sort for ValidatorAmount array (ascending by amount)
      */
@@ -563,19 +544,6 @@ contract CoreVault is
             }
             _arr[_j] = key;
         }
-    }
-
-    /**
-     * @dev Store withdrawal request information for tracking
-     * @param _user The user making the withdrawal request
-     * @param _amount The amount being withdrawn
-     * @param _validator The validator from which to withdraw
-     * @param _withdrawalId The withdrawal ID assigned
-     */
-    function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
-        userWithdrawalRequests[_user].push(
-            WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
-        );
     }
 
     /**

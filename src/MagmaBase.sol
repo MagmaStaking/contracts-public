@@ -115,7 +115,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
 
     function _completeUndelegationAndWrap(uint256 assets) internal virtual;
 
-    function _undelegateFromValidator(uint64 valId, uint256 assets) internal virtual;
+    function _undelegateFromValidator(address user, uint64 valId, uint256 assets) internal virtual;
 
     function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 

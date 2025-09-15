@@ -16,6 +16,8 @@ interface IBaseVault {
     function validatorStatus(uint64 valId) external view returns (ValidatorStatus);
     function setMinUserWithdrawAmount(uint256 amount) external;
     function totalAssets() external view returns (uint256);
+    function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
+    function totalPendingUndelegations() external view returns (uint256);
 
     event ValidatorAdded(uint64 indexed valId);
     event ValidatorRemovalInitiated(uint64 indexed valId);

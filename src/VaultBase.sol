@@ -26,6 +26,19 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     mapping(uint64 => uint256) public override pendingRedelegateByValidator;
     uint256 public override totalPendingRedelegation;
 
+    // Pending withdrawals totals
+    mapping(uint64 => uint256) public override pendingUndelegateByValidator;
+    uint256 public override totalPendingUndelegations;
+
+    struct WithdrawalRequestInfo {
+        uint256 amount;
+        uint64 validator;
+        uint8 withdrawalId;
+    }
+
+    // Storage for withdrawal requests - mapping from user to their withdrawal requests
+    mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
+
     IMagma public magma;
 
     function __VaultBase_init(address _magma) internal {
@@ -146,6 +159,30 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             _total += _getTotalStakedToValidator(validators[_i]);
         }
         return _total;
+    }
+
+    function _allocateWIDandUndelegate(uint64 valId, uint256 amount) internal returns (uint8 wid) {
+        wid = withdrawalIdBitmaps[valId].allocateWithdrawalId();
+        _undelegate(valId, amount, wid);
+        return wid;
+    }
+
+    /**
+     * @dev Store withdrawal request information for tracking
+     * @param _user The user making the withdrawal request
+     * @param _amount The amount being withdrawn
+     * @param _validator The validator from which to withdraw
+     * @param _withdrawalId The withdrawal ID assigned
+     */
+    function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
+        userWithdrawalRequests[_user].push(
+            WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
+        );
+    }
+
+    function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
+        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
+        return _delInfo.stake + _delInfo.delta_stake + _delInfo.next_delta_stake + pendingRedelegateByValidator[_valId];
     }
 
     function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
