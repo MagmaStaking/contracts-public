@@ -33,6 +33,9 @@ contract MockStakingPrecompile {
     uint256 public constant REWARD = 1 ether; // per block
     uint256 public constant UNIT_BIAS = 1e18;
 
+    bool public withdrawRevert = false;
+    uint256 public slashDivider = 1;
+
     // Structs from the spec
     struct KeysPacked {
         bytes secp_pubkey; // 33 bytes
@@ -84,12 +87,16 @@ contract MockStakingPrecompile {
         // Ensure state is properly initialized
         epoch = 1;
         current_block = 1;
+        slashDivider = 1;
+        withdrawRevert = false;
     }
 
     // Initialize function for when deployed via vm.etch (bypasses constructor)
     function initialize() external {
         epoch = 1;
         current_block = 1;
+        slashDivider = 1;
+        withdrawRevert = false;
     }
 
     // Mappings from the spec
@@ -154,6 +161,14 @@ contract MockStakingPrecompile {
     bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
 
     // Helper functions
+    function setWithdrawRevert(bool _withdrawRevert) public {
+        withdrawRevert = _withdrawRevert;
+    }
+
+    function setSlashDivider(uint256 divider) public {
+        slashDivider = divider;
+    }
+
     function _isInBoundaryPeriod() internal view returns (bool) {
         uint256 epochStart = ((epoch - 1) * EPOCH_LENGTH) + 1;
         uint256 boundaryBlock = epochStart + EPOCH_LENGTH - EPOCH_DELAY_PERIOD;
@@ -313,6 +328,9 @@ contract MockStakingPrecompile {
     }
 
     function _handleWithdraw() internal {
+        if (withdrawRevert) {
+            revert();
+        }
         (uint64 valId, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, uint8));
 
         WithdrawalRequest storage request = withdrawal[valId][msg.sender][withdrawalId];
@@ -411,7 +429,7 @@ contract MockStakingPrecompile {
         (uint64 valId, address delegatorAddr, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, address, uint8));
 
         WithdrawalRequest memory request = withdrawal[valId][delegatorAddr][withdrawalId];
-        bytes memory result = abi.encode(request.amount, request.acc, request.epoch);
+        bytes memory result = abi.encode(request.amount / slashDivider, request.acc, request.epoch);
         assembly {
             return(add(result, 0x20), mload(result))
         }
