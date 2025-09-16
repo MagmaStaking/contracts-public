@@ -164,7 +164,23 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         assertEq(0, magma.requestRedeemFromGVault(shares, user, user, 3));
     }
 
-    function test_PauseUnpauseRedeem() public {}
+    function test_PauseUnpauseRedeem() public {
+        uint256 assets = 5 ether;
+        (uint256 requestId,) = requestRedeemHelper(assets);
+
+        vm.prank(admin);
+        magma.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(user);
+        magma.redeem(requestId, user, user);
+
+        vm.prank(admin);
+        magma.unpause();
+
+        vm.prank(user);
+        assertEq(assets, magma.redeem(requestId, user, user));
+    }
 
     function test_PauseUnpauseRedeemMON() public {}
 }
