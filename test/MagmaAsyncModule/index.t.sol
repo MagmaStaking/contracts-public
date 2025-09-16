@@ -51,10 +51,32 @@ contract MagmaAsyncModuleTest is BaseTest {
     function depositToGVaultHelper(uint256 assets) public returns (uint256) {
         uint256 shares = _depositHelper(assets, user, true);
         _activateAllStakes();
+        _activateGVaultStakes();
         return shares;
     }
 
-    function requestRedeemHelper(uint256 assets) public returns (uint256, uint256) {
+    // Helper to activate gVault validator stakes
+    function _activateGVaultStakes() private {
+        // Get all validators from gVault
+        uint64[] memory validators = gvault.getvalidators();
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            uint64 valId = validators[i];
+
+            // Only activate for validator 3 (where gVault delegates in this test)
+            // Use gVault's totalAssets to get the exact amount that needs activation
+            if (valId == 3) {
+                uint256 gvaultTotalAssets = gvault.totalAssets();
+                if (gvaultTotalAssets > 0) {
+                    MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(
+                        valId, address(gvault), gvaultTotalAssets
+                    );
+                }
+            }
+        }
+    }
+
+    function requestRedeemHelper(uint256 assets) internal returns (uint256, uint256) {
         uint256 shares = depositHelper(assets);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);

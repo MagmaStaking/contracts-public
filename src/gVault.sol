@@ -5,84 +5,28 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {
-    ErrNotMagma,
-    ErrNotAdmin,
-    ErrZeroValidatorId,
-    ErrAlreadyWhitelisted,
-    ErrEpochGuard,
-    ErrMustPauseBeforeRemove,
-    ErrNotWhitelisted,
-    ErrInvalidBps,
-    ErrInvalidAmount,
-    ErrBelowMinWithdraw,
-    ErrCapZero,
-    ErrExceedsCap,
-    ErrZeroAddress,
-    ErrInsufficientPosition,
-    ErrRebalanceInProgress,
-    ErrQueueFull,
-    ErrForwardFailed
-} from "./MagmaErrorsModule.sol";
+import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
+import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
+import {VaultBase} from "./VaultBase.sol";
 
-contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, MagmaDelegationModule, IGVault {
+contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
+    // Track user positions: shares delegated per validator id (EIP-4626 style)
 
-    IMagma public magma;
+    mapping(address => mapping(uint64 => uint256)) public delegatedSharesOf; // user => valId => shares
+    mapping(uint64 => uint256) public totalSharesByValidator; // valId => total shares issued for this validator
 
-    // Whitelist of eligible validators (tracked by valId)
-    mapping(uint64 => bool) public isWhitelisted;
-    uint64[] public whitelistedValidators;
-
-    // Track user positions: amount delegated per validator id
-    mapping(address => mapping(uint64 => uint256)) public delegatedAmountOf; // user => valId => amount
-    mapping(address => uint64[]) public userValidators; // user => list of valIds with non-zero positions
-    mapping(address => mapping(uint64 => bool)) public userHasValidator; // user => valId => in list
-    // Reverse index: valId => list of users with non-zero positions
-    mapping(uint64 => address[]) public validatorUsers;
-    mapping(uint64 => mapping(address => bool)) public validatorHasUser; // valId => user => in list
-
-    // Per-validator withdrawal ID bitmap management
-    mapping(uint64 => BitMapLib.WithdrawalBitMap) private withdrawalIdBitmaps;
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
     bool public finishedLastRebalance = true;
-    uint256 public minUserWithdrawAmount;
-
-    // Max number of queued undelegation entries per validator to prevent excessive gas
-    uint256 public constant MAX_QUEUE_ITEMS_PER_VALIDATOR = 64;
-
-    // Simple accrued undelegation amount per validator to submit next
-    // amount waiting for a withdrawalId to become available
-    mapping(uint64 => uint256) public queuedAmountByValidator;
-    // only tracking withdrawals, not rebalances. For frontend visibility and being able to debug any errors/issues around failed withdrawals. Will not work for rebalances.
-    // queued withdrawals
-    // validatorId -> user -> amount
-    mapping(uint64 => mapping(address => uint256)) public queuedUserAmount;
-    // per transaction view into the queue
-    mapping(uint64 => address[]) public queueTxUserAddress;
-    mapping(uint64 => uint256[]) public queueTxUserAmount;
-
-    // pending withdrawals
-    // Pending withdrawals per validator (sum of amounts successfully submitted but not yet withdrawn)
-    mapping(uint64 => uint256) public pendingTotalByValidator;
-    // per transaction view into each batched withdrawal
-    // validatorId -> withdrawalId -> data
-    mapping(uint64 => mapping(uint64 => address[])) public pendingUserAddress;
-    mapping(uint64 => mapping(uint64 => uint256[])) public pendingUserAmount;
-    // validatorId -> withdrawalId
-    mapping(uint64 => uint8) public pendingValidatorWithdrawalId;
 
     // pause withdrawals for a validator an epoch before removing
     mapping(uint64 => uint256) public pausedWithdrawalsForValidator;
-
-    // Reserved admin-only withdrawal ID
-    // ADMIN_WID_REBALANCE used for adminInitiateRebalanceBps and removing validator
-    uint8 internal constant ADMIN_WID_REBALANCE = 254;
 
     // Per-validator deposit caps; if zero, use defaultCapPercent of Magma.totalAssets()
     mapping(uint64 => uint256) public validatorCap;
@@ -91,415 +35,236 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, M
 
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
+        __VaultBase_init(_magma);
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
+        finishedLastRebalance = true; // Initialize to true so rebalancing can start
     }
 
     // Accept native funds returned from delegation completion
     receive() external payable {}
 
-    modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
-        _;
+    function pauseWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
+        pausedWithdrawalsForValidator[_valId] = block.timestamp;
     }
 
-    modifier onlyMagmaAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-        _;
-    }
-
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyMagmaAdmin {
-        minQueueDelaySeconds = secondsDelay;
-    }
-
-    function pauseWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
-        pausedWithdrawalsForValidator[valId] = block.timestamp;
-    }
-
-    function resumeWithdrawalsForValidator(uint64 valId) external onlyMagmaAdmin {
-        pausedWithdrawalsForValidator[valId] = 0;
+    function resumeWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
+        pausedWithdrawalsForValidator[_valId] = 0;
     }
 
     // Admin: manage whitelist
-    function addValidator(uint64 valId) external onlyMagmaAdmin {
-        if (valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[valId]) revert ErrAlreadyWhitelisted();
-        isWhitelisted[valId] = true;
-        whitelistedValidators.push(valId);
-
-        // Initialize bitmap with ADMIN_WID_REBALANCE marked as reserved
-        withdrawalIdBitmaps[valId].initForGVault();
-
-        emit ValidatorAdded(valId);
+    function addValidator(uint64 _valId) external onlyAdmin {
+        _registerValidator(_valId);
     }
 
-    function removeValidator(uint64 valId) external onlyMagmaAdmin {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
-
-        if (
-            !(
-                pausedWithdrawalsForValidator[valId] > 0
-                    && (block.timestamp - pausedWithdrawalsForValidator[valId]) > epochSeconds
-            )
-        ) revert ErrMustPauseBeforeRemove();
-
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-
-        // 1) Undelegate all vault-level stake from this validator
-        uint256 vaultAmt = _getDelegatorStake(valId, address(this));
-        if (vaultAmt > 0) {
-            uint8 wid = ADMIN_WID_REBALANCE;
-            _undelegate(valId, vaultAmt, wid);
-        }
-
-        // 2) Clear all user positions for this validator
-        address[] storage users = validatorUsers[valId];
-        uint256 n = users.length;
-        for (uint256 i = 0; i < n; i++) {
-            address user = users[i];
-            if (userHasValidator[user][valId]) {
-                uint256 curr = delegatedAmountOf[user][valId];
-                if (curr > 0) {
-                    // zero the position
-                    delegatedAmountOf[user][valId] = 0;
-                    emit PositionUpdated(user, valId, curr, false);
-                }
-                // remove validator from user's list
-                uint64[] storage list = userValidators[user];
-                uint256 m = list.length;
-                for (uint256 j = 0; j < m; j++) {
-                    if (list[j] == valId) {
-                        list[j] = list[m - 1];
-                        list.pop();
-                        break;
-                    }
-                }
-                userHasValidator[user][valId] = false;
-                validatorHasUser[valId][user] = false;
-            }
-        }
-        // reset the reverse index array
-        delete validatorUsers[valId];
-
-        // 3) Remove validator from whitelist array and map
-        uint256 len = whitelistedValidators.length;
-        for (uint256 i = 0; i < len; i++) {
-            if (whitelistedValidators[i] == valId) {
-                whitelistedValidators[i] = whitelistedValidators[len - 1];
-                whitelistedValidators.pop();
-                break;
-            }
-        }
-        isWhitelisted[valId] = false;
-        emit ValidatorRemoved(valId);
-        lastRebalanceTimestamp = block.timestamp;
+    function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _initiateValidatorRemoval(_valId);
     }
 
-    function getWhitelistedValidators() external view returns (uint64[] memory) {
-        return whitelistedValidators;
+    /**
+     * @notice Step 2: Remove validator from validators array this function forces all stake to be in an active state
+     * @dev Remove validator from validators array
+     * @param _valId The validator ID to remove
+     */
+    function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _executeValidatorUndelegation(_valId);
+    }
+
+    /**
+     * @dev Complete the withdrawal process for a removed validator
+     * This should be called after the WITHDRAWAL_DELAY period has passed
+     * @param _valId The validator ID that was removed
+     */
+    function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
+
+        // Send withdrawal amount to CoreVault
+        if (_withdrawalAmount > 0) {
+            address coreVaultAddress = magma.coreVault();
+            ICoreVault(coreVaultAddress).delegate{value: _withdrawalAmount}();
+        }
+    }
+
+    function getvalidators() external view returns (uint64[] memory) {
+        return validators;
     }
 
     // Admin: set per-validator explicit cap (can increase or decrease)
-    function changeValidatorCap(uint64 valId, uint256 newCap) external onlyMagmaAdmin {
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-        validatorCap[valId] = newCap;
-        emit CapChanged(valId, newCap);
+    function changeValidatorCap(uint64 _valId, uint256 _newCap) external onlyAdmin {
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        validatorCap[_valId] = _newCap;
+        emit CapChanged(_valId, _newCap);
     }
 
     // Admin: update default cap percent (bps)
-    function setDefaultCapBps(uint256 newBps) external onlyMagmaAdmin {
-        if (newBps > 10_000) revert ErrInvalidBps();
-        defaultCapBps = newBps;
-        emit DefaultCapUpdated(newBps);
+    function setDefaultCapBps(uint256 _newBps) external onlyAdmin {
+        if (_newBps > 10_000) revert ErrInvalidBps();
+        defaultCapBps = _newBps;
+        emit DefaultCapUpdated(_newBps);
     }
 
-    function setMinUserWithdrawAmount(uint256 amount) external onlyMagmaAdmin {
-        if (amount >= 10000) revert ErrInvalidAmount(amount);
-        minUserWithdrawAmount = amount;
-    }
-
-    function _maxCapFor(uint64 valId) internal view returns (uint256) {
-        uint256 cap = validatorCap[valId];
+    function _maxCapFor(uint64 _valId) internal view returns (uint256) {
+        uint256 cap = validatorCap[_valId];
         if (cap != 0) return cap;
 
-        (bool ok, bytes memory data) = address(magma).staticcall(abi.encodeWithSignature("totalAssets()"));
-        // TVL bps based cap
-        if (!ok || data.length == 0) return 0;
-        uint256 total = abi.decode(data, (uint256));
+        uint256 total = magma.totalAssets();
         return (total * defaultCapBps) / 10_000;
     }
 
-    function delegate(address user, uint64 valId) external payable onlyMagma {
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-        if (user == address(0)) revert ErrZeroAddress();
-        // Cap check
-        uint256 cap = _maxCapFor(valId);
-        if (cap == 0) revert ErrCapZero();
-        uint256 newAmt = delegatedAmountOf[user][valId] + msg.value;
-        if (newAmt > cap) revert ErrExceedsCap();
-        _delegate(valId, msg.value);
-        // Update position
-        delegatedAmountOf[user][valId] = newAmt;
-        if (!userHasValidator[user][valId]) {
-            userHasValidator[user][valId] = true;
-            userValidators[user].push(valId);
-            if (!validatorHasUser[valId][user]) {
-                validatorHasUser[valId][user] = true;
-                validatorUsers[valId].push(user);
-            }
-        }
-        emit PositionUpdated(user, valId, msg.value, true);
+    /**
+     * @notice Get the amount of assets corresponding to user's shares for a validator
+     * @param _user The user address
+     * @param _valId The validator ID
+     * @return _assets The amount of assets the user's shares represent
+     */
+    function delegatedAmountOf(address _user, uint64 _valId) external view returns (uint256 _assets) {
+        return _convertToAssets(_valId, delegatedSharesOf[_user][_valId]);
     }
 
-    function undelegate(address user, uint64 valId, uint256 amount) external onlyMagma {
-        if (amount < minUserWithdrawAmount) {
+    function delegate(address _user, uint64 _valId) external payable onlyMagma {
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (_user == address(0)) revert ErrZeroAddress();
+        // Cap check
+        uint256 _cap = _maxCapFor(_valId);
+        if (_cap == 0) revert ErrCapZero();
+        uint256 newAmt = _getTotalStakedWithPendingToValidator(_valId) + msg.value;
+        if (newAmt > _cap) revert ErrExceedsCap();
+
+        // Convert assets to shares based on current exchange rate
+        uint256 _sharesToMint = _convertToShares(_valId, msg.value);
+
+        // Execute delegation to validator
+        _delegate(_valId, msg.value);
+
+        // Update user's share position
+        delegatedSharesOf[_user][_valId] += _sharesToMint;
+        totalSharesByValidator[_valId] += _sharesToMint;
+
+        emit PositionUpdated(_user, _valId, msg.value, true);
+    }
+
+    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
+        if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
         }
         //undelegate just adds to the queue
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-        if (user == address(0)) revert ErrZeroAddress();
-        if (queueTxUserAddress[valId].length >= MAX_QUEUE_ITEMS_PER_VALIDATOR) {
-            revert ErrQueueFull();
-        }
-        uint256 curr = delegatedAmountOf[user][valId];
-        if (curr < amount) revert ErrInsufficientPosition(amount, curr);
-        // remove user delegated amount during pending
-        uint256 newAmt = curr - amount;
-        delegatedAmountOf[user][valId] = newAmt;
-        // Accrue undelegation for this validator
-        queuedAmountByValidator[valId] += amount;
-        // Track per-user pending
-        queueTxUserAddress[valId].push(user);
-        queueTxUserAmount[valId].push(amount);
-        queuedUserAmount[valId][user] += amount;
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (_user == address(0)) revert ErrZeroAddress();
 
-        // if user has no more positions, remove from user and validator lists
-        if (newAmt == 0 && userHasValidator[user][valId]) {
-            // remove from user's list
-            uint64[] storage list = userValidators[user];
-            uint256 n = list.length;
-            for (uint256 i = 0; i < n; i++) {
-                if (list[i] == valId) {
-                    list[i] = list[n - 1];
-                    list.pop();
-                    break;
-                }
-            }
-            userHasValidator[user][valId] = false;
-            // remove user from validator's list
-            address[] storage vUsers = validatorUsers[valId];
-            uint256 uv = vUsers.length;
-            for (uint256 i2 = 0; i2 < uv; i2++) {
-                if (vUsers[i2] == user) {
-                    vUsers[i2] = vUsers[uv - 1];
-                    vUsers.pop();
-                    break;
-                }
-            }
-            validatorHasUser[valId][user] = false;
-        }
-        emit PositionUpdated(user, valId, amount, false);
-        // check if we can complete undelegation now (free wid) and if so complete
-        _completeUndelegation(valId);
-    }
+        // Convert amount to shares to determine how many shares to burn
+        uint256 _sharesToBurn = _convertToShares(_valId, _amount);
 
-    function _completeUndelegation(uint64 valId) internal {
-        uint256 sum = queuedAmountByValidator[valId];
-        if (sum == 0) return;
-        // allocate wid - need to check precompile for actual availability
-        uint8 wid;
-        bool found = false;
-        uint8 start = withdrawalIdBitmaps[valId].getNextWithdrawalId();
-        for (uint16 k = 0; k < 256; k++) {
-            uint8 cand = uint8(uint16(start) + k);
-            if (cand == ADMIN_WID_REBALANCE) continue;
-            (bool exists,,,) = _getWithdrawalRequest(valId, address(this), cand);
-            if (!exists) {
-                wid = cand;
-                // Mark as used in bitmap manually since we need to sync with precompile state
-                uint256 mask = 1 << cand;
-                withdrawalIdBitmaps[valId].bitmap |= mask;
-                withdrawalIdBitmaps[valId].nextWithdrawalId = uint8(uint16(cand) + 1);
-                found = true;
-                break;
-            }
-        }
-        if (!found) return;
-        uint256 available = _getDelegatorStake(valId, address(this));
-        // CHECK: when would sum > available occur and how to ahndle this correctly
-        if (available == 0 || sum > available) return; // wait until capacity exists
-        _undelegate(valId, sum, wid);
-        pendingTotalByValidator[valId] += sum;
-        queuedAmountByValidator[valId] = 0;
-
-        // loop through queueTxUserAddress
-        // for each user, set queuedUserAmount to 0
-        for (uint256 i = 0; i < queueTxUserAddress[valId].length; i++) {
-            queuedUserAmount[valId][queueTxUserAddress[valId][i]] = 0;
+        // Check if user has sufficient shares
+        if (delegatedSharesOf[_user][_valId] < _sharesToBurn) {
+            uint256 userAssets = _convertToAssets(_valId, delegatedSharesOf[_user][_valId]);
+            revert ErrInsufficientDelegated(_amount, userAssets);
         }
 
-        // store wid for convenience
-        pendingValidatorWithdrawalId[valId] = wid;
+        // Burn shares from user
+        delegatedSharesOf[_user][_valId] -= _sharesToBurn;
+        totalSharesByValidator[_valId] -= _sharesToBurn;
 
-        // set pendingUserAddress and pendingUserAmount to equal queueTxUserAddress and queueTxUserAmount
-        // reset queueTxUserAddress and queueTxUserAmount
-        pendingUserAddress[valId][wid] = queueTxUserAddress[valId];
-        pendingUserAmount[valId][wid] = queueTxUserAmount[valId];
-        delete queueTxUserAddress[valId];
-        delete queueTxUserAmount[valId];
-    }
+        if (_amount > 0) {
+            uint8 _wid = _allocateWIDandUndelegate(_valId, _amount);
 
-    // Keeper-friendly processing: submit accrued undelegation for a validator when a slot is free
-    function processPending(uint64 valId) external {
-        _completeUndelegation(valId);
-    }
+            // Store withdrawal request information
+            _storeWithdrawalRequest(_user, _amount, _valId, _wid);
 
-    function _completeWithdrawalForValidator(uint64 valId, uint8 wid) internal {
-        if (wid == 0) {
-            wid = pendingValidatorWithdrawalId[valId];
-        }
-
-        (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), wid);
-
-        if (exists && amt > 0) {
-            if (_tryWithdraw(valId, uint8(wid))) {
-                //now we need to distribute thw withdrawals to users
-                address[] storage users = pendingUserAddress[valId][wid];
-                uint256[] storage amounts = pendingUserAmount[valId][wid];
-                uint256 n = users.length;
-                if (n == 0 || amt == 0) return;
-
-                uint256 remaining = amt;
-                uint256 totalDue = 0;
-                uint256 totalDistributed = 0;
-
-                // Distribute funds to users in order, up to the withdrawn amount.
-                for (uint256 i = 0; i < n && remaining > 0; i++) {
-                    address u = users[i];
-                    uint256 due = amounts[i];
-                    totalDue += due;
-                    if (due == 0 || u == address(0)) continue;
-
-                    if (due > remaining) {
-                        emit WithdrawalAmountMismatch(valId, wid, totalDue, totalDistributed, due, u);
-                        continue;
-                    }
-
-                    // Send funds to user
-                    (bool ok,) = u.call{value: due}("");
-
-                    if (!ok) {
-                        emit WithdrawalPaymentFailed(valId, wid, u, due);
-                    } else {
-                        totalDistributed += due;
-                        emit WithdrawalPaymentSuccess(valId, wid, u, due);
-                    }
-
-                    remaining -= due;
-                }
-
-                pendingTotalByValidator[valId] = 0;
-                delete pendingUserAddress[valId][wid];
-                delete pendingUserAmount[valId][wid];
-                // Mark withdrawal ID as free in bitmap
-                _markWithdrawalCompleted(valId, wid);
-                pendingValidatorWithdrawalId[valId] = 0;
-            } else {
-                emit WithdrawalFailed(valId, wid);
-            }
+            // Track pending; do not lower local delegated until completion
+            pendingUndelegateByValidator[_valId] += _amount;
+            totalPendingUndelegations += _amount;
         }
     }
 
-    function completeWithdrawalForValidator(uint64 valId, uint8 wid) external nonReentrant {
-        _completeWithdrawalForValidator(valId, wid);
+    function completeUserWithdrawal(address _user) external nonReentrant returns (uint256 _totalWithdrawn) {
+        return _completeUserWithdrawal(_user);
     }
 
     // Admin: initiate undelegation across all validators by basis points
     // This function is used when liquidity for CoreVault is depleted. Similar functionality exists in Lido v3.
-    function adminInitiateRebalanceBps(uint16 bps) external onlyMagmaAdmin {
+    function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
-        if (bps > 10_000) revert ErrInvalidBps();
-        uint64[] memory list = whitelistedValidators;
-        uint256 n = list.length;
+
+        if (_bps > 10_000) revert ErrInvalidBps();
+        uint64[] memory _list = validators;
+        uint256 n = _list.length;
+        finishedLastRebalance = false; // Mark rebalance as in progress
         for (uint256 i = 0; i < n; i++) {
-            uint64 v = list[i];
+            uint64 v = _list[i];
             // Decode vault-level delegation from precompile
             uint256 amt = _getDelegatorStake(v, address(this));
-            uint256 pull = (amt * bps) / 10_000;
+            uint256 pull = (amt * _bps) / 10_000;
             if (pull > 0) {
-                uint8 wid = ADMIN_WID_REBALANCE;
-                _undelegate(v, pull, wid);
+                uint8 _wid = ADMIN_WID;
+                _undelegate(v, pull, _wid);
+                pendingRedelegateByValidator[v] += pull;
+                totalPendingRedelegation += pull;
             }
         }
-        emit AdminInitiatedRebalance(bps);
+        emit AdminInitiatedRebalance(_bps);
         lastRebalanceTimestamp = block.timestamp;
     }
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
-    function adminCompleteRebalance() public onlyMagmaAdmin nonReentrant {
-        uint64[] memory list = whitelistedValidators;
-        uint256 beforeBal = address(this).balance;
-        uint256 n = list.length;
-        for (uint256 i = 0; i < n; i++) {
-            uint64 valId = list[i];
+    function adminCompleteRebalance() public onlyAdmin nonReentrant {
+        uint64[] memory _list = validators;
+        uint256 _beforeBal = address(this).balance;
+        uint256 _n = _list.length;
+        for (uint256 i = 0; i < _n; i++) {
+            uint64 _valId = _list[i];
 
-            (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), ADMIN_WID_REBALANCE);
+            (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (!exists || amt == 0) continue;
-            if (_tryWithdraw(valId, ADMIN_WID_REBALANCE)) {
-                emit AdminCompletedRebalanceWithdrawal(valId, amt);
+            if (_tryWithdraw(_valId, ADMIN_WID)) {
+                emit AdminCompletedRebalanceWithdrawal(_valId, amt);
+                pendingRedelegateByValidator[_valId] -= amt;
+                totalPendingRedelegation -= amt;
             }
         }
-        uint256 delta = address(this).balance - beforeBal;
-        if (delta > 0) {
-            (bool sent,) = address(magma).call{value: delta}(abi.encodeWithSignature("onRebalanceFundsReceived()"));
-            if (!sent) revert ErrForwardFailed();
+        uint256 _delta = address(this).balance - _beforeBal;
+        if (_delta > 0) {
+            ICoreVault(magma.coreVault()).delegate{value: _delta}();
         }
-        emit AdminCompletedRebalance(delta);
-    }
-
-    // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin-only ids)
-    function _allocateWithdrawalId(uint64 valId) internal returns (uint8 wid) {
-        return withdrawalIdBitmaps[valId].allocateWithdrawalIdForGVault();
+        finishedLastRebalance = true; // Mark rebalance as completed
+        emit AdminCompletedRebalance(_delta);
     }
 
     /**
-     * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
-     * @param valId The validator ID
-     * @param withdrawalId The withdrawal ID to mark as free
+     * @dev Convert assets to shares for a specific validator (EIP-4626 style)
+     * @param _valId The validator ID
+     * @param _assets The amount of assets to convert
+     * @return _shares The equivalent number of shares
      */
-    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompletedForGVault(withdrawalId);
-    }
+    function _convertToShares(uint64 _valId, uint256 _assets) internal view returns (uint256 _shares) {
+        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalShares = totalSharesByValidator[_valId];
 
-    // Helpers for reading user positions
-    function getUserValidators(address user) external view returns (uint64[] memory) {
-        return userValidators[user];
-    }
-
-    function getUserPositions(address user)
-        external
-        view
-        returns (uint64[] memory validators, uint256[] memory amounts)
-    {
-        uint64[] memory list = userValidators[user];
-        uint256 n = list.length;
-        validators = new uint64[](n);
-        amounts = new uint256[](n);
-        for (uint256 i = 0; i < n; i++) {
-            uint64 v = list[i];
-            validators[i] = v;
-            amounts[i] = delegatedAmountOf[user][v];
+        if (_totalShares == 0 || _totalAssets == 0) {
+            // Initial deposit: 1:1 ratio
+            return _assets;
         }
+
+        // Round down to favor the vault (EIP-4626 requirement)
+        return (_assets * _totalShares) / _totalAssets;
+    }
+
+    /**
+     * @dev Convert shares to assets for a specific validator (EIP-4626 style)
+     * @param _valId The validator ID
+     * @param _shares The number of shares to convert
+     * @return _assets The equivalent amount of assets
+     */
+    function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
+        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalShares = totalSharesByValidator[_valId];
+
+        if (_totalShares == 0) {
+            return 0;
+        }
+
+        // Round down to favor the vault
+        return (_shares * _totalAssets) / _totalShares;
     }
 
     function _authorizeUpgrade(address) internal view override {

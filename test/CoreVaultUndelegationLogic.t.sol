@@ -481,7 +481,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         // Verify request data
         for (uint256 i = 0; i < requests.length; i++) {
-            assertEq(requests[i].user, alice, "User should be Alice");
             assertGt(requests[i].amount, 0, "Amount should be greater than 0");
             assertTrue(requests[i].validator > 0, "Validator ID should be valid");
             assertTrue(requests[i].withdrawalId < 255, "Withdrawal ID should be valid"); // ADMIN_WID is 255
@@ -712,7 +711,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Test getUserWithdrawalRequest
         if (count > 0) {
             CoreVault.WithdrawalRequestInfo memory firstRequest = coreVault.getUserWithdrawalRequest(alice, 0);
-            assertEq(firstRequest.user, allRequests[0].user, "First request should match");
             assertEq(firstRequest.amount, allRequests[0].amount, "Amount should match");
         }
     }
@@ -1004,8 +1002,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             CoreVault.WithdrawalRequestInfo memory individualRequest = coreVault.getUserWithdrawalRequest(alice, i);
 
             // Verify data integrity
-            assertEq(individualRequest.user, alice, "User should be Alice");
-            assertEq(individualRequest.user, allRequests[i].user, "Individual request should match array");
             assertEq(individualRequest.amount, allRequests[i].amount, "Amount should match");
             assertEq(individualRequest.validator, allRequests[i].validator, "Validator should match");
             assertEq(individualRequest.withdrawalId, allRequests[i].withdrawalId, "Withdrawal ID should match");
@@ -1016,7 +1012,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             assertLt(individualRequest.withdrawalId, 255, "Withdrawal ID should be under admin threshold");
 
             console.log("Request %d verified:", i);
-            console.log("  User:", individualRequest.user);
             console.log("  Amount:", individualRequest.amount);
             console.log("  Validator:", individualRequest.validator);
             console.log("  Withdrawal ID:", individualRequest.withdrawalId);

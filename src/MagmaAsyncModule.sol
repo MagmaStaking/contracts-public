@@ -6,16 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import {
-    ErrGVaultNotSet,
-    ErrZeroShares,
-    ErrNativeTransferFailed,
-    ErrNotAuthorized,
-    ErrInsufficientShares,
-    ErrRequestPending,
-    ErrZeroAddress,
-    RequestInexistent
-} from "./MagmaErrorsModule.sol";
+import "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
@@ -28,7 +19,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
     // TODO: also delete:  _delegatedNativeAssets -= assets, after above
     function totalAssets() public view virtual override returns (uint256) {
-        return _delegatedNativeAssets + IERC20(asset()).balanceOf(address(this));
+        return coreVault.totalAssets() + gVault.totalAssets();
     }
 
     function setOperator(address operator, bool approved) external returns (bool) {
@@ -181,8 +172,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
-        // TODO: fix _undelegateFromValidator so it is gVault.
-        isGVault ? _undelegateFromValidator(valId, assets) : coreVault.undelegate(assets, owner);
+        isGVault ? _undelegateFromValidator(owner, valId, assets) : _undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;

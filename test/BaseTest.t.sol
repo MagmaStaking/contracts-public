@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
+import {console} from "forge-std/console.sol";
 import {Magma} from "../src/Magma.sol";
 import {CoreVault} from "../src/CoreVault.sol";
 import {gVault} from "../src/gVault.sol";
@@ -138,14 +138,32 @@ contract BaseTest is Test {
     // Helper to activate all validator stakes to match CoreVault's tracking
     function _activateAllStakes() internal {
         // Get all validators from CoreVault
-        uint64[] memory validators = coreVault.getValidators();
+        uint64[] memory coreValidators = coreVault.getValidators();
+        uint64[] memory gvaultValidators = gvault.getvalidators();
 
-        for (uint256 i = 0; i < validators.length; i++) {
-            uint64 valId = validators[i];
+        for (uint256 i = 0; i < coreValidators.length; i++) {
+            uint64 valId = coreValidators[i];
             uint256 delegatedAmount = coreVault.delegatedAmount(valId);
 
             if (delegatedAmount > 0) {
                 MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(valId, address(coreVault), delegatedAmount);
+            }
+        }
+
+        for (uint256 i = 0; i < gvaultValidators.length; i++) {
+            uint64 valId = gvaultValidators[i];
+
+            // Only activate the exact amount that gVault has staked
+            // This should match the total assets that were deposited to gVault
+            uint256 gvaultDelegatedAmount = gvault.totalAssets();
+
+            console.log("gvaultDelegatedAmount", gvaultDelegatedAmount);
+
+            // For simplicity, if gVault has assets and this is validator 3, activate the stake
+            if (gvaultDelegatedAmount > 0) {
+                MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(
+                    valId, address(gvault), gvaultDelegatedAmount
+                );
             }
         }
     }

@@ -63,13 +63,13 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
     /**
      * @dev Complete undelegation through gVault
      */
-    function completeUndelegationFromValidator(uint64 valId, uint8 wid) external {
+    function completeUndelegationFromValidator() external {
         if (address(gVault) == address(0)) revert ErrGVaultNotSet();
-        gVault.completeWithdrawalForValidator(valId, wid);
+        gVault.completeUserWithdrawal(msg.sender);
     }
 
-    function _undelegate(uint256 assets) internal override {
-        coreVault.undelegate(assets, msg.sender);
+    function _undelegate(uint256 assets, address user) internal override {
+        coreVault.undelegate(assets, user);
     }
 
     function _completeUndelegationAndWrap(uint256 assets) internal override {
@@ -80,9 +80,9 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
         if (!successWrap) revert ErrWrapFailed();
     }
 
-    function _undelegateFromValidator(uint64 valId, uint256 assets) internal override {
+    function _undelegateFromValidator(address user, uint64 valId, uint256 assets) internal override {
         if (address(gVault) == address(0)) revert ErrGVaultNotSet();
-        gVault.undelegate(msg.sender, valId, assets);
+        gVault.undelegate(user, valId, assets);
     }
 
     function _completeUndelegationFromGVault(uint256 /*assets*/ ) internal override {

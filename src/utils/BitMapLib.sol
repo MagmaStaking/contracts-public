@@ -12,8 +12,7 @@ library BitMapLib {
     error NoFreeWithdrawalId();
 
     // Reserved admin withdrawal IDs for different vault types
-    uint8 internal constant CORE_VAULT_ADMIN_WID = 255;
-    uint8 internal constant G_VAULT_ADMIN_WID = 254;
+    uint8 internal constant ADMIN_WID = 255;
 
     /**
      * @dev Struct to store bitmap state for a validator
@@ -26,64 +25,32 @@ library BitMapLib {
     }
 
     /**
-     * @dev Initialize bitmap for CoreVault with CORE_VAULT_ADMIN_WID marked as reserved
+     * @dev Initialize bitmap for CoreVault with ADMIN_WID marked as reserved
      * @param bitMap The bitmap storage reference
      */
-    function initForCoreVault(WithdrawalBitMap storage bitMap) internal {
-        uint256 adminMask = 1 << CORE_VAULT_ADMIN_WID;
+    function init(WithdrawalBitMap storage bitMap) internal {
+        uint256 adminMask = 1 << ADMIN_WID;
         bitMap.bitmap |= adminMask;
     }
 
     /**
-     * @dev Initialize bitmap for gVault with G_VAULT_ADMIN_WID marked as reserved
-     * @param bitMap The bitmap storage reference
-     */
-    function initForGVault(WithdrawalBitMap storage bitMap) internal {
-        uint256 adminMask = 1 << G_VAULT_ADMIN_WID;
-        bitMap.bitmap |= adminMask;
-    }
-
-    /**
-     * @dev Allocate a free withdrawal ID for CoreVault, skipping CORE_VAULT_ADMIN_WID
+     * @dev Allocate a free withdrawal ID for CoreVault, skipping ADMIN_WID
      * @param bitMap The bitmap storage reference
      * @return wid The allocated withdrawal ID (0-255)
      * @custom:throws NoFreeWithdrawalId if all 256 IDs are occupied
      */
-    function allocateWithdrawalIdForCoreVault(WithdrawalBitMap storage bitMap) internal returns (uint8 wid) {
-        return _allocateWithdrawalId(bitMap, CORE_VAULT_ADMIN_WID);
+    function allocateWithdrawalId(WithdrawalBitMap storage bitMap) internal returns (uint8 wid) {
+        return _allocateWithdrawalId(bitMap, ADMIN_WID);
     }
 
     /**
-     * @dev Allocate a free withdrawal ID for gVault, skipping G_VAULT_ADMIN_WID
-     * @param bitMap The bitmap storage reference
-     * @return wid The allocated withdrawal ID (0-255)
-     * @custom:throws NoFreeWithdrawalId if all 256 IDs are occupied
-     */
-    function allocateWithdrawalIdForGVault(WithdrawalBitMap storage bitMap) internal returns (uint8 wid) {
-        return _allocateWithdrawalId(bitMap, G_VAULT_ADMIN_WID);
-    }
-
-    /**
-     * @dev Mark a withdrawal ID as completed (free) in the bitmap for CoreVault
+     * @dev Mark a withdrawal ID as completed (free) in the bitmap for CoreVault, skipping ADMIN_WID
      * @param bitMap The bitmap storage reference
      * @param withdrawalId The withdrawal ID to mark as free
      */
-    function markWithdrawalCompletedForCoreVault(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
-        // Don't clear the CORE_VAULT_ADMIN_WID since it's reserved and shouldn't be reused
-        if (withdrawalId == CORE_VAULT_ADMIN_WID) return;
-
-        uint256 mask = 1 << withdrawalId;
-        bitMap.bitmap &= ~mask; // Clear the bit
-    }
-
-    /**
-     * @dev Mark a withdrawal ID as completed (free) in the bitmap for gVault
-     * @param bitMap The bitmap storage reference
-     * @param withdrawalId The withdrawal ID to mark as free
-     */
-    function markWithdrawalCompletedForGVault(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
-        // Don't clear the G_VAULT_ADMIN_WID since it's reserved and shouldn't be reused
-        if (withdrawalId == G_VAULT_ADMIN_WID) return;
+    function markWithdrawalCompleted(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
+        // Don't clear the ADMIN_WID since it's reserved and shouldn't be reused
+        if (withdrawalId == ADMIN_WID) return;
 
         uint256 mask = 1 << withdrawalId;
         bitMap.bitmap &= ~mask; // Clear the bit

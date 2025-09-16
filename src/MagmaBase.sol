@@ -116,11 +116,11 @@ abstract contract MagmaBase is
     // Role and admin functions moved to MagmaRoleManagementModule
 
     // Abstract internals that other modules may call
-    function _undelegate(uint256 assets) internal virtual;
+    function _undelegate(uint256 assets, address user) internal virtual;
 
     function _completeUndelegationAndWrap(uint256 assets) internal virtual;
 
-    function _undelegateFromValidator(uint64 valId, uint256 assets) internal virtual;
+    function _undelegateFromValidator(address user, uint64 valId, uint256 assets) internal virtual;
 
     function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 
