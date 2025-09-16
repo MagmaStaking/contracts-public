@@ -6,16 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import {
-    ErrGVaultNotSet,
-    ErrZeroShares,
-    ErrNativeTransferFailed,
-    ErrNotAuthorized,
-    ErrInsufficientShares,
-    ErrRequestPending,
-    ErrZeroAddress,
-    RequestInexistent
-} from "./MagmaErrorsModule.sol";
+import "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
@@ -181,7 +172,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
-        isGVault ? _undelegateFromValidator(owner, valId, assets) : _undelegate(assets);
+        isGVault ? _undelegateFromValidator(owner, valId, assets) : _undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;

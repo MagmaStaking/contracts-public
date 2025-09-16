@@ -68,8 +68,8 @@ abstract contract MagmaVaultManager is MagmaRoleManagementModule {
         gVault.completeUserWithdrawal(msg.sender);
     }
 
-    function _undelegate(uint256 assets) internal override {
-        coreVault.undelegate(assets, msg.sender);
+    function _undelegate(uint256 assets, address user) internal override {
+        coreVault.undelegate(assets, user);
     }
 
     function _completeUndelegationAndWrap(uint256 assets) internal override {

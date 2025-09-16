@@ -76,7 +76,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         }
     }
 
-    function requestRedeemHelper(uint256 assets) private returns (uint256, uint256) {
+    function requestRedeemHelper(uint256 assets) internal returns (uint256, uint256) {
         uint256 shares = depositHelper(assets);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
