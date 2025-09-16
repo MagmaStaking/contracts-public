@@ -13,7 +13,7 @@ import {UserWithdrawalCompleted} from "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
-    function setUp() public override {
+    function setUp() public virtual override {
         BaseTest.setUp();
 
         _setupValidatorInStakingPrecompile(3);
@@ -24,7 +24,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    function _depositHelper(uint256 assets, address depositor, bool toGVault) private returns (uint256) {
+    function _depositHelper(uint256 assets, address depositor, bool toGVault) public returns (uint256) {
         uint256 shares = magma.convertToShares(assets);
         vm.deal(depositor, shares);
         vm.startPrank(depositor);
@@ -35,7 +35,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         return shares;
     }
 
-    function depositHelper(uint256 assets) private returns (uint256) {
+    function depositHelper(uint256 assets) public returns (uint256) {
         /**
          * As a helper deposit 100 more stake so the original amount can easily be withdrawn taking into account the
          * _onetwentiethThreshold
@@ -48,13 +48,13 @@ contract MagmaAsyncModuleTest is BaseTest {
         return shares;
     }
 
-    function depositToGVaultHelper(uint256 assets) private returns (uint256) {
+    function depositToGVaultHelper(uint256 assets) public returns (uint256) {
         uint256 shares = _depositHelper(assets, user, true);
         _activateAllStakes();
         return shares;
     }
 
-    function requestRedeemHelper(uint256 assets) private returns (uint256, uint256) {
+    function requestRedeemHelper(uint256 assets) public returns (uint256, uint256) {
         uint256 shares = depositHelper(assets);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);

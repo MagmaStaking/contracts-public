@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import {BaseTest} from "../BaseTest.t.sol";
+import {MagmaAsyncModuleTest} from "./index.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -26,51 +26,9 @@ contract MockMaxDeposit is Magma {
     }
 }
 
-contract MagmaAsyncModuleRevertTest is BaseTest {
+contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
     function setUp() public override {
-        BaseTest.setUp();
-
-        _setupValidatorInStakingPrecompile(3);
-        _advanceEpoch();
-        vm.startPrank(admin);
-        gvault.addValidator(3);
-        gvault.changeValidatorCap(3, 5 ether);
-        vm.stopPrank();
-    }
-
-    function _depositHelper(uint256 assets, address depositor, bool toGVault) private returns (uint256) {
-        uint256 shares = magma.convertToShares(assets);
-        vm.deal(depositor, shares);
-        vm.startPrank(depositor);
-        wmon.deposit{value: shares}();
-        wmon.approve(address(magma), shares);
-        assertEq(shares, toGVault ? magma.depositToGVault(assets, user, 3, 0) : magma.deposit(shares, depositor));
-        vm.stopPrank();
-        return shares;
-    }
-
-    function depositHelper(uint256 assets) private returns (uint256) {
-        /**
-         * As a helper deposit 100 more stake so the original amount can easily be withdrawn taking into account the
-         * _onetwentiethThreshold
-         */
-        _depositHelper(assets * 100, address(1000), false);
-        uint256 shares = _depositHelper(assets, user, false);
-
-        _activateAllStakes();
-
-        return shares;
-    }
-
-    function requestRedeemHelper(uint256 assets) private returns (uint256, uint256) {
-        uint256 shares = depositHelper(assets);
-        vm.prank(user);
-        uint256 requestId = magma.requestRedeem(shares, user, user);
-
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
-        _advanceEpochsForWithdrawal();
-
-        return (requestId, shares);
+        MagmaAsyncModuleTest.setUp();
     }
 
     function test_RevertWhen_PreviewWithdraw() public {
