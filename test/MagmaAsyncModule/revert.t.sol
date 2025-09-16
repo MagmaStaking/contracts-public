@@ -5,9 +5,11 @@ import "forge-std/Test.sol";
 
 import {BaseTest} from "../BaseTest.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
+import {Magma} from "src/Magma.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
@@ -15,6 +17,12 @@ import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 contract Revert {
     receive() external payable {
         revert();
+    }
+}
+
+contract MockMaxDeposit is Magma {
+    function maxDeposit(address) public view override returns (uint256) {
+        return 3 ether;
     }
 }
 
@@ -89,6 +97,22 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.expectRevert(ErrZeroAmount.selector);
         magma.deposit(assets, user);
         vm.stopPrank();
+    }
+
+    function test_RevertWhen_DepositMONExceedsMaxAssets() public {
+        uint256 assets = 5 ether;
+        uint256 maxAssets = 3 ether;
+        MockMaxDeposit mockMagma = new MockMaxDeposit();
+        mockMagma.initialize(
+            IERC20(address(wmon)), "gMON", "gMON", admin, address(coreVault), address(gvault), 0, address(0)
+        );
+
+        vm.deal(user, assets);
+        vm.expectRevert(
+            abi.encodeWithSelector(ERC4626Upgradeable.ERC4626ExceededMaxDeposit.selector, user, assets, maxAssets)
+        );
+        vm.prank(user);
+        mockMagma.depositMON{value: assets}(user, 0);
     }
 
     function test_RevertWhen_RequestRedeemPending() public {
