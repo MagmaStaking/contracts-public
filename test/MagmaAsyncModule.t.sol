@@ -510,8 +510,75 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
-    // TODO:
-    function test_MultipleRequestIds() public {}
+    // TODO: WIP test, wait for _delegatedNativeAssets to be removed and gVault to be integrated
+    /*     function test_MultipleRequestIds() public {
+        uint256 requestId1 = 0;
+        uint256 requestId2 = 1;
+        address user2 = address(15);
+        address operator = address(25);
+        uint256 assets = 5 ether;
+        uint256 userWMONBefore = wmon.balanceOf(user);
+        uint256 user2WMONBefore = wmon.balanceOf(user2);
+        uint256 shares = depositHelper(assets);
+        uint256 shares2 = _depositHelper(assets, user2, false);
+        assertEq(shares, shares2, "When depositing asssets by 2 different users, share amount should be the same");
+
+        vm.prank(user);
+        magma.setOperator(operator, true);
+        vm.prank(user2);
+        magma.setOperator(operator, true);
+
+        // Test operator of users requests redemptions that will be handled by a different controller
+        vm.startPrank(operator);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.RedeemRequest(operator, user, requestId1, operator, shares);
+        assertEq(requestId1, magma.requestRedeem(shares, operator, user));
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.RedeemRequest(operator, user2, requestId2, operator, shares);
+        assertEq(requestId2, magma.requestRedeem(shares, operator, user2));
+
+        uint256 sharesBefore = magma.balanceOf(address(magma));
+        uint256 assetsBefore = magma.totalAssets();
+
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
+
+        assertEq(
+            assets,
+            magma.redeem(requestId1, operator, user),
+            "Redeem amount should be same as assets depositted by user"
+        );
+        assertEq(
+            assets,
+            magma.redeem(requestId2, operator, user2),
+            "Redeem amount should be same as assets depositted by user2"
+        );
+        // 7540 vault assertions
+        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets(), "Magma total Assets should not have changed");
+        assertEq(address(magma).balance, 0, "MON balance of Magma should be 0");
+        assertEq(wmon.balanceOf(address(magma)), 0, "WMON balance of Magma should be 0");
+
+        // User assertions
+        assertEq(
+            wmon.balanceOf(user),
+            userWMONBefore + assets,
+            "WMON balance of Magma should be equal to pass balance + assets redeemed"
+        );
+        assertEq(magma.balanceOf(user), 0);
+        assertEq(user.balance, 0);
+
+        // User2 assertions
+        assertEq(
+            wmon.balanceOf(user2),
+            user2WMONBefore + assets,
+            "WMON balance of Magma should be equal to pass balance + assets redeemed"
+        );
+        assertEq(magma.balanceOf(user2), 0);
+        assertEq(user2.balance, 0);
+
+        vm.stopPrank();
+    } */
 
     function test_SetOperator() public {
         vm.prank(user);
@@ -699,5 +766,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: test deposit to another receiver
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
-// TODO: test flow, one controller, two different owners at the same time
 // TODO: forge fmt option faster
