@@ -8,9 +8,16 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradeable, ReentrancyGuardUpgradeable {
+abstract contract MagmaBase is
+    Initializable,
+    ERC4626Upgradeable,
+    ERC165Upgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
+{
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 internal constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
@@ -19,9 +26,6 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
 
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
-
-    // Pause state for deposits and withdrawals
-    bool public paused;
 
     // Tracks total native MON delegated via CoreVault and GVault (in asset units, 1:1 with WMON)
     uint256 internal _delegatedNativeAssets;
@@ -88,6 +92,7 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
         address rewardsFeeReceiver_
     ) internal onlyInitializing {
         __ReentrancyGuard_init();
+        __Pausable_init();
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
