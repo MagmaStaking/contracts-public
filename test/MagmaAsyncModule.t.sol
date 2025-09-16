@@ -766,36 +766,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectRevert(abi.encodeWithSelector(ErrWithdrawalFailed.selector, 1, 0));
         magma.redeem(requestId, user, user);
     }
-
-    // function test_OperatorApproval() public {
-    //     // Alice approves Bob as operator
-    //     vm.prank(alice);
-    //     assertTrue(magma.setOperator(bob, true));
-
-    //     assertTrue(magma.isOperator(alice, bob));
-
-    //     // Bob can now act on behalf of Alice
-    //     vm.prank(alice);
-    //     magma.deposit(1000e18, alice);
-
-    //     // Activate the delegated stakes in the mock
-    //     _activateStakes();
-
-    //     vm.prank(bob);
-    //     magma.requestWithdraw(500e18, alice, alice);
-
-    //     assertEq(magma.pendingWithdrawRequest(alice), 500e18);
-    // }
-
-    // function testMaxWithdrawRedeem() public {
-    //     // Setup: Alice deposits first
-    //     vm.prank(alice);
-    //     magma.deposit(1000e18, alice);
-
-    //     // Max withdraw/redeem should return 0 to force async flow
-    //     assertEq(magma.maxWithdraw(alice), 0);
-    //     assertEq(magma.maxRedeem(alice), 0);
-    // }
 }
 
 // TODO: think about tests in magmabase needed
