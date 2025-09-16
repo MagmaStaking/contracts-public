@@ -9,7 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
-import "src/MagmaErrorsModule.sol";
+import {UserWithdrawalCompleted} from "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
