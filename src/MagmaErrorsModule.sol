@@ -3,9 +3,6 @@ pragma solidity ^0.8.13;
 
 // Generic access/role
 error ErrNotAdmin();
-error ErrPaused();
-error ErrAlreadyPaused();
-error ErrNotPaused();
 error ErrNotAuthorized();
 error ErrNotMagma();
 
@@ -39,6 +36,7 @@ error ErrEpochGuard();
 error ErrRebalanceInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
+error RequestInexistent();
 
 // External call failures
 error ErrDelegateFailed();
