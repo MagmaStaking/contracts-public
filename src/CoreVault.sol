@@ -441,17 +441,17 @@ contract CoreVault is
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
     /**
      * @dev Distributes the specified amount equally among all validators
-     * @param amount The total amount to distribute
+     * @param _amount The total amount to distribute
      */
-    function _distributeAmountEquallyToValidators(uint256 amount) internal {
+    function _distributeAmountEquallyToValidators(uint256 _amount) internal {
         if (validators.length == 0) {
             revert ErrNoValidators();
         }
-        if (amount == 0) {
+        if (_amount == 0) {
             revert ErrZeroAmount();
         }
 
-        uint256 _amountPerValidator = amount / validators.length;
+        uint256 _amountPerValidator = _amount / validators.length;
         for (uint256 _i = 0; _i < validators.length; _i++) {
             _delegate(validators[_i], _amountPerValidator);
         }

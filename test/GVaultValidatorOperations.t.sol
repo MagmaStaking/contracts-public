@@ -21,7 +21,8 @@ import {
     ErrNotEnoughValidators,
     ErrExceedsCap,
     ErrCapZero,
-    ErrInvalidBps
+    ErrInvalidBps,
+    ErrRebalanceInProgress
 } from "../src/MagmaErrorsModule.sol";
 
 /**
@@ -279,6 +280,196 @@ contract GVaultValidatorOperations is BaseTest {
         );
     }
 
+    // ============ GVAULT TO COREVAULT REBALANCING TESTS ============
+
+    function test_adminRebalanceGVaultToCore_50Percent_Success() public {
+        // Test the complete gVault to CoreVault rebalancing process:
+        //
+        // SCENARIO: gVault has 3 validators with significant stakes, CoreVault has 3 validators with smaller stakes
+        //          Need to rebalance 50% (5000 BPS) from gVault to CoreVault for better liquidity distribution
+        //
+        // STEPS:
+        // 1. Set up gVault with 3 validators, each with 100 ether (300 total)
+        // 2. Set up CoreVault with 3 validators, each with 50 ether (150 total)
+        // 3. Call adminInitiateRebalanceBps(5000) - initiates 50% undelegation from all gVault validators
+        //    - Each gVault validator undelegates 50 ether (150 ether total)
+        // 4. Call adminCompleteRebalance() - completes withdrawals and forwards 150 ether to CoreVault
+        //    - CoreVault distributes 150 ether equally: 50 ether per validator
+        //
+        // RESULT:
+        // - gVault validators: 50 ether each (150 total)
+        // - CoreVault validators: 100 ether each (300 total)
+        // - Total assets conserved: 450 ether
+
+        // Setup: Add 3 validators to both vaults
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+        _setupValidatorInStakingPrecompile(VAL_3);
+
+        vm.startPrank(admin);
+
+        // Setup gVault with 3 validators
+        gvault.addValidator(VAL_1);
+        gvault.addValidator(VAL_2);
+        gvault.addValidator(VAL_3);
+
+        // Setup CoreVault with 3 validators (VAL_1 and VAL_2 already added in BaseTest)
+        coreVault.addValidator(VAL_3);
+
+        vm.stopPrank();
+
+        // Create initial imbalanced stakes:
+        // gVault: 100 ether per validator (300 total)
+        // CoreVault: 50 ether per validator (150 total)
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_1, address(gvault), 100 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_2, address(gvault), 100 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_3, address(gvault), 100 ether);
+
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_1, address(coreVault), 50 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_2, address(coreVault), 50 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_3, address(coreVault), 50 ether);
+
+        // Verify initial state
+        uint256 gvaultTotalInitial =
+            _getGVaultValidatorStake(VAL_1) + _getGVaultValidatorStake(VAL_2) + _getGVaultValidatorStake(VAL_3);
+        uint256 coreVaultTotalInitial =
+            coreVault.delegatedAmount(VAL_1) + coreVault.delegatedAmount(VAL_2) + coreVault.delegatedAmount(VAL_3);
+        uint256 totalAssetsInitial = gvaultTotalInitial + coreVaultTotalInitial;
+
+        console.log("=== INITIAL STATE ===");
+        console.log("gVault total:", gvaultTotalInitial);
+        console.log("CoreVault total:", coreVaultTotalInitial);
+        console.log("Total assets:", totalAssetsInitial);
+        console.log("finishedLastRebalance:", gvault.finishedLastRebalance());
+
+        assertEq(gvaultTotalInitial, 300 ether, "gVault should have 300 ether initially");
+        assertEq(coreVaultTotalInitial, 150 ether, "CoreVault should have 150 ether initially");
+        assertEq(totalAssetsInitial, 450 ether, "Total should be 450 ether");
+
+        // Verify gVault.totalAssets() matches the sum of its validator stakes initially
+        assertEq(
+            gvault.totalAssets(), gvaultTotalInitial, "gVault.totalAssets() should match validator stakes initially"
+        );
+
+        // Step 1: Admin initiates 50% rebalancing from gVault
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5000); // 5000 BPS = 50%
+
+        // Calculate expected undelegation amount
+        uint256 expectedUndelegation = (300 ether * 5000) / 10000; // 50% of 300 = 150 ether
+        uint256 actualPendingRedelegation = gvault.totalPendingRedelegation();
+
+        // Verify that rebalancing was initiated with correct amounts
+        assertEq(actualPendingRedelegation, expectedUndelegation, "Should have exactly 150 ether pending redelegation");
+        assertFalse(gvault.finishedLastRebalance(), "Should be in rebalance progress");
+
+        console.log("=== AFTER INITIATE REBALANCE ===");
+        console.log("Expected undelegation:", expectedUndelegation);
+        console.log("Actual pending redelegation:", actualPendingRedelegation);
+
+        // CRITICAL TEST: gVault.totalAssets() should maintain the same total during pending state
+        // It should include both staked amounts AND pending redelegations
+        uint256 gvaultTotalDuringPending = gvault.totalAssets();
+        assertEq(
+            gvaultTotalDuringPending,
+            gvaultTotalInitial,
+            "gVault.totalAssets() should remain 300 ether during pending state (staked + pending redelegations)"
+        );
+
+        console.log("gVault.totalAssets() during pending:", gvaultTotalDuringPending);
+        console.log("Breakdown - Active stakes:", gvaultTotalDuringPending - actualPendingRedelegation);
+        console.log("Breakdown - Pending redelegations:", actualPendingRedelegation);
+
+        // Step 2: Wait for withdrawal delay (simulate time passing)
+        _advanceEpochsForWithdrawal();
+
+        // Step 3: Complete the rebalancing - this forwards funds to CoreVault
+        uint256 coreVaultBalanceBefore = coreVault.totalAssets();
+
+        vm.prank(admin);
+        gvault.adminCompleteRebalance();
+
+        // Step 4: Verify final state
+        uint256 gvaultTotalFinal =
+            _getGVaultValidatorStake(VAL_1) + _getGVaultValidatorStake(VAL_2) + _getGVaultValidatorStake(VAL_3);
+        uint256 coreVaultTotalFinal = coreVault.totalAssets();
+        uint256 totalAssetsFinal = gvaultTotalFinal + coreVaultTotalFinal;
+
+        console.log("=== FINAL STATE ===");
+        console.log("gVault final total:", gvaultTotalFinal);
+        console.log("CoreVault final total:", coreVaultTotalFinal);
+        console.log("Total assets final:", totalAssetsFinal);
+        console.log("CoreVault increase:", coreVaultTotalFinal - coreVaultBalanceBefore);
+
+        // gVault should have ~150 ether (50% reduction from 300)
+        uint256 expectedGVaultFinal = 150 ether;
+        assertTrue(
+            gvaultTotalFinal >= expectedGVaultFinal - 1 gwei && gvaultTotalFinal <= expectedGVaultFinal + 1 gwei,
+            "gVault should have approximately 150 ether after rebalancing"
+        );
+
+        // CoreVault should have increased by approximately the withdrawn amount
+        uint256 coreVaultIncrease = coreVaultTotalFinal - coreVaultBalanceBefore;
+        assertTrue(
+            coreVaultIncrease >= expectedUndelegation - 1 gwei && coreVaultIncrease <= expectedUndelegation + 1 gwei,
+            "CoreVault should have received approximately 150 ether from gVault"
+        );
+
+        // Total assets should be conserved (allowing for minimal rounding)
+        assertTrue(
+            totalAssetsFinal >= totalAssetsInitial - 10 && totalAssetsFinal <= totalAssetsInitial + 10,
+            "Total assets should be conserved within rounding tolerance"
+        );
+
+        // No pending redelegations should remain in gVault
+        assertEq(gvault.totalPendingRedelegation(), 0, "Should have no pending redelegations");
+
+        // Verify gVault.totalAssets() now reflects the reduced amount after rebalancing
+        uint256 gvaultTotalAfterRebalance = gvault.totalAssets();
+        assertEq(
+            gvaultTotalAfterRebalance,
+            gvaultTotalFinal,
+            "gVault.totalAssets() should match final validator stakes after rebalancing"
+        );
+        assertEq(
+            gvaultTotalAfterRebalance,
+            expectedGVaultFinal,
+            "gVault.totalAssets() should be 150 ether after 50% rebalancing"
+        );
+
+        console.log("gVault.totalAssets() after rebalancing:", gvaultTotalAfterRebalance);
+
+        // Verify CoreVault distributed funds equally among its 3 validators
+        uint256 val1CoreFinal = coreVault.delegatedAmount(VAL_1);
+        uint256 val2CoreFinal = coreVault.delegatedAmount(VAL_2);
+        uint256 val3CoreFinal = coreVault.delegatedAmount(VAL_3);
+
+        console.log("=== COREVAULT FINAL DISTRIBUTION ===");
+        console.log("CoreVault VAL_1:", val1CoreFinal);
+        console.log("CoreVault VAL_2:", val2CoreFinal);
+        console.log("CoreVault VAL_3:", val3CoreFinal);
+
+        // Each CoreVault validator should have approximately 100 ether (50 initial + 50 from redistribution)
+        uint256 expectedPerCoreValidator = 100 ether;
+        uint256 tolerance = 1 gwei;
+
+        assertTrue(
+            val1CoreFinal >= expectedPerCoreValidator - tolerance
+                && val1CoreFinal <= expectedPerCoreValidator + tolerance,
+            "CoreVault VAL_1 should have approximately 100 ether"
+        );
+        assertTrue(
+            val2CoreFinal >= expectedPerCoreValidator - tolerance
+                && val2CoreFinal <= expectedPerCoreValidator + tolerance,
+            "CoreVault VAL_2 should have approximately 100 ether"
+        );
+        assertTrue(
+            val3CoreFinal >= expectedPerCoreValidator - tolerance
+                && val3CoreFinal <= expectedPerCoreValidator + tolerance,
+            "CoreVault VAL_3 should have approximately 100 ether"
+        );
+    }
+
     // ============ COMPREHENSIVE INTEGRATION TESTS ============
 
     function test_completeValidatorRemovalProcess() public {
@@ -334,5 +525,12 @@ contract GVaultValidatorOperations is BaseTest {
      */
     function _setupGVaultValidatorStake(uint64 valId, uint256 amount) internal {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(valId, address(gvault), amount);
+    }
+
+    /**
+     * @dev Helper function to get gVault's stake for a specific validator
+     */
+    function _getGVaultValidatorStake(uint64 valId) internal view returns (uint256) {
+        return MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(valId, address(gvault));
     }
 }

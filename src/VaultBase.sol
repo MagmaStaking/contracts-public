@@ -61,9 +61,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     // Minimum user withdraw amount default amount is missing precision
-    function setMinUserWithdrawAmount(uint256 amount) external onlyAdmin {
-        if (amount >= 10000 ether) revert ErrInvalidAmount(amount);
-        minUserWithdrawAmount = amount;
+    function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
+        if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
+        minUserWithdrawAmount = _amount;
     }
 
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
@@ -76,8 +76,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
 
         // Get the withdrawal amount before completing withdrawal
-        (bool exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-        if (!(exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
+        (bool _exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+        if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
         _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
@@ -161,10 +161,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _total;
     }
 
-    function _allocateWIDandUndelegate(uint64 valId, uint256 amount) internal returns (uint8 wid) {
-        wid = withdrawalIdBitmaps[valId].allocateWithdrawalId();
-        _undelegate(valId, amount, wid);
-        return wid;
+    function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
+        _wid = withdrawalIdBitmaps[_valId].allocateWithdrawalId();
+        _undelegate(_valId, _amount, _wid);
+        return _wid;
     }
 
     /**
@@ -275,10 +275,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /**
      * @dev Mark a withdrawal ID as free in the bitmap when withdrawal is completed
-     * @param valId The validator ID
-     * @param withdrawalId The withdrawal ID to mark as free
+     * @param _valId The validator ID
+     * @param _withdrawalId The withdrawal ID to mark as free
      */
-    function _markWithdrawalCompleted(uint64 valId, uint8 withdrawalId) internal {
-        withdrawalIdBitmaps[valId].markWithdrawalCompleted(withdrawalId);
+    function _markWithdrawalCompleted(uint64 _valId, uint8 _withdrawalId) internal {
+        withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
     }
 }

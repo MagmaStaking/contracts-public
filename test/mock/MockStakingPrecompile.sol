@@ -546,6 +546,9 @@ contract MockStakingPrecompile {
     }
 
     function setDelegatorStake(uint64 valId, address delegatorAddr, uint256 amount) external {
+        // Store the old stake to calculate validator total change
+        uint256 oldStake = delegator[valId][delegatorAddr].stake;
+
         // Clear all pending stakes to avoid ErrPendingStakeNotZero issues
         delegator[valId][delegatorAddr].stake = amount;
         delegator[valId][delegatorAddr].delta_stake = 0;
@@ -553,15 +556,21 @@ contract MockStakingPrecompile {
         delegator[valId][delegatorAddr].delta_epoch = 0;
         delegator[valId][delegatorAddr].next_delta_epoch = 0;
 
-        // Always create or update validator to match
-        val_execution[valId] = ValExecution({
-            stake: amount, // For testing, validator stake = delegator stake
-            acc: 0,
-            commission: 0,
-            keys: KeysPacked(bytes(""), bytes("")),
-            address_flags: 0,
-            unclaimed_rewards: 0
-        });
+        // Update validator total stake by adjusting for this delegator's change
+        if (val_execution[valId].stake == 0) {
+            // First time setting up this validator
+            val_execution[valId] = ValExecution({
+                stake: amount,
+                acc: 0,
+                commission: 0,
+                keys: KeysPacked(bytes(""), bytes("")),
+                address_flags: 0,
+                unclaimed_rewards: 0
+            });
+        } else {
+            // Adjust existing validator stake: remove old delegator stake, add new
+            val_execution[valId].stake = val_execution[valId].stake - oldStake + amount;
+        }
 
         // Add to execution valset if not already present
         bool found = false;

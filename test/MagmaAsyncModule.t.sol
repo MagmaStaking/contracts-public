@@ -51,7 +51,29 @@ contract MagmaAsyncModuleTest is BaseTest {
     function depositToGVaultHelper(uint256 assets) private returns (uint256) {
         uint256 shares = _depositHelper(assets, user, true);
         _activateAllStakes();
+        _activateGVaultStakes();
         return shares;
+    }
+
+    // Helper to activate gVault validator stakes
+    function _activateGVaultStakes() private {
+        // Get all validators from gVault
+        uint64[] memory validators = gvault.getvalidators();
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            uint64 valId = validators[i];
+
+            // Only activate for validator 3 (where gVault delegates in this test)
+            // Use gVault's totalAssets to get the exact amount that needs activation
+            if (valId == 3) {
+                uint256 gvaultTotalAssets = gvault.totalAssets();
+                if (gvaultTotalAssets > 0) {
+                    MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(
+                        valId, address(gvault), gvaultTotalAssets
+                    );
+                }
+            }
+        }
     }
 
     function requestRedeemHelper(uint256 assets) private returns (uint256, uint256) {
@@ -331,42 +353,42 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_RequestRedeemFromGVault() public {
-        // uint256 requestIdCountBefore = 0;
-        // uint256 assets = 5 ether;
-        // uint256 shares = depositToGVaultHelper(assets);
-        // uint256 sharesUserBefore = magma.balanceOf(user);
-        // uint256 assetsBefore = magma.totalAssets();
+        uint256 requestIdCountBefore = 0;
+        uint256 assets = 5 ether;
+        uint256 shares = depositToGVaultHelper(assets);
+        uint256 sharesUserBefore = magma.balanceOf(user);
+        uint256 assetsBefore = magma.totalAssets();
 
-        // // Assertions before request
-        // (address _owner, uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
-        //     magma.pendingRedeemRequests(user, requestIdCountBefore);
-        // assertEq(address(0), _owner);
-        // assertEq(0, _pendingShares);
-        // assertEq(0, _pendingAssets);
-        // assertEq(0, _claimableTime);
-        // assertEq(0, magma.balanceOf(address(magma)));
+        // Assertions before request
+        (address _owner, uint256 _pendingShares, uint256 _pendingAssets, uint256 _claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
+        assertEq(address(0), _owner);
+        assertEq(0, _pendingShares);
+        assertEq(0, _pendingAssets);
+        assertEq(0, _claimableTime);
+        assertEq(0, magma.balanceOf(address(magma)));
 
-        // vm.expectEmit(true, true, true, true);
-        // emit IERC20.Transfer(user, address(magma), shares);
-        // vm.expectEmit(true, true, true, true);
-        // emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(user, address(magma), shares);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
-        // vm.prank(user);
-        // assertEq(0, magma.requestRedeemFromGVault(shares, user, user, 3));
+        vm.prank(user);
+        assertEq(0, magma.requestRedeemFromGVault(shares, user, user, 3));
 
-        // (address owner, uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
-        //     magma.pendingRedeemRequests(user, requestIdCountBefore);
+        (address owner, uint256 pendingShares, uint256 pendingAssets, uint256 claimableTime) =
+            magma.pendingRedeemRequests(user, requestIdCountBefore);
 
-        // // 7540 vault assertions
-        // assertEq(user, owner);
-        // assertEq(shares, pendingShares);
-        // assertEq(assets, pendingAssets);
-        // assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
-        // assertEq(shares, magma.balanceOf(address(magma)));
-        // assertEq(assetsBefore, magma.totalAssets() + assets);
+        // 7540 vault assertions
+        assertEq(user, owner);
+        assertEq(shares, pendingShares);
+        assertEq(assets, pendingAssets);
+        assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
+        assertEq(shares, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets() + assets);
 
-        // // user assertions
-        // assertEq(magma.balanceOf(user), sharesUserBefore - shares);
+        // user assertions
+        assertEq(magma.balanceOf(user), sharesUserBefore - shares);
     }
 
     function test_Redeem() public {

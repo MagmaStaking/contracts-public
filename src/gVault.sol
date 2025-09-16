@@ -39,22 +39,23 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         magma = IMagma(_magma);
         minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
+        finishedLastRebalance = true; // Initialize to true so rebalancing can start
     }
 
     // Accept native funds returned from delegation completion
     receive() external payable {}
 
-    function pauseWithdrawalsForValidator(uint64 valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[valId] = block.timestamp;
+    function pauseWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
+        pausedWithdrawalsForValidator[_valId] = block.timestamp;
     }
 
-    function resumeWithdrawalsForValidator(uint64 valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[valId] = 0;
+    function resumeWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
+        pausedWithdrawalsForValidator[_valId] = 0;
     }
 
     // Admin: manage whitelist
-    function addValidator(uint64 valId) external onlyAdmin {
-        _registerValidator(valId);
+    function addValidator(uint64 _valId) external onlyAdmin {
+        _registerValidator(_valId);
     }
 
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
@@ -90,21 +91,21 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     // Admin: set per-validator explicit cap (can increase or decrease)
-    function changeValidatorCap(uint64 valId, uint256 newCap) external onlyAdmin {
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-        validatorCap[valId] = newCap;
-        emit CapChanged(valId, newCap);
+    function changeValidatorCap(uint64 _valId, uint256 _newCap) external onlyAdmin {
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        validatorCap[_valId] = _newCap;
+        emit CapChanged(_valId, _newCap);
     }
 
     // Admin: update default cap percent (bps)
-    function setDefaultCapBps(uint256 newBps) external onlyAdmin {
-        if (newBps > 10_000) revert ErrInvalidBps();
-        defaultCapBps = newBps;
-        emit DefaultCapUpdated(newBps);
+    function setDefaultCapBps(uint256 _newBps) external onlyAdmin {
+        if (_newBps > 10_000) revert ErrInvalidBps();
+        defaultCapBps = _newBps;
+        emit DefaultCapUpdated(_newBps);
     }
 
-    function _maxCapFor(uint64 valId) internal view returns (uint256) {
-        uint256 cap = validatorCap[valId];
+    function _maxCapFor(uint64 _valId) internal view returns (uint256) {
+        uint256 cap = validatorCap[_valId];
         if (cap != 0) return cap;
 
         uint256 total = magma.totalAssets();
@@ -113,66 +114,66 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     /**
      * @notice Get the amount of assets corresponding to user's shares for a validator
-     * @param user The user address
-     * @param valId The validator ID
-     * @return assets The amount of assets the user's shares represent
+     * @param _user The user address
+     * @param _valId The validator ID
+     * @return _assets The amount of assets the user's shares represent
      */
-    function delegatedAmountOf(address user, uint64 valId) external view returns (uint256 assets) {
-        return _convertToAssets(valId, delegatedSharesOf[user][valId]);
+    function delegatedAmountOf(address _user, uint64 _valId) external view returns (uint256 _assets) {
+        return _convertToAssets(_valId, delegatedSharesOf[_user][_valId]);
     }
 
-    function delegate(address user, uint64 valId) external payable onlyMagma {
-        if (!isWhitelisted[valId]) revert ErrNotWhitelisted();
-        if (user == address(0)) revert ErrZeroAddress();
+    function delegate(address _user, uint64 _valId) external payable onlyMagma {
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (_user == address(0)) revert ErrZeroAddress();
         // Cap check
-        uint256 cap = _maxCapFor(valId);
-        if (cap == 0) revert ErrCapZero();
-        uint256 newAmt = _getTotalStakedToValidator(valId) + msg.value;
-        if (newAmt > cap) revert ErrExceedsCap();
+        uint256 _cap = _maxCapFor(_valId);
+        if (_cap == 0) revert ErrCapZero();
+        uint256 newAmt = _getTotalStakedWithPendingToValidator(_valId) + msg.value;
+        if (newAmt > _cap) revert ErrExceedsCap();
 
         // Convert assets to shares based on current exchange rate
-        uint256 sharesToMint = _convertToShares(valId, msg.value);
+        uint256 _sharesToMint = _convertToShares(_valId, msg.value);
 
         // Execute delegation to validator
-        _delegate(valId, msg.value);
+        _delegate(_valId, msg.value);
 
         // Update user's share position
-        delegatedSharesOf[user][valId] += sharesToMint;
-        totalSharesByValidator[valId] += sharesToMint;
+        delegatedSharesOf[_user][_valId] += _sharesToMint;
+        totalSharesByValidator[_valId] += _sharesToMint;
 
-        emit PositionUpdated(user, valId, msg.value, true);
+        emit PositionUpdated(_user, _valId, msg.value, true);
     }
 
-    function undelegate(address user, uint64 _valId, uint256 amount) external onlyMagma {
-        if (amount < minUserWithdrawAmount) {
+    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
+        if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
         }
         //undelegate just adds to the queue
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
-        if (user == address(0)) revert ErrZeroAddress();
+        if (_user == address(0)) revert ErrZeroAddress();
 
         // Convert amount to shares to determine how many shares to burn
-        uint256 sharesToBurn = _convertToShares(_valId, amount);
+        uint256 _sharesToBurn = _convertToShares(_valId, _amount);
 
         // Check if user has sufficient shares
-        if (delegatedSharesOf[user][_valId] < sharesToBurn) {
-            uint256 userAssets = _convertToAssets(_valId, delegatedSharesOf[user][_valId]);
-            revert ErrInsufficientDelegated(amount, userAssets);
+        if (delegatedSharesOf[_user][_valId] < _sharesToBurn) {
+            uint256 userAssets = _convertToAssets(_valId, delegatedSharesOf[_user][_valId]);
+            revert ErrInsufficientDelegated(_amount, userAssets);
         }
 
         // Burn shares from user
-        delegatedSharesOf[user][_valId] -= sharesToBurn;
-        totalSharesByValidator[_valId] -= sharesToBurn;
+        delegatedSharesOf[_user][_valId] -= _sharesToBurn;
+        totalSharesByValidator[_valId] -= _sharesToBurn;
 
-        if (amount > 0) {
-            uint8 _wid = _allocateWIDandUndelegate(_valId, amount);
+        if (_amount > 0) {
+            uint8 _wid = _allocateWIDandUndelegate(_valId, _amount);
 
             // Store withdrawal request information
-            _storeWithdrawalRequest(user, amount, _valId, _wid);
+            _storeWithdrawalRequest(_user, _amount, _valId, _wid);
 
             // Track pending; do not lower local delegated until completion
-            pendingUndelegateByValidator[_valId] += amount;
-            totalPendingUndelegations += amount;
+            pendingUndelegateByValidator[_valId] += _amount;
+            totalPendingUndelegations += _amount;
         }
     }
 
@@ -182,87 +183,88 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // Admin: initiate undelegation across all validators by basis points
     // This function is used when liquidity for CoreVault is depleted. Similar functionality exists in Lido v3.
-    function adminInitiateRebalanceBps(uint16 bps) external onlyAdmin {
+    function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
-        }
-        if (bps > 10_000) revert ErrInvalidBps();
-        uint64[] memory list = validators;
-        uint256 n = list.length;
+
+        if (_bps > 10_000) revert ErrInvalidBps();
+        uint64[] memory _list = validators;
+        uint256 n = _list.length;
+        finishedLastRebalance = false; // Mark rebalance as in progress
         for (uint256 i = 0; i < n; i++) {
-            uint64 v = list[i];
+            uint64 v = _list[i];
             // Decode vault-level delegation from precompile
             uint256 amt = _getDelegatorStake(v, address(this));
-            uint256 pull = (amt * bps) / 10_000;
+            uint256 pull = (amt * _bps) / 10_000;
             if (pull > 0) {
-                uint8 wid = ADMIN_WID;
-                _undelegate(v, pull, wid);
+                uint8 _wid = ADMIN_WID;
+                _undelegate(v, pull, _wid);
+                pendingRedelegateByValidator[v] += pull;
+                totalPendingRedelegation += pull;
             }
         }
-        emit AdminInitiatedRebalance(bps);
+        emit AdminInitiatedRebalance(_bps);
         lastRebalanceTimestamp = block.timestamp;
     }
 
     // Admin: complete matured rebalancewithdrawals and forward to Magma
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
-        uint64[] memory list = validators;
-        uint256 beforeBal = address(this).balance;
-        uint256 n = list.length;
-        for (uint256 i = 0; i < n; i++) {
-            uint64 valId = list[i];
+        uint64[] memory _list = validators;
+        uint256 _beforeBal = address(this).balance;
+        uint256 _n = _list.length;
+        for (uint256 i = 0; i < _n; i++) {
+            uint64 _valId = _list[i];
 
-            (bool exists, uint256 amt,,) = _getWithdrawalRequest(valId, address(this), ADMIN_WID);
+            (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (!exists || amt == 0) continue;
-            if (_tryWithdraw(valId, ADMIN_WID)) {
-                emit AdminCompletedRebalanceWithdrawal(valId, amt);
+            if (_tryWithdraw(_valId, ADMIN_WID)) {
+                emit AdminCompletedRebalanceWithdrawal(_valId, amt);
+                pendingRedelegateByValidator[_valId] -= amt;
+                totalPendingRedelegation -= amt;
             }
         }
-        uint256 delta = address(this).balance - beforeBal;
-        if (delta > 0) {
-            (bool sent,) = address(magma).call{value: delta}(abi.encodeWithSignature("onRebalanceFundsReceived()"));
-            if (!sent) revert ErrForwardFailed();
+        uint256 _delta = address(this).balance - _beforeBal;
+        if (_delta > 0) {
+            ICoreVault(magma.coreVault()).delegate{value: _delta}();
         }
-        emit AdminCompletedRebalance(delta);
+        finishedLastRebalance = true; // Mark rebalance as completed
+        emit AdminCompletedRebalance(_delta);
     }
 
     /**
      * @dev Convert assets to shares for a specific validator (EIP-4626 style)
-     * @param valId The validator ID
-     * @param assets The amount of assets to convert
-     * @return shares The equivalent number of shares
+     * @param _valId The validator ID
+     * @param _assets The amount of assets to convert
+     * @return _shares The equivalent number of shares
      */
-    function _convertToShares(uint64 valId, uint256 assets) internal view returns (uint256 shares) {
-        uint256 totalAssets = _getTotalStakedWithPendingToValidator(valId);
-        uint256 totalShares = totalSharesByValidator[valId];
+    function _convertToShares(uint64 _valId, uint256 _assets) internal view returns (uint256 _shares) {
+        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalShares = totalSharesByValidator[_valId];
 
-        if (totalShares == 0 || totalAssets == 0) {
+        if (_totalShares == 0 || _totalAssets == 0) {
             // Initial deposit: 1:1 ratio
-            return assets;
+            return _assets;
         }
 
         // Round down to favor the vault (EIP-4626 requirement)
-        return (assets * totalShares) / totalAssets;
+        return (_assets * _totalShares) / _totalAssets;
     }
 
     /**
      * @dev Convert shares to assets for a specific validator (EIP-4626 style)
-     * @param valId The validator ID
-     * @param shares The number of shares to convert
-     * @return assets The equivalent amount of assets
+     * @param _valId The validator ID
+     * @param _shares The number of shares to convert
+     * @return _assets The equivalent amount of assets
      */
-    function _convertToAssets(uint64 valId, uint256 shares) internal view returns (uint256 assets) {
-        uint256 totalAssets = _getTotalStakedWithPendingToValidator(valId);
-        uint256 totalShares = totalSharesByValidator[valId];
+    function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
+        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalShares = totalSharesByValidator[_valId];
 
-        if (totalShares == 0) {
+        if (_totalShares == 0) {
             return 0;
         }
 
         // Round down to favor the vault
-        return (shares * totalAssets) / totalShares;
+        return (_shares * _totalAssets) / _totalShares;
     }
 
     function _authorizeUpgrade(address) internal view override {
