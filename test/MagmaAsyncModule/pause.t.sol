@@ -12,7 +12,6 @@ import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
-// TODO: check if removing these tests or not, see if keeping and also adding tests for reentrancy
 contract MagmaAsyncModuleRevertTest is BaseTest {
     function setUp() public override {
         BaseTest.setUp();
@@ -171,7 +170,23 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         assertEq(shares, magma.depositMON{value: assets}(user, 3));
     }
 
-    function test_PauseUnpauseRequestRedeem() public {}
+    function test_PauseUnpauseRequestRedeem() public {
+        uint256 assets = 5 ether;
+        uint256 shares = depositHelper(assets);
+
+        vm.prank(admin);
+        magma.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(user);
+        magma.requestRedeem(shares, user, user);
+
+        vm.prank(admin);
+        magma.unpause();
+
+        vm.prank(user);
+        assertEq(0, magma.requestRedeem(shares, user, user));
+    }
 
     function test_PauseUnpauseRequestRedeemFromGVault() public {}
 
