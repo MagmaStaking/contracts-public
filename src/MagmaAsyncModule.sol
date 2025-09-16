@@ -48,7 +48,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return minted;
     }
 
-    function _deposit(uint256 assets, address receiver) private whenNotPaused returns (uint256) {
+    function _deposit(uint256 assets, address receiver) private returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
@@ -100,12 +100,17 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
-    function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
+    function requestRedeem(uint256 shares, address controller, address owner)
+        external
+        whenNotPaused
+        returns (uint256 requestId)
+    {
         return _requestRedeem(shares, controller, owner, 0, false);
     }
 
     function requestRedeemFromGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
+        whenNotPaused
         returns (uint256 requestId)
     {
         return _requestRedeem(shares, controller, owner, valId, true);
@@ -126,7 +131,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
-        whenNotPaused
         returns (uint256)
     {
         if (controller == address(0)) revert ErrZeroAddress();
@@ -198,7 +202,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
-        whenNotPaused
         returns (uint256)
     {
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
