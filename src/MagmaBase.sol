@@ -68,8 +68,6 @@ abstract contract MagmaBase is Initializable, ERC4626Upgradeable, ERC165Upgradea
 
     event OperatorSet(address indexed controller, address indexed operator, bool approved);
 
-    event Paused(address indexed admin);
-    event Unpaused(address indexed admin);
     event Referral(
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );

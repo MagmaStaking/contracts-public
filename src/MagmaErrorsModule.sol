@@ -3,9 +3,6 @@ pragma solidity ^0.8.13;
 
 // Generic access/role
 error ErrNotAdmin();
-error ErrPaused();
-error ErrAlreadyPaused();
-error ErrNotPaused();
 error ErrNotAuthorized();
 error ErrNotMagma();
 
