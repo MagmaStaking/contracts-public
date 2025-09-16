@@ -671,7 +671,5 @@ contract MagmaAsyncModuleTest is BaseTest {
 
 // TODO: reentrancy and pause
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
-// TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
-// TODO: Use pausable from OZ instead of custom pause implementation, do it after Dyair merge of gVaults
