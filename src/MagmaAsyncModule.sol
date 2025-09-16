@@ -12,7 +12,9 @@ import {
     ErrNativeTransferFailed,
     ErrNotAuthorized,
     ErrInsufficientShares,
-    ErrRequestPending
+    ErrRequestPending,
+    ErrZeroAddress,
+    RequestInexistent
 } from "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
@@ -24,6 +26,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations,
     // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
+    // TODO: also delete:  _delegatedNativeAssets -= assets, after above
     function totalAssets() public view virtual override returns (uint256) {
         return coreVault.totalAssets() + gVault.totalAssets();
     }
@@ -35,7 +38,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
-    function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
+    function mint(uint256 shares, address receiver)
+        public
+        virtual
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -45,7 +55,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return minted;
     }
 
-    function _deposit(uint256 assets, address receiver) private whenNotPaused returns (uint256) {
+    function _deposit(uint256 assets, address receiver) private returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         _delegatedNativeAssets += assets;
@@ -53,7 +63,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
-    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+    function deposit(uint256 assets, address receiver)
+        public
+        virtual
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
@@ -63,6 +80,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256)
     {
         uint256 shares = _deposit(assets, receiver);
@@ -72,7 +90,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
-    function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
+    function depositWMON(uint256 assets, address receiver, uint256 referralId)
+        public
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -80,12 +103,16 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
-    function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
+    function depositMON(address receiver, uint256 referralId)
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 assets = msg.value;
         uint256 maxAssets = maxDeposit(receiver);
-        if (assets > maxAssets) {
-            revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
-        }
+        if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
 
         uint256 shares = previewDeposit(assets);
 
@@ -99,12 +126,19 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
-    function requestRedeem(uint256 shares, address controller, address owner) external returns (uint256 requestId) {
+    function requestRedeem(uint256 shares, address controller, address owner)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256 requestId)
+    {
         return _requestRedeem(shares, controller, owner, 0, false);
     }
 
     function requestRedeemFromGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
+        whenNotPaused
+        nonReentrant
         returns (uint256 requestId)
     {
         return _requestRedeem(shares, controller, owner, valId, true);
@@ -125,19 +159,13 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
         private
-        whenNotPaused
         returns (uint256)
     {
-        if (_ownerRequested[owner]) {
-            revert ErrRequestPending();
-        }
+        if (controller == address(0)) revert ErrZeroAddress();
+        if (_ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) {
-            revert ErrNotAuthorized();
-        }
-        if (shares > balanceOf(owner)) {
-            revert ErrInsufficientShares(shares, balanceOf(owner));
-        }
+        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
+        if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
         uint256 assets = convertToAssets(shares);
         uint256 requestId = _requestIdCount;
@@ -147,9 +175,9 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             assets: assets,
             claimableTime: block.timestamp + DEFAULT_DELAY
         });
+        _requestIdCount++;
         _ownerRequested[owner] = true;
 
-        // TODO: test operator instead of owner transfering here
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
@@ -168,12 +196,17 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
-    // TODO: keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
+    /**
+     * TODO:
+     * 1. keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
+     * 2. How do we track on this redemption if withdrawal from gVault is possible
+     */
     function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
         override
         whenNotPaused
+        nonReentrant
         returns (uint256 assets)
     {
         return _redeem(requestId, controller, receiver, true);
@@ -182,6 +215,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function redeemMON(uint256 requestId, address controller, address receiver)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256 assets)
     {
         return _redeem(requestId, controller, receiver, false);
@@ -197,16 +231,13 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      */
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
-        whenNotPaused
         returns (uint256)
     {
-        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) {
-            revert ErrNotAuthorized();
-        }
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
-        if (request.claimableTime > block.timestamp) {
-            revert ErrRequestPending();
-        }
+        if (request.claimableTime > block.timestamp) revert ErrRequestPending();
+        if (request.claimableTime == 0) revert RequestInexistent();
+
         uint256 assetsAtRequest = request.assets;
         uint256 assetsAtClaim = convertToAssets(request.shares);
         uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
@@ -215,6 +246,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
+        // TODO: gVault here case
         uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
         uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
 
