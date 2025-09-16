@@ -12,6 +12,7 @@ import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {ErrPaused} from "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
+// TODO: check if removing these tests or not, see if keeping and also adding tests for reentrancy
 contract MagmaAsyncModuleRevertTest is BaseTest {
     function setUp() public override {
         BaseTest.setUp();
