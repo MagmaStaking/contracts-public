@@ -38,7 +38,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
-    function mint(uint256 shares, address receiver) public virtual override whenNotPaused returns (uint256) {
+    function mint(uint256 shares, address receiver)
+        public
+        virtual
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -56,7 +63,14 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
-    function deposit(uint256 assets, address receiver) public virtual override whenNotPaused returns (uint256) {
+    function deposit(uint256 assets, address receiver)
+        public
+        virtual
+        override
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
@@ -66,6 +80,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256)
     {
         uint256 shares = _deposit(assets, receiver);
@@ -75,7 +90,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
-    function depositWMON(uint256 assets, address receiver, uint256 referralId) public whenNotPaused returns (uint256) {
+    function depositWMON(uint256 assets, address receiver, uint256 referralId)
+        public
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -83,7 +103,13 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
-    function depositMON(address receiver, uint256 referralId) external payable whenNotPaused returns (uint256) {
+    function depositMON(address receiver, uint256 referralId)
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
         uint256 assets = msg.value;
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -103,6 +129,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function requestRedeem(uint256 shares, address controller, address owner)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256 requestId)
     {
         return _requestRedeem(shares, controller, owner, 0, false);
@@ -111,6 +138,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function requestRedeemFromGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256 requestId)
     {
         return _requestRedeem(shares, controller, owner, valId, true);
@@ -179,6 +207,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         virtual
         override
         whenNotPaused
+        nonReentrant
         returns (uint256 assets)
     {
         return _redeem(requestId, controller, receiver, true);
@@ -187,6 +216,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function redeemMON(uint256 requestId, address controller, address receiver)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256 assets)
     {
         return _redeem(requestId, controller, receiver, false);
