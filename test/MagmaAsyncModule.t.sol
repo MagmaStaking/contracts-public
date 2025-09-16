@@ -267,6 +267,44 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
+    function test_DepositToAnotherReceiver() public {
+        address receiver = address(15);
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
+        uint256 assets = 5 ether;
+
+        vm.deal(user, assets);
+        vm.startPrank(user);
+        wmon.deposit{value: assets}();
+
+        uint256 shares = magma.convertToShares(assets);
+        wmon.approve(address(magma), assets);
+
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(user, address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC20.Transfer(address(0), receiver, shares);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Deposit(user, receiver, assets, shares);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Withdrawal(address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit MagmaBase.DepositWithReferral(user, receiver, assets, shares, 0);
+
+        // 7540 vault assertions
+        assertEq(shares, magma.deposit(assets, receiver));
+        assertEq(address(magma).balance, balanceBefore);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+        assertEq(magma.totalAssets(), assetsBefore + assets);
+
+        // Receiver assertions
+        assertEq(magma.balanceOf(receiver), shares, "Receiver shares should equal to minted shares");
+        assertEq(wmon.balanceOf(receiver), 0);
+        assertEq(receiver.balance, 0);
+
+        vm.stopPrank();
+    }
+
     function test_PendingRedeemRequest() public {
         uint256 assets = 5 ether;
         address controller = address(123);
@@ -763,7 +801,6 @@ contract MagmaAsyncModuleTest is BaseTest {
 // TODO: reentrancy
 // TODO: test maxRedeem and all methods in https://eips.ethereum.org/EIPS/eip-4626#methods, based on openzeppelin erc4626
 // TODO: Check events are being emitted across the whole code, we are not emitting events in functions like “setOperator”, “setAdmin”, “setVaults”,
-// TODO: test deposit to another receiver
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
 // TODO: forge fmt option faster
