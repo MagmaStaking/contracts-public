@@ -12,6 +12,12 @@ import {ICoreVault} from "interfaces/ICoreVault.sol";
 import "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
+contract Revert {
+    receive() external payable {
+        revert();
+    }
+}
+
 contract MagmaAsyncModuleRevertTest is BaseTest {
     function setUp() public override {
         BaseTest.setUp();
@@ -154,5 +160,14 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrWithdrawalFailed.selector, 1, 0));
         magma.redeem(requestId, user, user);
+    }
+
+    function test_RevertWhen_RedeemMONNativeTransferFailed() public {
+        Revert _revert = new Revert();
+        uint256 assets = 5 ether;
+        (uint256 requestId,) = requestRedeemHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(ErrNativeTransferFailed.selector);
+        magma.redeemMON(requestId, user, address(_revert));
     }
 }
