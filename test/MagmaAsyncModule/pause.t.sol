@@ -9,7 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
-import {ErrPaused} from "src/MagmaErrorsModule.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
 // TODO: check if removing these tests or not, see if keeping and also adding tests for reentrancy
@@ -72,7 +72,7 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(admin);
         magma.pause();
 
-        vm.expectRevert(ErrPaused.selector);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
         magma.mint(shares, user);
 
@@ -95,7 +95,7 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(admin);
         magma.pause();
 
-        vm.expectRevert(ErrPaused.selector);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
         magma.deposit(assets, user);
 
@@ -118,7 +118,7 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(admin);
         magma.pause();
 
-        vm.expectRevert(ErrPaused.selector);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
         magma.depositToGVault(assets, user, 3, 3);
 
@@ -141,7 +141,7 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(admin);
         magma.pause();
 
-        vm.expectRevert(ErrPaused.selector);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
         magma.depositWMON(assets, user, 3);
 
@@ -160,7 +160,7 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         vm.prank(admin);
         magma.pause();
 
-        vm.expectRevert(ErrPaused.selector);
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
         magma.depositMON{value: assets}(user, 3);
 
