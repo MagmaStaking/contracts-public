@@ -151,7 +151,24 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         assertEq(shares, magma.depositWMON(assets, user, 3));
     }
 
-    function test_PauseUnpauseDepositMON() public {}
+    function test_PauseUnpauseDepositMON() public {
+        uint256 assets = 5 ether;
+        vm.deal(user, assets);
+        uint256 shares = magma.convertToShares(assets);
+
+        vm.prank(admin);
+        magma.pause();
+
+        vm.expectRevert(ErrPaused.selector);
+        vm.prank(user);
+        magma.depositMON{value: assets}(user, 3);
+
+        vm.prank(admin);
+        magma.unpause();
+
+        vm.prank(user);
+        assertEq(shares, magma.depositMON{value: assets}(user, 3));
+    }
 
     function test_PauseUnpauseRequestRedeem() public {}
 
