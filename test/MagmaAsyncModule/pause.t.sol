@@ -48,6 +48,12 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         return shares;
     }
 
+    function depositToGVaultHelper(uint256 assets) private returns (uint256) {
+        uint256 shares = _depositHelper(assets, user, true);
+        _activateAllStakes();
+        return shares;
+    }
+
     function requestRedeemHelper(uint256 assets) private returns (uint256, uint256) {
         uint256 shares = depositHelper(assets);
         vm.prank(user);
@@ -188,7 +194,23 @@ contract MagmaAsyncModuleRevertTest is BaseTest {
         assertEq(0, magma.requestRedeem(shares, user, user));
     }
 
-    function test_PauseUnpauseRequestRedeemFromGVault() public {}
+    function test_PauseUnpauseRequestRedeemFromGVault() public {
+        uint256 assets = 5 ether;
+        uint256 shares = depositToGVaultHelper(assets);
+
+        vm.prank(admin);
+        magma.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(user);
+        magma.requestRedeemFromGVault(shares, user, user, 3);
+
+        vm.prank(admin);
+        magma.unpause();
+
+        vm.prank(user);
+        assertEq(0, magma.requestRedeemFromGVault(shares, user, user, 3));
+    }
 
     function test_PauseUnpauseRedeem() public {}
 
