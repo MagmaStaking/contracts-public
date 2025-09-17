@@ -172,7 +172,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
-        isGVault ? _undelegateFromValidator(owner, valId, assets) : _undelegate(assets, owner);
+        isGVault ? gVault.undelegate(owner, valId, assets) : coreVault.undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;
