@@ -13,19 +13,6 @@ interface IMagma {
     function pause() external;
     function unpause() external;
 
-    // Delegation functions
-    function delegate(uint256 amount) external;
-    function delegateToValidator(uint64 valId, uint256 amount) external;
-    function undelegate(uint256 amount) external;
-    function undelegateFromValidator(uint64 valId, uint256 amount) external;
-    function completeUndelegation(uint64 valId, uint8 withdrawalId) external;
-    function completeUndelegationFromValidator(uint256 unbondingIndex) external;
-
-    // Admin rebalance orchestration
-    function rebalanceVaults() external;
-    // Payable hook used by gVault to forward funds
-    function onRebalanceFundsReceived() external payable;
-
     // Rewards functions
     function rewardsFee() external view returns (uint256);
     function rewardsFeeReceiver() external view returns (address);

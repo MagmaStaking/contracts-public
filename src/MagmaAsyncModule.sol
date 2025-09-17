@@ -172,7 +172,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _transfer(owner, address(this), shares);
 
         _delegatedNativeAssets -= assets;
-        isGVault ? _undelegateFromValidator(owner, valId, assets) : _undelegate(assets, owner);
+        isGVault ? gVault.undelegate(owner, valId, assets) : coreVault.undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;
@@ -259,5 +259,27 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
 
         return totalWithdrawn;
+    }
+
+    /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
+    function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
+        revert();
+    }
+
+    /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
+    function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
+        revert();
+    }
+
+    /**
+     * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
+     * _requestRedeem and claimRequest.
+     */
+    function withdraw(uint256, /*assets*/ address, /*receiver*/ address /*controller*/ )
+        public
+        override
+        returns (uint256)
+    {
+        revert();
     }
 }
