@@ -165,7 +165,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _requestIdCount++;
         _ownerRequested[owner] = true;
 
-        _transfer(owner, address(this), shares);
+        _burn(owner, shares);
 
         isGVault ? gVault.undelegate(owner, valId, assets) : coreVault.undelegate(assets, owner);
 
@@ -224,22 +224,22 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
 
-        uint256 assetsAtRequest = request.assets;
-        uint256 assetsAtClaim = convertToAssets(request.shares);
-        uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
-
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
         // TODO: gVault here case
         uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
-        uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
 
-        if (shares < request.shares) {
-            _transfer(address(this), receiver, request.shares - shares);
+        uint256 shares =
+            totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
+        if (totalWithdrawn < request.assets) {
+            /**
+             * If withdraw amount gets slashed losses are socialized. Shares minted represent an increase in the supply.
+             * Therefore, losess are socialized between all the participants
+             */
+            _mint(receiver, shares);
         }
-        _burn(address(this), shares);
 
         if (receiveWMON) {
             WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
