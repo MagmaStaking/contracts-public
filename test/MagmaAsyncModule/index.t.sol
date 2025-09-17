@@ -368,7 +368,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, magma.balanceOf(address(magma)));
 
         vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(user, address(magma), shares);
+        emit IERC20.Transfer(user, address(0), shares);
         vm.expectEmit(true, true, true, true);
         emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
@@ -383,7 +383,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
-        assertEq(shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets() + assets);
 
         // user assertions
@@ -407,7 +407,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, magma.balanceOf(address(magma)));
 
         vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(user, address(magma), shares);
+        emit IERC20.Transfer(user, address(0), shares);
         vm.expectEmit(true, true, true, true);
         emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
@@ -422,7 +422,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
-        assertEq(shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets() + assets);
 
         // user assertions
@@ -432,7 +432,6 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_Redeem() public {
         uint256 assets = 5 ether;
         (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
-        uint256 sharesBefore = magma.balanceOf(address(magma));
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
 
@@ -444,8 +443,6 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         vm.expectEmit(true, true, true, true);
         emit UserWithdrawalCompleted(user, assets);
-        vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(address(magma), address(0), shares);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assets);
         vm.expectEmit(true, true, true, true);
@@ -464,7 +461,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, _assets);
         assertEq(0, _claimableTime);
 
-        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
@@ -478,7 +475,6 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_RedeemMON() public {
         uint256 assets = 5 ether;
         (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
-        uint256 sharesBefore = magma.balanceOf(address(magma));
         uint256 userMONBefore = user.balance;
         uint256 assetsBefore = magma.totalAssets();
 
@@ -490,8 +486,6 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         vm.expectEmit(true, true, true, true);
         emit UserWithdrawalCompleted(user, assets);
-        vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(address(magma), address(0), shares);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(user, user, address(magma), assets, shares);
 
@@ -506,7 +500,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, _assets);
         assertEq(0, _claimableTime);
 
-        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
@@ -521,7 +515,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 assets = 6 ether;
         uint256 expectedAssets = assets / 2;
         (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
-        uint256 sharesBefore = magma.balanceOf(address(magma));
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
         uint256 sharesAfterSlash = magma.convertToShares(expectedAssets);
@@ -537,10 +530,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit UserWithdrawalCompleted(user, expectedAssets);
         vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(address(magma), user, shares - sharesAfterSlash);
-        vm.expectEmit(true, true, true, true);
-        emit IERC20.Transfer(address(magma), address(0), sharesAfterSlash);
-
+        emit IERC20.Transfer(address(0), user, shares - sharesAfterSlash);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), expectedAssets);
         vm.expectEmit(true, true, true, true);
@@ -559,7 +549,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, _assets);
         assertEq(0, _claimableTime);
 
-        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
@@ -570,8 +560,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
-    // TODO: WIP test also test for 2 deposits at the same time into gVault and CoreVault and check assets
-    /*     function test_MultipleRequestIds() public {
+    function test_MultipleRequestIds() public {
         uint256 requestId1 = 0;
         uint256 requestId2 = 1;
         address user2 = address(15);
@@ -597,7 +586,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         emit MagmaBase.RedeemRequest(operator, user2, requestId2, operator, shares);
         assertEq(requestId2, magma.requestRedeem(shares, operator, user2));
 
-        uint256 sharesBefore = magma.balanceOf(address(magma));
         uint256 assetsBefore = magma.totalAssets();
 
         vm.warp(block.timestamp + magma.DEFAULT_DELAY());
@@ -614,7 +602,7 @@ contract MagmaAsyncModuleTest is BaseTest {
             "Redeem amount should be same as assets depositted by user2"
         );
         // 7540 vault assertions
-        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets(), "Magma total Assets should not have changed");
         assertEq(address(magma).balance, 0, "MON balance of Magma should be 0");
         assertEq(wmon.balanceOf(address(magma)), 0, "WMON balance of Magma should be 0");
@@ -623,7 +611,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(
             wmon.balanceOf(user),
             userWMONBefore + assets,
-            "WMON balance of Magma should be equal to pass balance + assets redeemed"
+            "WMON balance of user should be equal to pass balance + assets redeemed"
         );
         assertEq(magma.balanceOf(user), 0);
         assertEq(user.balance, 0);
@@ -632,13 +620,13 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(
             wmon.balanceOf(user2),
             user2WMONBefore + assets,
-            "WMON balance of Magma should be equal to pass balance + assets redeemed"
+            "WMON balance of user2 should be equal to pass balance + assets redeemed"
         );
         assertEq(magma.balanceOf(user2), 0);
         assertEq(user2.balance, 0);
 
         vm.stopPrank();
-    } */
+    }
 
     function test_SetOperator() public {
         vm.prank(user);
@@ -664,7 +652,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         // Test operator of users requests redemptions that will be handled by a different controller
         vm.prank(userOperator);
         uint256 requestId = magma.requestRedeem(shares, controller, user);
-        uint256 sharesBefore = magma.balanceOf(address(magma));
         uint256 assetsBefore = magma.totalAssets();
 
         vm.warp(block.timestamp + magma.DEFAULT_DELAY());
@@ -675,7 +662,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assets, magma.redeem(requestId, controller, receiver));
 
         // 7540 vault assertions
-        assertEq(sharesBefore - shares, magma.balanceOf(address(magma)));
+        assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets(), "Magma total Assets should not have changed");
         assertEq(address(magma).balance, 0, "MON balance of Magma should be 0");
         assertEq(wmon.balanceOf(address(magma)), 0, "WMON balance of Magma should be 0");
@@ -693,3 +680,4 @@ contract MagmaAsyncModuleTest is BaseTest {
 
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
+// TODO: WIP test also test for 2 deposits at the same time into gVault and CoreVault and check assets
