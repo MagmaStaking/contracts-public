@@ -45,6 +45,7 @@ abstract contract MagmaBase is
         uint256 shares; // Amount of shares to redeem
         uint256 assets; // Amount of assets to withdraw
         uint256 claimableTime; // When assets become claimable
+        bool isGVault; // If redeemRequest is for gVault or not
     }
 
     uint256 internal _requestIdCount = 0;
