@@ -157,8 +157,6 @@ contract BaseTest is Test {
             // This should match the total assets that were deposited to gVault
             uint256 gvaultDelegatedAmount = gvault.totalAssets();
 
-            console.log("gvaultDelegatedAmount", gvaultDelegatedAmount);
-
             // For simplicity, if gVault has assets and this is validator 3, activate the stake
             if (gvaultDelegatedAmount > 0) {
                 MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(

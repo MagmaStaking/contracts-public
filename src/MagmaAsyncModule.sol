@@ -15,9 +15,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     /**
      * @dev Return the total assets managed by the vault, including delegated native and held WMON
      */
-    // TODO: fr -> this would be changed by corevault, also test, also _delegatedNativeAssets calculations,
-    // this would call totalAssets of coreVault and gVault, so do a TEST where we deposit on both vaults at the same time
-    // TODO: also delete:  _delegatedNativeAssets -= assets, after above
+    // TODO: fr -> this would be changed by corevault, also test, this would call totalAssets of coreVault and gVault,
+    // so do a TEST where we deposit on both vaults at the same time
     function totalAssets() public view virtual override returns (uint256) {
         return coreVault.totalAssets() + gVault.totalAssets();
     }
@@ -40,7 +39,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
-        _delegatedNativeAssets += assets;
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return minted;
@@ -49,7 +47,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     function _deposit(uint256 assets, address receiver) private returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
-        _delegatedNativeAssets += assets;
         return shares;
     }
 
@@ -110,7 +107,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _mint(receiver, shares);
         emit Deposit(_msgSender(), receiver, assets, shares);
 
-        _delegatedNativeAssets += assets;
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
 
@@ -169,9 +165,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _requestIdCount++;
         _ownerRequested[owner] = true;
 
-        _transfer(owner, address(this), shares);
+        _burn(owner, shares);
 
-        _delegatedNativeAssets -= assets;
         isGVault ? gVault.undelegate(owner, valId, assets) : coreVault.undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
@@ -229,22 +224,22 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
 
-        uint256 assetsAtRequest = request.assets;
-        uint256 assetsAtClaim = convertToAssets(request.shares);
-        uint256 assets = Math.min(assetsAtRequest, assetsAtClaim);
-
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
         // TODO: gVault here case
         uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
-        uint256 shares = totalWithdrawn < assets ? convertToShares(totalWithdrawn) : request.shares;
 
-        if (shares < request.shares) {
-            _transfer(address(this), receiver, request.shares - shares);
+        uint256 shares =
+            totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
+        if (totalWithdrawn < request.assets) {
+            /**
+             * If withdraw amount gets slashed losses are socialized. Shares minted represent an increase in the supply.
+             * Therefore, losess are socialized between all the participants
+             */
+            _mint(receiver, shares);
         }
-        _burn(address(this), shares);
 
         if (receiveWMON) {
             WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
