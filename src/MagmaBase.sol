@@ -76,9 +76,6 @@ abstract contract MagmaBase is
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );
 
-    event RebalanceAttempted(uint16 bps);
-    event RebalanceFundsReceived(address indexed from, uint256 amount);
-
     // Vault contract references (to be set by admin)
     ICoreVault public coreVault;
     IGVault public gVault;
@@ -112,17 +109,6 @@ abstract contract MagmaBase is
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }
-
-    // Role and admin functions moved to MagmaRoleManagementModule
-
-    // Abstract internals that other modules may call
-    function _undelegate(uint256 assets, address user) internal virtual;
-
-    function _completeUndelegationAndWrap(uint256 assets) internal virtual;
-
-    function _undelegateFromValidator(address user, uint64 valId, uint256 assets) internal virtual;
-
-    function _completeUndelegationFromGVault(uint256 assets) internal virtual;
 
     uint256[50] private __gap;
 }
