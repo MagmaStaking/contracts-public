@@ -155,7 +155,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             owner: owner,
             shares: shares,
             assets: assets,
-            claimableTime: block.timestamp + DEFAULT_DELAY
+            claimableTime: block.timestamp + DEFAULT_DELAY,
+            isGVault: isGVault
         });
         _requestIdCount++;
         _ownerRequested[owner] = true;
@@ -177,11 +178,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
-    /**
-     * TODO:
-     * 1. keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
-     * 2. How do we track on this redemption if withdrawal from gVault is possible
-     */
     function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
@@ -223,8 +219,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
-        // TODO: gVault here case
-        uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
+        uint256 totalWithdrawn =
+            request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
 
         uint256 shares =
             totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
