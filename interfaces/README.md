@@ -23,12 +23,6 @@ Interface for the gVault contract which handles direct validator-specific delega
 - Direct validator delegation functions
 - View functions for contract references
 
-### `IMagmaDelegation.sol`
-Interface for the MagmaDelegation contract which handles the low-level delegation logic. Includes:
-- Core delegation operations (delegate, undelegate, complete, redelegate)
-- Data structures for delegation and unbonding state
-- View functions for delegation information
-
 ## Usage
 
 Import interfaces in your contracts like this:
@@ -37,7 +31,6 @@ Import interfaces in your contracts like this:
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
-import {IMagmaDelegation} from "../interfaces/IMagmaDelegation.sol";
 ```
 
 ## Benefits
