@@ -12,11 +12,6 @@ import "./MagmaErrorsModule.sol";
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    /**
-     * @dev Return the total assets managed by the vault, including delegated native and held WMON
-     */
-    // TODO: fr -> this would be changed by corevault, also test, this would call totalAssets of coreVault and gVault,
-    // so do a TEST where we deposit on both vaults at the same time
     function totalAssets() public view virtual override returns (uint256) {
         return coreVault.totalAssets() + gVault.totalAssets();
     }

@@ -276,7 +276,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
 
         // 7540 vault assertions
-        assertEq(assets, magma.depositToGVault(assets, user, 3, 3));
+        assertEq(shares, magma.depositToGVault(assets, user, 3, 3));
         assertEq(address(magma).balance, balanceBefore);
         assertEq(magma.totalAssets(), assetsBefore + assets);
         assertEq(wmon.balanceOf(address(magma)), 0);
@@ -323,6 +323,33 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.balanceOf(receiver), shares, "Receiver shares should equal to minted shares");
         assertEq(wmon.balanceOf(receiver), 0);
         assertEq(receiver.balance, 0);
+
+        vm.stopPrank();
+    }
+
+    function test_MultipleDepositsToBothVaults() public {
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 balanceBefore = address(magma).balance;
+        uint256 assets = 5 ether;
+
+        vm.deal(user, assets * 2);
+        vm.startPrank(user);
+        wmon.deposit{value: assets * 2}();
+
+        uint256 shares = magma.convertToShares(assets);
+        wmon.approve(address(magma), assets * 2);
+
+        // 7540 vault assertions
+        assertEq(shares, magma.deposit(assets, user));
+        assertEq(shares, magma.depositToGVault(assets, user, 3, 3));
+        assertEq(address(magma).balance, balanceBefore);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+        assertEq(magma.totalAssets(), assetsBefore + (assets * 2));
+
+        // User assertions
+        assertEq(magma.balanceOf(user), shares * 2);
+        assertEq(wmon.balanceOf(user), 0);
+        assertEq(user.balance, 0);
 
         vm.stopPrank();
     }
@@ -680,4 +707,3 @@ contract MagmaAsyncModuleTest is BaseTest {
 
 // TODO: test depositGVault, redeem and claim from gVault
 // TODO: test deposit, redeem and claim from gVault and viceversa depositGVault redeem and claim from coreVault
-// TODO: WIP test also test for 2 deposits at the same time into gVault and CoreVault and check assets
