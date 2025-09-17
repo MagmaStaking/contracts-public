@@ -20,8 +20,6 @@ error ErrInvalidRewardsFee();
 error ErrInvalidZeroInput();
 
 // State/availability
-error ErrCoreVaultNotSet();
-error ErrGVaultNotSet();
 error ErrInsufficientShares(uint256 requested, uint256 balance);
 error ErrRequestPending();
 error ErrInsufficientDelegated(uint256 required, uint256 available);
@@ -44,7 +42,6 @@ error ErrUndelegateFailed();
 error ErrCompleteUndelegationFailed();
 error ErrGVUndelegateFailed();
 error ErrGVCompleteFailed();
-error ErrWrapFailed();
 error ErrNativeTransferFailed();
 error ErrForwardFailed();
 error ErrRebalanceInitiateFailed();
