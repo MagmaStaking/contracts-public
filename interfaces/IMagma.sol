@@ -13,10 +13,6 @@ interface IMagma {
     function pause() external;
     function unpause() external;
 
-    // Delegation functions
-    function delegate(uint256 amount) external;
-    function undelegate(uint256 amount) external;
-
     // Rewards functions
     function rewardsFee() external view returns (uint256);
     function rewardsFeeReceiver() external view returns (address);
