@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {
-    ErrZeroAssets,
-    ErrDelegateFailed,
-    ErrUndelegateFailed,
-    ErrCompleteUndelegationFailed
-} from "./MagmaErrorsModule.sol";
+import {ErrZeroAssets, ErrDelegateFailed, ErrUndelegateFailed, ErrWithdrawalFailed} from "./MagmaErrorsModule.sol";
 
 /**
  * @title MagmaDelegationModule
@@ -57,13 +52,7 @@ abstract contract MagmaDelegationModule {
 
     function _withdraw(uint64 valId, uint8 withdrawalId) internal {
         (bool ok,) = STAKING_PRECOMPILE.call(abi.encodeWithSelector(SEL_WITHDRAW, valId, withdrawalId));
-        if (!ok) revert ErrCompleteUndelegationFailed();
-    }
-
-    // TODO: why we are not tryWithdraw here, what is the point of this MagmaDelegationModule
-    function _tryWithdraw(uint64 valId, uint8 withdrawalId) internal returns (bool) {
-        (bool ok,) = STAKING_PRECOMPILE.call(abi.encodeWithSelector(SEL_WITHDRAW, valId, withdrawalId));
-        return ok;
+        if (!ok) revert ErrWithdrawalFailed(valId, withdrawalId);
     }
 
     function _compound(uint64 valId) internal {

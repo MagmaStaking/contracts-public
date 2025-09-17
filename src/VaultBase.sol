@@ -222,25 +222,22 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             }
 
             // Attempt to withdraw from precompile
-            if (_tryWithdraw(_valId, _withdrawalId)) {
-                _totalSuccessfulWithdrawals += _availableAmount;
-                emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
+            _withdraw(_valId, _withdrawalId);
+            _totalSuccessfulWithdrawals += _availableAmount;
+            emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
 
-                // Update pending undelegation tracking
-                if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
-                    pendingUndelegateByValidator[_valId] -= _availableAmount;
-                } else {
-                    pendingUndelegateByValidator[_valId] = 0;
-                }
-
-                totalPendingUndelegations =
-                    (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
-
-                // Mark withdrawal ID as completed
-                _markWithdrawalCompleted(_valId, _withdrawalId);
+            // Update pending undelegation tracking
+            if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
+                pendingUndelegateByValidator[_valId] -= _availableAmount;
             } else {
-                revert ErrWithdrawalFailed(_valId, _withdrawalId);
+                pendingUndelegateByValidator[_valId] = 0;
             }
+
+            totalPendingUndelegations =
+                (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
+
+            // Mark withdrawal ID as completed
+            _markWithdrawalCompleted(_valId, _withdrawalId);
         }
 
         // Send all accumulated ETH to user in a single transaction
@@ -259,17 +256,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
-        if (_tryWithdraw(_valId, _withdrawalId)) {
-            // Mark the withdrawal as completed in the bitmap
-            _markWithdrawalCompleted(_valId, _withdrawalId);
+        _withdraw(_valId, _withdrawalId);
+        // Mark the withdrawal as completed in the bitmap
+        _markWithdrawalCompleted(_valId, _withdrawalId);
 
-            if (pendingRedelegateByValidator[_valId] >= _amt) {
-                pendingRedelegateByValidator[_valId] -= _amt;
-            } else {
-                pendingRedelegateByValidator[_valId] = 0;
-            }
+        if (pendingRedelegateByValidator[_valId] >= _amt) {
+            pendingRedelegateByValidator[_valId] -= _amt;
         } else {
-            emit WithdrawalFailed(_valId, _withdrawalId);
+            pendingRedelegateByValidator[_valId] = 0;
         }
     }
 

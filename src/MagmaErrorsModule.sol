@@ -39,7 +39,6 @@ error RequestInexistent();
 // External call failures
 error ErrDelegateFailed();
 error ErrUndelegateFailed();
-error ErrCompleteUndelegationFailed();
 error ErrGVUndelegateFailed();
 error ErrGVCompleteFailed();
 error ErrNativeTransferFailed();

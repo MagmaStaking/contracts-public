@@ -216,11 +216,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
             (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (!exists || amt == 0) continue;
-            if (_tryWithdraw(_valId, ADMIN_WID)) {
-                emit AdminCompletedRebalanceWithdrawal(_valId, amt);
-                pendingRedelegateByValidator[_valId] -= amt;
-                totalPendingRedelegation -= amt;
-            }
+            _withdraw(_valId, ADMIN_WID);
+            emit AdminCompletedRebalanceWithdrawal(_valId, amt);
+            pendingRedelegateByValidator[_valId] -= amt;
+            totalPendingRedelegation -= amt;
         }
         uint256 _delta = address(this).balance - _beforeBal;
         if (_delta > 0) {
