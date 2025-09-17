@@ -570,7 +570,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
-    // TODO: WIP test, wait for _delegatedNativeAssets to be removed and gVault to be integrated, also test for 2 deposits at the same time into gVault and CoreVault and check assets
+    // TODO: WIP test also test for 2 deposits at the same time into gVault and CoreVault and check assets
     /*     function test_MultipleRequestIds() public {
         uint256 requestId1 = 0;
         uint256 requestId2 = 1;

@@ -27,9 +27,6 @@ abstract contract MagmaBase is
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
 
-    // Tracks total native MON delegated via CoreVault and GVault (in asset units, 1:1 with WMON)
-    uint256 internal _delegatedNativeAssets;
-
     // Tracks principal assets for each user for rewards calculation
     mapping(address => uint256) internal principalAssets;
     /// @notice The fee for rewards.
