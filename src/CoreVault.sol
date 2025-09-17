@@ -332,25 +332,24 @@ contract CoreVault is
             (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (_exists && _amount > 0) {
                 // For admin withdrawals, we need to handle pending redelegation amounts
-                if (_tryWithdraw(_valId, ADMIN_WID)) {
-                    // Update pending redelegation tracking
-                    // TODO: consider slashing events
-                    if (pendingRedelegateByValidator[_valId] >= _amount) {
-                        pendingRedelegateByValidator[_valId] -= _amount;
-                    } else {
-                        pendingRedelegateByValidator[_valId] = 0;
-                    }
-
-                    if (totalPendingRedelegation >= _amount) {
-                        totalPendingRedelegation -= _amount;
-                    } else {
-                        totalPendingRedelegation = 0;
-                    }
-
-                    // Mark withdrawal ID as completed
-                    _markWithdrawalCompleted(_valId, ADMIN_WID);
-                    _totalWithdrawn += _amount;
+                _withdraw(_valId, ADMIN_WID);
+                // Update pending redelegation tracking
+                // TODO: consider slashing events
+                if (pendingRedelegateByValidator[_valId] >= _amount) {
+                    pendingRedelegateByValidator[_valId] -= _amount;
+                } else {
+                    pendingRedelegateByValidator[_valId] = 0;
                 }
+
+                if (totalPendingRedelegation >= _amount) {
+                    totalPendingRedelegation -= _amount;
+                } else {
+                    totalPendingRedelegation = 0;
+                }
+
+                // Mark withdrawal ID as completed
+                _markWithdrawalCompleted(_valId, ADMIN_WID);
+                _totalWithdrawn += _amount;
             }
         }
     }
