@@ -87,6 +87,17 @@ contract MagmaAsyncModuleTest is BaseTest {
         return (requestId, shares);
     }
 
+    function requestRedeemGVaultHelper(uint256 assets) internal returns (uint256, uint256) {
+        uint256 shares = depositToGVaultHelper(assets);
+        vm.prank(user);
+        uint256 requestId = magma.requestRedeemFromGVault(shares, user, user, 3);
+
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
+
+        return (requestId, shares);
+    }
+
     function test_ERC165Support() public view {
         bytes4 erc7540InterfaceId = 0x620ee8e4;
         assertTrue(magma.supportsInterface(erc7540InterfaceId));
@@ -463,6 +474,50 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 assetsBefore = magma.totalAssets();
 
         // Assertions before redeem
+        (address owner, uint256 pendingShares, uint256 pendingAssets,,) = magma.pendingRedeemRequests(user, requestId);
+        assertEq(user, owner);
+        assertEq(shares, pendingShares);
+        assertEq(assets, pendingAssets);
+
+        vm.expectEmit(true, true, true, true);
+        emit UserWithdrawalCompleted(user, assets);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Deposit(address(magma), assets);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(address(magma), user, assets);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(user, user, address(magma), assets, shares);
+
+        vm.prank(user);
+        assertEq(assets, magma.redeem(requestId, user, user));
+
+        // 7540 vault assertions
+        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
+            magma.pendingRedeemRequests(user, requestId);
+        assertEq(address(0), _owner);
+        assertEq(0, _shares);
+        assertEq(0, _assets);
+        assertEq(0, _claimableTime);
+
+        assertEq(0, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets());
+        assertEq(address(magma).balance, 0);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // User assertions
+        assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
+        assertEq(magma.balanceOf(address(user)), 0);
+        assertEq(user.balance, 0);
+    }
+
+    function test_RedeemGVault() public {
+        uint256 assets = 5 ether;
+        (uint256 requestId, uint256 shares) = requestRedeemGVaultHelper(assets);
+        uint256 userWMONBefore = wmon.balanceOf(address(user));
+        uint256 assetsBefore = magma.totalAssets();
+
+        // Assertions before redeem
+        // TODO: check where to verify assertions of pendingRedeemRequests
         (address owner, uint256 pendingShares, uint256 pendingAssets,,) = magma.pendingRedeemRequests(user, requestId);
         assertEq(user, owner);
         assertEq(shares, pendingShares);
