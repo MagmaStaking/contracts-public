@@ -60,6 +60,7 @@ abstract contract MagmaDelegationModule {
         if (!ok) revert ErrCompleteUndelegationFailed();
     }
 
+    // TODO: why we are not tryWithdraw here, what is the point of this MagmaDelegationModule
     function _tryWithdraw(uint64 valId, uint8 withdrawalId) internal returns (bool) {
         (bool ok,) = STAKING_PRECOMPILE.call(abi.encodeWithSelector(SEL_WITHDRAW, valId, withdrawalId));
         return ok;
