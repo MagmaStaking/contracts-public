@@ -290,6 +290,7 @@ contract CoreVault is
 
                 if (_toUndelegate > 0) {
                     _checkFreeAdminWid(_v);
+                    // TODO: replace all _undelegate by allocateWIDandUndelegate
                     _undelegate(_v, _toUndelegate, ADMIN_WID);
                     // Track pending excess; keep local delegated until completion
                     pendingRedelegateByValidator[_v] += _toUndelegate;
@@ -333,7 +334,6 @@ contract CoreVault is
             (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (_exists && _amount > 0) {
                 // For admin withdrawals, we need to handle pending redelegation amounts
-                _checkFreeAdminWid(_valId);
                 _withdraw(_valId, ADMIN_WID);
                 // Update pending redelegation tracking
                 // TODO: consider slashing events

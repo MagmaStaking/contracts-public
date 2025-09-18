@@ -76,7 +76,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        _checkFreeAdminWid(_valId);
         _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
 
         // Reduce the pending redistribution amount by the amount we just redistributed
@@ -112,7 +111,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
-            _checkFreeAdminWid(_valId);
             _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
 
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
