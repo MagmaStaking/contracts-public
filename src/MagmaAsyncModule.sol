@@ -60,7 +60,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
-    function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
+    function depositGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
         external
         whenNotPaused
         nonReentrant
@@ -117,7 +117,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return _requestRedeem(shares, controller, owner, 0, false);
     }
 
-    function requestRedeemFromGVault(uint256 shares, address controller, address owner, uint64 valId)
+    function requestRedeemGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
         whenNotPaused
         nonReentrant
