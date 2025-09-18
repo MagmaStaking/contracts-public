@@ -63,7 +63,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         assertEq(shares, magma.deposit(assets, user));
     }
 
-    function test_PauseUnpauseDepositToGVault() public {
+    function test_PauseUnpauseDepositGVault() public {
         uint256 assets = 5 ether;
         vm.deal(user, assets);
         vm.startPrank(user);
@@ -77,13 +77,13 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
-        magma.depositToGVault(assets, user, 3, 3);
+        magma.depositGVault(assets, user, 3, 3);
 
         vm.prank(admin);
         magma.unpause();
 
         vm.prank(user);
-        assertEq(shares, magma.depositToGVault(assets, user, 3, 3));
+        assertEq(shares, magma.depositGVault(assets, user, 3, 3));
     }
 
     function test_PauseUnpauseDepositWMON() public {
@@ -130,7 +130,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRequestRedeem() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
 
         vm.prank(admin);
         magma.pause();
@@ -146,27 +146,27 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         assertEq(0, magma.requestRedeem(shares, user, user));
     }
 
-    function test_PauseUnpauseRequestRedeemFromGVault() public {
+    function test_PauseUnpauseRequestRedeemGVault() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositToGVaultHelper(assets);
+        uint256 shares = _depositGVaultHelper(assets);
 
         vm.prank(admin);
         magma.pause();
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(user);
-        magma.requestRedeemFromGVault(shares, user, user, 3);
+        magma.requestRedeemGVault(shares, user, user, 3);
 
         vm.prank(admin);
         magma.unpause();
 
         vm.prank(user);
-        assertEq(0, magma.requestRedeemFromGVault(shares, user, user, 3));
+        assertEq(0, magma.requestRedeemGVault(shares, user, user, 3));
     }
 
     function test_PauseUnpauseRedeem() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
 
         vm.prank(admin);
         magma.pause();
@@ -184,7 +184,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRedeemMON() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
 
         vm.prank(admin);
         magma.pause();

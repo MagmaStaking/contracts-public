@@ -12,11 +12,6 @@ import "./MagmaErrorsModule.sol";
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     using Math for uint256;
 
-    /**
-     * @dev Return the total assets managed by the vault, including delegated native and held WMON
-     */
-    // TODO: fr -> this would be changed by corevault, also test, this would call totalAssets of coreVault and gVault,
-    // so do a TEST where we deposit on both vaults at the same time
     function totalAssets() public view virtual override returns (uint256) {
         return coreVault.totalAssets() + gVault.totalAssets();
     }
@@ -65,7 +60,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return shares;
     }
 
-    function depositToGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
+    function depositGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
         external
         whenNotPaused
         nonReentrant
@@ -122,7 +117,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return _requestRedeem(shares, controller, owner, 0, false);
     }
 
-    function requestRedeemFromGVault(uint256 shares, address controller, address owner, uint64 valId)
+    function requestRedeemGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
         whenNotPaused
         nonReentrant
@@ -160,7 +155,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             owner: owner,
             shares: shares,
             assets: assets,
-            claimableTime: block.timestamp + DEFAULT_DELAY
+            claimableTime: block.timestamp + DEFAULT_DELAY,
+            isGVault: isGVault
         });
         _requestIdCount++;
         _ownerRequested[owner] = true;
@@ -182,11 +178,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
-    /**
-     * TODO:
-     * 1. keep track of shares not assets, on frontend detect if there is stake and if is a user from gVault
-     * 2. How do we track on this redemption if withdrawal from gVault is possible
-     */
     function redeem(uint256 requestId, address controller, address receiver)
         public
         virtual
@@ -228,8 +219,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
-        // TODO: gVault here case
-        uint256 totalWithdrawn = coreVault.completeUserWithdrawal(owner);
+        uint256 totalWithdrawn =
+            request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
 
         uint256 shares =
             totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
