@@ -130,7 +130,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRequestRedeem() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
 
         vm.prank(admin);
         magma.pause();
@@ -148,7 +148,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRequestRedeemGVault() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositGVaultHelper(assets);
+        uint256 shares = _depositGVaultHelper(assets);
 
         vm.prank(admin);
         magma.pause();
@@ -166,7 +166,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRedeem() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
 
         vm.prank(admin);
         magma.pause();
@@ -184,7 +184,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_PauseUnpauseRedeemMON() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
 
         vm.prank(admin);
         magma.pause();
