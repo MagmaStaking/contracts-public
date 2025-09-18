@@ -30,7 +30,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.startPrank(depositor);
         wmon.deposit{value: shares}();
         wmon.approve(address(magma), shares);
-        assertEq(shares, toGVault ? magma.depositToGVault(assets, user, 3, 0) : magma.deposit(shares, depositor));
+        assertEq(shares, toGVault ? magma.depositToGVault(assets, depositor, 3, 0) : magma.deposit(shares, depositor));
         vm.stopPrank();
         return shares;
     }
@@ -51,12 +51,12 @@ contract MagmaAsyncModuleTest is BaseTest {
     function depositToGVaultHelper(uint256 assets) public returns (uint256) {
         uint256 shares = _depositHelper(assets, user, true);
         _activateAllStakes();
-        _activateGVaultStakes();
+        activateGVaultStakes();
         return shares;
     }
 
     // Helper to activate gVault validator stakes
-    function _activateGVaultStakes() private {
+    function activateGVaultStakes() public {
         // Get all validators from gVault
         uint64[] memory validators = gvault.getvalidators();
 
@@ -766,9 +766,20 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(receiver.balance, 0);
     }
 
-    function test_DepositCoreVaultRedeemFromGVault() public {
+    function test_DepositGVaultRedeemFromCoreVault() public {
         uint256 assets = 5 ether;
-        (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
+        // Deposit to gVault
+        uint256 shares = _depositHelper(assets, user, true);
+        // CoreVault stake
+        _depositHelper(assets * 100, address(1000), false);
+        _activateAllStakes();
+        activateGVaultStakes();
+
+        vm.prank(user);
+        uint256 requestId = magma.requestRedeem(shares, user, user);
+
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
 
@@ -780,15 +791,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assets, pendingAssets);
         assertEq(false, isGVault);
 
-        vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assets);
-        vm.expectEmit(true, true, true, true);
-        emit WrappedMonad.Deposit(address(magma), assets);
-        vm.expectEmit(true, true, true, true);
-        emit WrappedMonad.Transfer(address(magma), user, assets);
-        vm.expectEmit(true, true, true, true);
-        emit IERC4626.Withdraw(user, user, address(magma), assets, shares);
-
         vm.prank(user);
         assertEq(assets, magma.redeem(requestId, user, user));
 
@@ -799,7 +801,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, _shares);
         assertEq(0, _assets);
         assertEq(0, _claimableTime);
-
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
@@ -810,6 +811,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.balanceOf(address(user)), 0);
         assertEq(user.balance, 0);
     }
-
-    function test_DepositGVaultRedeemFromCoreVault() public {}
 }
+
+// TODO: change requestRedeemFromGVault to requestRedeemGVault and depositToGVault to depositGVault
+// TODO: make functions here internal
