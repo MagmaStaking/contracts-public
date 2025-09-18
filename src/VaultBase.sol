@@ -70,16 +70,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // TODO: Claim rewards
-        // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
-        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
-            revert ErrNoPendingWithdrawRequest();
-        }
 
         // Get the withdrawal amount before completing withdrawal
         (bool _exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
+        _checkFreeAdminWid(_valId);
         _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
 
         // Reduce the pending redistribution amount by the amount we just redistributed
@@ -115,6 +112,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
+            _checkFreeAdminWid(_valId);
             _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
 
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
@@ -274,5 +272,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _markWithdrawalCompleted(uint64 _valId, uint8 _withdrawalId) internal {
         withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
+    }
+
+    function _checkFreeAdminWid(uint64 _valId) internal view {
+        if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert AdminWidInUse();
     }
 }
