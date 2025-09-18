@@ -70,6 +70,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // TODO: Claim rewards
+        // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal existsAdd a comment on lines L73 to L74Add diff commentMarkdown input:  edit mode selected.WritePreviewHeadingBoldItalicQuoteCodeLinkUnordered listNumbered listTask listMentionReferenceSaved repliesAdd FilesPaste, drop, or click to add filesCancelCommentStart a reviewReturn to code
+        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            revert ErrNoPendingWithdrawRequest();
+        }
 
         // Get the withdrawal amount before completing withdrawal
         (bool _exists, uint256 _withdrawalAmount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
