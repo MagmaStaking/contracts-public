@@ -49,9 +49,6 @@ library BitMapLib {
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function markWithdrawalCompleted(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
-        // Don't clear the ADMIN_WID since it's reserved and shouldn't be reused
-        if (withdrawalId == ADMIN_WID) return;
-
         uint256 mask = 1 << withdrawalId;
         bitMap.bitmap &= ~mask; // Clear the bit
     }

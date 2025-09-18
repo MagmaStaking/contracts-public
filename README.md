@@ -43,6 +43,7 @@ To support unlimited user requests despite the 256 in-flight cap per (delegator,
 - gVault
   - Per-validator queue: amounts accrue by `valId` and are submitted when a slot is free and stake capacity exists.
   - Pending attribution stored per `(valId, withdrawalId)` for distribution on completion.
+  <!-- TODO: update docs -->
   - Admin reserved withdrawal ID: `ADMIN_WID_REBALANCE = 254` for admin rebalancing.
   - two types of rebalancing: removing validator, or admin-initiated liquidity rebalance when CoreVault is close to becoming illiquid.
 
