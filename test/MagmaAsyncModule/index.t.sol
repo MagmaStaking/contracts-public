@@ -24,7 +24,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.stopPrank();
     }
 
-    function _depositHelper(uint256 assets, address depositor, bool toGVault) public returns (uint256) {
+    function _depositHelper(uint256 assets, address depositor, bool toGVault) internal returns (uint256) {
         uint256 shares = magma.convertToShares(assets);
         vm.deal(depositor, shares);
         vm.startPrank(depositor);
@@ -35,7 +35,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         return shares;
     }
 
-    function depositHelper(uint256 assets) public returns (uint256) {
+    function _depositHelper(uint256 assets) internal returns (uint256) {
         /**
          * As a helper deposit 100 more stake so the original amount can easily be withdrawn taking into account the
          * _onetwentiethThreshold
@@ -48,15 +48,15 @@ contract MagmaAsyncModuleTest is BaseTest {
         return shares;
     }
 
-    function depositGVaultHelper(uint256 assets) public returns (uint256) {
+    function _depositGVaultHelper(uint256 assets) internal returns (uint256) {
         uint256 shares = _depositHelper(assets, user, true);
         _activateAllStakes();
-        activateGVaultStakes();
+        _activateGVaultStakes();
         return shares;
     }
 
     // Helper to activate gVault validator stakes
-    function activateGVaultStakes() public {
+    function _activateGVaultStakes() internal {
         // Get all validators from gVault
         uint64[] memory validators = gvault.getvalidators();
 
@@ -76,8 +76,8 @@ contract MagmaAsyncModuleTest is BaseTest {
         }
     }
 
-    function requestRedeemHelper(uint256 assets) internal returns (uint256, uint256) {
-        uint256 shares = depositHelper(assets);
+    function _requestRedeemHelper(uint256 assets) internal returns (uint256, uint256) {
+        uint256 shares = _depositHelper(assets);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
 
@@ -87,8 +87,8 @@ contract MagmaAsyncModuleTest is BaseTest {
         return (requestId, shares);
     }
 
-    function requestRedeemGVaultHelper(uint256 assets) internal returns (uint256, uint256) {
-        uint256 shares = depositGVaultHelper(assets);
+    function _requestRedeemGVaultHelper(uint256 assets) internal returns (uint256, uint256) {
+        uint256 shares = _depositGVaultHelper(assets);
         vm.prank(user);
         uint256 requestId = magma.requestRedeemGVault(shares, user, user, 3);
 
@@ -368,7 +368,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_PendingRedeemRequest() public {
         uint256 assets = 5 ether;
         address controller = address(123);
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
 
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, controller, user);
@@ -378,7 +378,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_ClaimableRedeemRequest() public {
         uint256 assets = 5 ether;
         address controller = address(123);
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         vm.warp(2);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, controller, user);
@@ -392,7 +392,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_RequestRedeem() public {
         uint256 requestIdCountBefore = 0;
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         uint256 sharesUserBefore = magma.balanceOf(user);
         uint256 assetsBefore = magma.totalAssets();
 
@@ -432,7 +432,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_RequestRedeemGVault() public {
         uint256 requestIdCountBefore = 0;
         uint256 assets = 5 ether;
-        uint256 shares = depositGVaultHelper(assets);
+        uint256 shares = _depositGVaultHelper(assets);
         uint256 sharesUserBefore = magma.balanceOf(user);
         uint256 assetsBefore = magma.totalAssets();
 
@@ -471,7 +471,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_Redeem() public {
         uint256 assets = 5 ether;
-        (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
+        (uint256 requestId, uint256 shares) = _requestRedeemHelper(assets);
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
 
@@ -516,7 +516,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_RedeemGVault() public {
         uint256 assets = 5 ether;
-        (uint256 requestId, uint256 shares) = requestRedeemGVaultHelper(assets);
+        (uint256 requestId, uint256 shares) = _requestRedeemGVaultHelper(assets);
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
 
@@ -561,7 +561,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function test_RedeemMON() public {
         uint256 assets = 5 ether;
-        (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
+        (uint256 requestId, uint256 shares) = _requestRedeemHelper(assets);
         uint256 userMONBefore = user.balance;
         uint256 assetsBefore = magma.totalAssets();
 
@@ -603,7 +603,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_RedeemWithdrawalSlashed() public {
         uint256 assets = 6 ether;
         uint256 expectedAssets = assets / 2;
-        (uint256 requestId, uint256 shares) = requestRedeemHelper(assets);
+        (uint256 requestId, uint256 shares) = _requestRedeemHelper(assets);
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
         uint256 sharesAfterSlash = magma.convertToShares(expectedAssets);
@@ -657,7 +657,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 assets = 5 ether;
         uint256 userWMONBefore = wmon.balanceOf(user);
         uint256 user2WMONBefore = wmon.balanceOf(user2);
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         uint256 shares2 = _depositHelper(assets, user2, false);
         assertEq(shares, shares2, "When depositing asssets by 2 different users, share amount should be the same");
 
@@ -731,7 +731,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         address receiver = address(35);
         uint256 assets = 5 ether;
         uint256 receiverWMONBefore = wmon.balanceOf(receiver);
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
 
         vm.prank(user);
         magma.setOperator(userOperator, true);
@@ -773,7 +773,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         // CoreVault stake
         _depositHelper(assets * 100, address(1000), false);
         _activateAllStakes();
-        activateGVaultStakes();
+        _activateGVaultStakes();
 
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
