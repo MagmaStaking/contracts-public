@@ -152,4 +152,33 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         vm.expectRevert(ErrNativeTransferFailed.selector);
         magma.redeemMON(requestId, user, address(_revert));
     }
+
+    function test_RevertWhen_DepositCoreVaultRedeemFromGVaultWithStake() public {
+        uint256 assets = 5 ether;
+        // CoreVault stake
+        uint256 shares = _depositHelper(assets, user, false);
+        // Deposit to gVault
+        _depositHelper(assets, address(1000), true);
+        _activateAllStakes();
+        activateGVaultStakes();
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        magma.requestRedeemFromGVault(shares, user, user, 3);
+    }
+
+    function test_RevertWhen_DepositCoreVaultRedeemFromGVaultNoStake() public {
+        uint256 assets = 5 ether;
+        uint256 shares = depositHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        magma.requestRedeemFromGVault(shares, user, user, 3);
+    }
+
+    function test_DepositGVaultRedeemFromCoreVaultNoStake() public {
+        uint256 assets = 5 ether;
+        uint256 shares = depositToGVaultHelper(assets);
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        magma.requestRedeem(shares, user, user);
+    }
 }
