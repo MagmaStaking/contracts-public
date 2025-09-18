@@ -75,7 +75,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_RequestRedeemPending() public {
         uint256 assets = 6 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
 
         vm.startPrank(user);
         assertEq(0, magma.requestRedeem(shares / 2, user, user));
@@ -94,7 +94,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
     // test_RevertWhen_RequestRedeemZeroAddressController will never be necessary since address zero cannot be authorized
     function test_RevertWhen_RequestRedeemZeroAddressController() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         vm.prank(user);
         vm.expectRevert(ErrZeroAddress.selector);
         magma.requestRedeem(shares, address(0), user);
@@ -113,7 +113,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_RedeemNotAuthorized() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
         vm.prank(user);
         vm.expectRevert(ErrNotAuthorized.selector);
         magma.redeem(requestId, address(2), user);
@@ -127,7 +127,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_RedeemPending() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         vm.startPrank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
         vm.expectRevert(ErrRequestPending.selector);
@@ -137,7 +137,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_RedeemWithdrawalFailed() public {
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
         MockStakingPrecompile(STAKING_PRECOMPILE).setWithdrawRevert(true);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrWithdrawalFailed.selector, 1, 0));
@@ -147,7 +147,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
     function test_RevertWhen_RedeemMONNativeTransferFailed() public {
         Revert _revert = new Revert();
         uint256 assets = 5 ether;
-        (uint256 requestId,) = requestRedeemHelper(assets);
+        (uint256 requestId,) = _requestRedeemHelper(assets);
         vm.prank(user);
         vm.expectRevert(ErrNativeTransferFailed.selector);
         magma.redeemMON(requestId, user, address(_revert));
@@ -160,7 +160,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         // Deposit to gVault
         _depositHelper(assets, address(1000), true);
         _activateAllStakes();
-        activateGVaultStakes();
+        _activateGVaultStakes();
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
         magma.requestRedeemGVault(shares, user, user, 3);
@@ -168,7 +168,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_DepositCoreVaultRedeemFromGVaultNoStake() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositHelper(assets);
+        uint256 shares = _depositHelper(assets);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
         magma.requestRedeemGVault(shares, user, user, 3);
@@ -176,7 +176,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_DepositGVaultRedeemFromCoreVaultNoStake() public {
         uint256 assets = 5 ether;
-        uint256 shares = depositGVaultHelper(assets);
+        uint256 shares = _depositGVaultHelper(assets);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
         magma.requestRedeem(shares, user, user);
