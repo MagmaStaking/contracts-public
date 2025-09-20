@@ -12,6 +12,7 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
@@ -227,6 +228,33 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
         finishedLastRebalance = true; // Mark rebalance as completed
         emit AdminCompletedRebalance(_delta);
+    }
+
+    function claimAndCompoundRewards(uint64 _valId) external {
+        _claimAndCompoundRewards(_valId);
+    }
+
+    function _claimAndCompoundRewards(uint64 _valId) internal {
+        uint256 _startingBalance = address(this).balance;
+
+        uint256 _before = address(this).balance;
+        _claim(_valId);
+        emit RewardsClaimed(_valId, address(this).balance - _before);
+        uint256 _endingBalance = address(this).balance;
+        uint256 _rewards = _endingBalance - _startingBalance;
+
+        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 1000, Math.Rounding.Ceil);
+
+        // send fee to fee receiver
+        (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
+        if (!_ok) {
+            emit RewardsFeeTransferFailed(_fee);
+        } else {
+            emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
+        }
+
+        uint256 _remaining = _rewards - _fee;
+        _delegate(_valId, _remaining);
     }
 
     /**

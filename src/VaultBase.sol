@@ -7,6 +7,8 @@ import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {console} from "forge-std/console.sol";
 
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
@@ -64,6 +66,21 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
         minUserWithdrawAmount = _amount;
+    }
+
+    function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
+        if (_totalWithdrawalAmount == 0) return 0;
+        if (magma.withdrawalFee() == 0) return 0;
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 1000, Math.Rounding.Ceil);
+        if (_fee > 0) {
+            (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
+            if (!okFee) {
+                emit WithdrawalFeeTransferFailed(_fee);
+            } else {
+                emit WithdrawalFeeTransferSuccess(_fee, magma.feeReceiver());
+            }
+        }
+        return _fee;
     }
 
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
@@ -242,7 +259,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Send all accumulated ETH to user in a single transaction
         if (_totalSuccessfulWithdrawals > 0) {
-            (bool success,) = address(magma).call{value: _totalSuccessfulWithdrawals}("");
+            uint256 _fee = _chargeWithdrawalFee(_totalSuccessfulWithdrawals);
+            console.log("totalSuccessfulWithdrawals", _totalSuccessfulWithdrawals);
+            console.log("fee", _fee);
+            uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
+            console.log("remaining", _remaining);
+            (bool success,) = address(magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
