@@ -292,6 +292,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.totalAssets(), assetsBefore + assets);
         assertEq(wmon.balanceOf(address(magma)), 0);
 
+        // gVault assertions
+        assertEq(assets, gvault.delegatedAmountOf(user, 3));
+        assertEq(shares, gvault.delegatedSharesOf(user, 3));
+        assertEq(assets, gvault.maxWithdrawableFromGVault(user, 3));
+
         // User assertions
         assertEq(magma.balanceOf(user), shares);
         assertEq(wmon.balanceOf(user), 0);
@@ -465,6 +470,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets() + assets);
 
+        // gVault assertions
+        assertEq(0, gvault.delegatedAmountOf(user, 3));
+        assertEq(0, gvault.delegatedSharesOf(user, 3));
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
+
         // user assertions
         assertEq(magma.balanceOf(user), sharesUserBefore - shares);
     }
@@ -552,6 +562,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // gVault assertions
+        assertEq(0, gvault.delegatedAmountOf(user, 3));
+        assertEq(0, gvault.delegatedSharesOf(user, 3));
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
 
         // User assertions
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
