@@ -28,6 +28,7 @@ interface IGVault is IBaseVault {
 
     // View functions
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
+    function maxWithdrawableFromGVault(address _user, uint64 _valId) external view returns (uint256);
     function minQueueDelaySeconds() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
