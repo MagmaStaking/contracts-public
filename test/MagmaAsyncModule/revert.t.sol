@@ -174,11 +174,23 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
-    function test_DepositGVaultRedeemFromCoreVaultNoStake() public {
+    function test_RevertWhen_DepositGVaultRedeemFromCoreVaultNoStake() public {
         uint256 assets = 5 ether;
         uint256 shares = _depositGVaultHelper(assets);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
         magma.requestRedeem(shares, user, user);
+    }
+
+    function test_RevertWhen_RebalanceDepositGVaultRequestAllShares() public {
+        uint256 assets = 5 ether;
+        uint256 shares = _depositGVaultHelper(assets);
+
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5_000);
+
+        vm.prank(user);
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
+        assertEq(0, magma.requestRedeemGVault(shares, user, user, 3));
     }
 }
