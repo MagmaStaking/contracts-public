@@ -83,6 +83,7 @@ contract BaseTest is Test {
         // Then add them to the CoreVault
         vm.prank(admin);
         coreVault.addValidator(1);
+        // TODO: call redelegateToValidators
         vm.prank(admin);
         coreVault.addValidator(2);
     }

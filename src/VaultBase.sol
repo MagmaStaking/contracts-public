@@ -66,6 +66,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         minUserWithdrawAmount = _amount;
     }
 
+    // TODO: Might want to add it in the _initiateValidatorRemoval in VaultBase.sol too just to be sure there's not a pending withdrawal for that validator
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
@@ -115,8 +116,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
-            _undelegate(_valId, _amountToRedelegate, ADMIN_WID);
-
+            _allocateWIDandUndelegate(_valId, _amountToRedelegate);
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
             emit ValidatorRemoved(_valId);
         } else {

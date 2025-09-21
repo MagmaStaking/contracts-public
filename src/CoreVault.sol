@@ -106,6 +106,7 @@ contract CoreVault is
      * @notice Step 2: Redistribute to validators called after addValidator and adminRebalanceInitiate
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
+    // TODO: addNotes instead of _undelegate is allocate but it has to be for admin, so we add validator in corevault then redelegate from admin, this are admin functions this is why we need the admin wid
     function redelegateToValidators() external onlyAdmin {
         _redelegateRedistribute();
     }
@@ -289,9 +290,9 @@ contract CoreVault is
                 uint256 _toUndelegate = _excess < _availableStake ? _excess : _availableStake;
 
                 if (_toUndelegate > 0) {
-                    _checkFreeAdminWid(_v);
-                    // TODO: replace all _undelegate by allocateWIDandUndelegate
-                    _undelegate(_v, _toUndelegate, ADMIN_WID);
+                    // _checkFreeAdminWid(_v);
+                    // TODO: allocateAdminWID
+                    _allocateWIDandUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
                     pendingRedelegateByValidator[_v] += _toUndelegate;
                     totalPendingRedelegation += _toUndelegate;
@@ -334,6 +335,7 @@ contract CoreVault is
             (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (_exists && _amount > 0) {
                 // For admin withdrawals, we need to handle pending redelegation amounts
+                // TODO: two step process undelegate first then withdraw, that's how we clear the admin wid
                 _withdraw(_valId, ADMIN_WID);
                 // Update pending redelegation tracking
                 // TODO: consider slashing events

@@ -196,9 +196,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             uint256 amt = _getDelegatorStake(v, address(this));
             uint256 pull = (amt * _bps) / 10_000;
             if (pull > 0) {
-                uint8 _wid = ADMIN_WID;
-                _checkFreeAdminWid(v);
-                _undelegate(v, pull, _wid);
+                // _checkFreeAdminWid(v);
+                _allocateWIDandUndelegate(v, pull);
                 pendingRedelegateByValidator[v] += pull;
                 totalPendingRedelegation += pull;
             }
