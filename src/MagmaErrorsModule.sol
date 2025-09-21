@@ -35,6 +35,7 @@ error ErrRebalanceInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
 error RequestInexistent();
+error NotEnoughAssetsGVault();
 
 // External call failures
 error ErrDelegateFailed();
