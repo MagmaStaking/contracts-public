@@ -420,4 +420,93 @@ contract GVaultDelegationLogicTest is BaseTest {
         vm.expectRevert(abi.encodeWithSelector(ErrNoPendingWithdrawRequest.selector));
         gvault.completeUserWithdrawal(bob); // Bob has no pending requests
     }
+
+    // ============ TEST 6: SNAPSHOT MULTIPLIER AFTER ADMIN REBALANCE ==========
+    function test_SnapshotAfterAdminRebalance() public {
+        uint256 aliceDeposit = 10 ether;
+        uint256 bobDeposit = 10 ether;
+
+        // Ensure cap is sufficient for test; increase if needed
+        uint256 currentStaked = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
+        vm.prank(admin);
+        gvault.changeValidatorCap(VAL_1, currentStaked + aliceDeposit + bobDeposit);
+
+        // Alice deposits to gVault (through Magma)
+        vm.deal(address(magma), aliceDeposit);
+        vm.prank(address(magma));
+        gvault.delegate{value: aliceDeposit}(alice, VAL_1);
+
+        // Admin initiates a 50% rebalance
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5000);
+
+        // Bob deposits after rebalance
+        vm.deal(address(magma), bobDeposit);
+        vm.prank(address(magma));
+        gvault.delegate{value: bobDeposit}(bob, VAL_1);
+
+        // Check max withdrawable entitlements
+        uint256 aliceMax = gvault.maxWithdrawableFromGVault(alice, VAL_1);
+        uint256 bobMax = gvault.maxWithdrawableFromGVault(bob, VAL_1);
+
+        // Alice should be limited to 50% of her pre-rebalance deposit; Bob should have full entitlement
+        assertApproxEqAbs(aliceMax, aliceDeposit / 2, 1, "Alice entitlement should be ~50% after rebalance");
+        assertApproxEqAbs(bobMax, bobDeposit, 1, "Bob entitlement should equal his deposit after rebalance");
+    }
+
+    // ============ TEST 7: MULTIPLIER ADJUSTMENT ON REDEEM AFTER REBALANCE ==========
+    function test_MultiplierAdjustedOnRedeemAfterRebalance() public {
+        uint256 depositAmount = 10 ether;
+
+        // Ensure cap room
+        uint256 currentStaked = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
+        vm.prank(admin);
+        gvault.changeValidatorCap(VAL_1, currentStaked + depositAmount);
+
+        // Alice deposits via Magma
+        vm.deal(address(magma), depositAmount);
+        vm.prank(address(magma));
+        gvault.delegate{value: depositAmount}(alice, VAL_1);
+
+        // Optional: activate stake to ensure later undelegation succeeds against mock
+        _activatePendingDelegations();
+
+        // Admin triggers 50% rebalance; P is halved
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5000);
+
+        // Alice's max entitlement should be ~50% of her deposit
+        uint256 aliceEntitlementBefore = gvault.maxWithdrawableFromGVault(alice, VAL_1);
+        assertApproxEqAbs(aliceEntitlementBefore, depositAmount / 2, 1, "Entitlement before redeem should be ~50%");
+
+        // Alice redeems her full entitlement from gVault path
+        vm.prank(address(magma));
+        gvault.undelegate(alice, VAL_1, aliceEntitlementBefore);
+
+        _advanceEpochsForWithdrawal();
+
+        vm.prank(address(magma));
+        uint256 withdrawn = gvault.completeUserWithdrawal(alice);
+        assertApproxEqAbs(withdrawn, aliceEntitlementBefore, 1, "Withdrawn should match entitlement");
+
+        // After redeem, multiplier-accounted entitlement should be ~0
+        uint256 aliceEntitlementAfter = gvault.maxWithdrawableFromGVault(alice, VAL_1);
+        assertLe(aliceEntitlementAfter, 1, "Entitlement after redeem should be ~0");
+
+        // Alice deposits again; her new entitlement multiplier should be 1 (entitlement == new deposit)
+        uint256 depositAgain = 5 ether;
+        uint256 stakedNow = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
+        uint256 pendingRedel = gvault.pendingRedelegateByValidator(VAL_1);
+        vm.prank(admin);
+        gvault.changeValidatorCap(VAL_1, stakedNow + pendingRedel + depositAgain + 1 ether);
+
+        vm.deal(address(magma), depositAgain);
+        vm.prank(address(magma));
+        gvault.delegate{value: depositAgain}(alice, VAL_1);
+
+        uint256 aliceEntitlementNew = gvault.maxWithdrawableFromGVault(alice, VAL_1);
+        assertApproxEqAbs(
+            aliceEntitlementNew, depositAgain, 1, "New entitlement should equal new deposit (multiplier=1)"
+        );
+    }
 }
