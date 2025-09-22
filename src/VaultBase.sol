@@ -67,7 +67,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         minUserWithdrawAmount = _amount;
     }
 
-    // TODO: Might want to add it in the _initiateValidatorRemoval in VaultBase.sol too just to be sure there's not a pending withdrawal for that validator
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
