@@ -24,7 +24,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
-    bool public finishedLastRebalance = true;
+    bool public finishedLastRebalance;
 
     // pause withdrawals for a validator an epoch before removing
     mapping(uint64 => uint256) public pausedWithdrawalsForValidator;
@@ -32,14 +32,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     // Per-validator deposit caps; if zero, use defaultCapPercent of Magma.totalAssets()
     mapping(uint64 => uint256) public validatorCap;
     // Default cap percent in basis points (1% = 100 bps)
-    uint256 public defaultCapBps = 25; // 0.25%
+    uint256 public defaultCapBps; // 0.25%
 
     // =========================
     // Liquity-style multiplier tracking for admin rebalances
     // =========================
     // Use high-precision 1e27 scaling to avoid collapse to zero and preserve precision.
-    uint256 public gvaultMultiplierP = 1e27; // cumulative retention multiplier P for gVault
-    uint256 public gvaultScaleS = 1e27; // global scale S; rescaled with P to keep ratio stable
+    uint256 public gvaultMultiplierP; // cumulative retention multiplier P for gVault
+    uint256 public gvaultScaleS; // global scale S; rescaled with P to keep ratio stable
 
     // User scaled principal units per validator: units = sum(assets_at_update * S / P_at_update)
     mapping(address => mapping(uint64 => uint256)) internal scaledPrincipalUnits;

@@ -52,7 +52,7 @@ abstract contract MagmaBase is
         bool isGVault; // If redeemRequest is for gVault or not
     }
 
-    uint256 internal _requestIdCount = 0;
+    uint256 internal _requestIdCount;
 
     // Mapping from controller to their pending withdrawal requests
     mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
@@ -100,6 +100,7 @@ abstract contract MagmaBase is
         rewardsFee = rewardsFee_;
         withdrawalFee = withdrawalFee_;
         feeReceiver = feeReceiver_;
+        _requestIdCount = 0;
     }
 
     /**
