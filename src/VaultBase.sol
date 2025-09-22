@@ -70,7 +70,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 1000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 10_000, Math.Rounding.Ceil);
         if (_fee > 0) {
             (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
@@ -216,11 +216,15 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
-    function _completeUserWithdrawal(address _user) internal returns (uint256 _totalWithdrawn) {
+    function _completeUserWithdrawal(address _user)
+        internal
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
         if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
         _totalWithdrawn = 0;
+        _totalWithdrawnAfterFee = 0;
         uint256 _totalSuccessfulWithdrawals = 0;
 
         // Process each withdrawal request for this user
@@ -265,12 +269,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
                 revert ErrNativeTransferFailed();
             }
             _totalWithdrawn = _totalSuccessfulWithdrawals;
+            _totalWithdrawnAfterFee = _remaining;
         }
 
         // Clear all withdrawal requests for this user after processing
         delete userWithdrawalRequests[_user];
 
-        emit UserWithdrawalCompleted(_user, _totalWithdrawn);
+        emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
 
     function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {

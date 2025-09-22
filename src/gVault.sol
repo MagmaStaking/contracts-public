@@ -211,7 +211,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
     }
 
-    function completeUserWithdrawal(address _user) external nonReentrant returns (uint256 _totalWithdrawn) {
+    function completeUserWithdrawal(address _user)
+        external
+        nonReentrant
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         return _completeUserWithdrawal(_user);
     }
 
@@ -297,7 +301,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 1000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
 
         // send fee to fee receiver
         (bool _ok,) = magma.feeReceiver().call{value: _fee}("");

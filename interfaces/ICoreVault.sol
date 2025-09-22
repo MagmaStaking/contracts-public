@@ -19,7 +19,9 @@ interface ICoreVault is IBaseVault {
     function undelegate(uint256 amount, address user) external;
 
     // Withdrawal completion function
-    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
+    function completeUserWithdrawal(address user)
+        external
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee);
 
     // Initialization
     function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;

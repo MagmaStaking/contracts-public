@@ -15,7 +15,9 @@ interface IGVault is IBaseVault {
     function adminCompleteRebalance() external;
 
     // Withdrawal completion function
-    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
+    function completeUserWithdrawal(address user)
+        external
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFeen);
 
     // Delegation functions (onlyMagma)
     function delegate(address user, uint64 valId) external payable;
