@@ -373,7 +373,7 @@ contract CoreVault is
             uint64 _valId = validators[_i];
             DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
             _sortedValidators[_i] = ValidatorAmount(
-                _valId, _coreVaultDelInfo.stake + _coreVaultDelInfo.delta_stake + _coreVaultDelInfo.next_delta_stake
+                _valId, _coreVaultDelInfo.stake + _coreVaultDelInfo.deltaStake + _coreVaultDelInfo.nextDeltaStake
             );
         }
 

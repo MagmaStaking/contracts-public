@@ -121,7 +121,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
 
-        if (_coreVaultDelInfo.delta_stake > 0 || _coreVaultDelInfo.next_delta_stake > 0) {
+        if (_coreVaultDelInfo.deltaStake > 0 || _coreVaultDelInfo.nextDeltaStake > 0) {
             revert ErrPendingStakeNotZero();
         }
 
@@ -201,12 +201,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.delta_stake + _delInfo.next_delta_stake + pendingRedelegateByValidator[_valId];
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake + pendingRedelegateByValidator[_valId];
     }
 
     function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.delta_stake + _delInfo.next_delta_stake;
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
     }
 
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {
