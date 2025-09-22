@@ -216,11 +216,15 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
-    function _completeUserWithdrawal(address _user) internal returns (uint256 _totalWithdrawn) {
+    function _completeUserWithdrawal(address _user)
+        internal
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
         if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
         _totalWithdrawn = 0;
+        _totalWithdrawnAfterFee = 0;
         uint256 _totalSuccessfulWithdrawals = 0;
 
         // Process each withdrawal request for this user
@@ -264,13 +268,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
-            _totalWithdrawn = _remaining;
+            _totalWithdrawn = _totalSuccessfulWithdrawals;
+            _totalWithdrawnAfterFee = _remaining;
         }
 
         // Clear all withdrawal requests for this user after processing
         delete userWithdrawalRequests[_user];
 
-        emit UserWithdrawalCompleted(_user, _totalWithdrawn);
+        emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
 
     function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
