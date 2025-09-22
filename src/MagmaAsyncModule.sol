@@ -116,8 +116,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         return _requestRedeem(shares, assets, controller, owner, 0, false);
     }
 
-    // TODO: _convertToAssets from gVault in this case, but if you rebalance you will have less assets, check both exchange rates and give him the most assets
-    // TODO: what happens in this case if you redeem part of shares from corevault, then you redeem from gvault, will you get all your assets
     function requestRedeemGVault(uint256 shares, address controller, address owner, uint64 valId)
         external
         whenNotPaused

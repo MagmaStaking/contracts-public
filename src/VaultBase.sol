@@ -132,7 +132,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
-            _allocateWIDandUndelegate(_valId, _amountToRedelegate);
+            _checkFreeAdminWid(_valId);
+            _allocateADMIN_WIDandUndelegate(_valId, _amountToRedelegate);
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
             emit ValidatorRemoved(_valId);
         } else {
@@ -148,6 +149,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         validators.push(_valId);
         isWhitelisted[_valId] = true;
 
+        _checkFreeAdminWid(_valId);
         // Initialize bitmap with ADMIN_WID marked as reserved
         withdrawalIdBitmaps[_valId].init();
 
@@ -180,6 +182,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
         _wid = withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
+        return _wid;
+    }
+
+    function _allocateADMIN_WIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
+        withdrawalIdBitmaps[_valId].allocateADMIN_WID();
+        _undelegate(_valId, _amount, ADMIN_WID);
         return _wid;
     }
 
