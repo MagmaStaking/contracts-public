@@ -822,9 +822,9 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(wmon.balanceOf(address(magma)), 0);
 
         // gVault assertions
-        assertEq(0, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
-        assertEq(0, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
-        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
+        assertEq(assets, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
+        assertEq(shares, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
+        assertEq(assets, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
@@ -833,12 +833,12 @@ contract MagmaAsyncModuleTest is BaseTest {
     }
 
     function test_GVaultRedeemFlowWhenRebalance() public {
-        uint256 assets = 2 ether;
+        uint256 assets = 5 ether;
         // CoreVault stake so user can redeem from corevault with his remaining shares after redeeming from gVault
         _depositHelper(assets * 100, address(1000), false);
+        uint256 assetsBefore = magma.totalAssets();
         uint256 shares = _depositGVaultHelper(assets);
         uint256 userWMONBefore = wmon.balanceOf(address(user));
-        uint256 assetsBefore = magma.totalAssets();
 
         vm.prank(admin);
         gvault.adminInitiateRebalanceBps(5_000);
@@ -913,8 +913,8 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(wmon.balanceOf(address(magma)), 0);
 
         // gVault assertions
-        assertEq(0, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
-        assertEq(0, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
+        assertEq(assets / 2, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
+        assertEq(shares - sharesGVault, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
         assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions

@@ -162,7 +162,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         _activateAllStakes();
         _activateGVaultStakes();
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
@@ -170,7 +170,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 assets = 5 ether;
         uint256 shares = _depositHelper(assets);
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
