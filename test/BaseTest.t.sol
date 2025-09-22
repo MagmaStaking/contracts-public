@@ -93,15 +93,26 @@ contract BaseTest is Test {
         bytes memory secpPubkey = abi.encodePacked(bytes32(uint256(valId)), bytes1(0x02)); // 33 bytes
         bytes memory blsPubkey = new bytes(48); // 48 bytes
 
+        // Create payload according to Monad specification
+        bytes memory payload = abi.encodePacked(
+            secpPubkey, // 33 bytes
+            blsPubkey, // 48 bytes
+            address(this), // 20 bytes (auth_address)
+            uint256(100 ether), // 32 bytes (amount)
+            uint256(0) // 32 bytes (commission)
+        );
+
+        // For testing, we use empty signatures
+        bytes memory signedSecpMessage = new bytes(0);
+        bytes memory signedBlsMessage = new bytes(0);
+
         vm.deal(address(this), 1000 ether);
         (bool success,) = STAKING_PRECOMPILE.call{value: 100 ether}(
             abi.encodeWithSelector(
-                bytes4(0x00000001), // SEL_ADD_VALIDATOR
-                secpPubkey,
-                blsPubkey,
-                address(this), // auth_address
-                100 ether, // amount
-                0 // commission (0%)
+                bytes4(0xf145204c), // SEL_ADD_VALIDATOR (official selector)
+                payload,
+                signedSecpMessage,
+                signedBlsMessage
             )
         );
         require(success, "Failed to add validator to staking precompile");

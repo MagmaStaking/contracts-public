@@ -2,27 +2,14 @@
 pragma solidity ^0.8.13;
 
 import {console} from "forge-std/console.sol";
+import {IMonadStaking} from "../../interfaces/IMonadStaking.sol";
 
 /**
  * @title MockStakingPrecompile
  * @dev Mock implementation of Monad staking precompile for testing
  * Following the specification from Monad_Staking.md
  */
-contract MockStakingPrecompile {
-    // Function selectors from the spec
-    bytes4 internal constant SEL_ADD_VALIDATOR = 0x00000001;
-    bytes4 internal constant SEL_DELEGATE = 0x00000002;
-    bytes4 internal constant SEL_UNDELEGATE = 0x00000003;
-    bytes4 internal constant SEL_COMPOUND = 0x00000004;
-    bytes4 internal constant SEL_WITHDRAW = 0x00000005;
-    bytes4 internal constant SEL_CLAIM_REWARDS = 0x00000006;
-    bytes4 internal constant SEL_GET_VALIDATOR_INFO = 0x00000007;
-    bytes4 internal constant SEL_GET_DELEGATOR_INFO = 0x00000008;
-    bytes4 internal constant SEL_GET_WITHDRAWAL_REQUEST = 0x00000009;
-    bytes4 internal constant SEL_GET_CONSENSUS_VALSET = 0x0000000A;
-    bytes4 internal constant SEL_GET_SNAPSHOT_VALSET = 0x0000000B;
-    bytes4 internal constant SEL_GET_EXECUTION_VALSET = 0x0000000C;
-
+contract MockStakingPrecompile is IMonadStaking {
     // Constants from the spec
     uint256 public constant EPOCH_LENGTH = 50000; // blocks
     uint256 public constant EPOCH_DELAY_PERIOD = 5000; // blocks
@@ -60,10 +47,10 @@ contract MockStakingPrecompile {
         uint256 stake; // Current active stake
         uint256 acc; // Last checked accumulator
         uint256 rewards; // Last checked rewards
-        uint256 delta_stake; // Stake to be activated next epoch
-        uint256 next_delta_stake; // Stake to be activated in 2 epochs
-        uint64 delta_epoch; // Epoch when delta_stake becomes active
-        uint64 next_delta_epoch; // Epoch when next_delta_stake becomes active
+        uint256 deltaStake; // Stake to be activated next epoch
+        uint256 nextDeltaStake; // Stake to be activated in 2 epochs
+        uint64 deltaEpoch; // Epoch when deltaStake becomes active
+        uint64 nextDeltaEpoch; // Epoch when nextDeltaStake becomes active
     }
 
     struct WithdrawalRequest {
@@ -112,53 +99,62 @@ contract MockStakingPrecompile {
     uint64[] public consensus_valset;
     uint64[] public snapshot_valset;
 
-    fallback() external payable {
-        require(msg.data.length >= 4, "Insufficient data");
+    // Direct implementation of IMonadStaking interface functions
 
-        bytes4 selector = bytes4(msg.data[:4]);
-        if (selector == SEL_ADD_VALIDATOR) {
-            _handleAddValidator();
-        } else if (selector == SEL_DELEGATE) {
-            _handleDelegate();
-        } else if (selector == SEL_UNDELEGATE) {
-            _handleUndelegate();
-        } else if (selector == SEL_COMPOUND) {
-            _handleCompound();
-        } else if (selector == SEL_WITHDRAW) {
-            _handleWithdraw();
-        } else if (selector == SEL_CLAIM_REWARDS) {
-            _handleClaimRewards();
-        } else if (selector == SEL_GET_VALIDATOR_INFO) {
-            _handleGetValidatorInfo();
-        } else if (selector == SEL_GET_DELEGATOR_INFO) {
-            _handleGetDelegatorInfo();
-        } else if (selector == SEL_GET_WITHDRAWAL_REQUEST) {
-            _handleGetWithdrawalRequest();
-        } else if (selector == SEL_GET_CONSENSUS_VALSET) {
-            _handleGetConsensusValset();
-        } else if (selector == SEL_GET_SNAPSHOT_VALSET) {
-            _handleGetSnapshotValset();
-        } else if (selector == SEL_GET_EXECUTION_VALSET) {
-            _handleGetExecutionValset();
-        } else {
-            // Debug: Add the selector to the error message
-            revert(string(abi.encodePacked("Unknown selector: ", _toHexString(uint256(uint32(selector)), 4))));
+    // Helper function to unpack addValidator payload
+    function _unpackAddValidatorPayload(bytes memory payload)
+        internal
+        pure
+        returns (
+            bytes memory secp_pubkey,
+            bytes memory bls_pubkey,
+            address auth_address,
+            uint256 amount,
+            uint256 commission
+        )
+    {
+        // According to Monad docs, payload is abi.encodePacked of:
+        // bytes secpPubkey (33 bytes)
+        // bytes blsPubkey (48 bytes)
+        // address authAddress (20 bytes)
+        // uint256 amount (32 bytes)
+        // uint256 commission (32 bytes)
+        require(payload.length >= 33 + 48 + 20 + 32 + 32, "Invalid payload length");
+
+        secp_pubkey = new bytes(33);
+        bls_pubkey = new bytes(48);
+
+        uint256 offset = 0;
+
+        // Extract secp_pubkey (33 bytes)
+        for (uint256 i = 0; i < 33; i++) {
+            secp_pubkey[i] = payload[offset + i];
+        }
+        offset += 33;
+
+        // Extract bls_pubkey (48 bytes)
+        for (uint256 i = 0; i < 48; i++) {
+            bls_pubkey[i] = payload[offset + i];
+        }
+        offset += 48;
+
+        // Extract auth_address (20 bytes)
+        assembly {
+            auth_address := mload(add(add(payload, 0x20), offset))
+        }
+        offset += 20;
+
+        // Extract amount (32 bytes)
+        assembly {
+            amount := mload(add(add(payload, 0x20), offset))
+        }
+        offset += 32;
+
+        // Extract commission (32 bytes)
+        assembly {
+            commission := mload(add(add(payload, 0x20), offset))
         }
     }
-
-    function _toHexString(uint256 value, uint256 length) internal pure returns (string memory) {
-        bytes memory buffer = new bytes(2 * length + 2);
-        buffer[0] = "0";
-        buffer[1] = "x";
-        for (uint256 i = 2 * length + 1; i > 1; --i) {
-            buffer[i] = _HEX_SYMBOLS[value & 0xf];
-            value >>= 4;
-        }
-        require(value == 0, "Strings: hex length insufficient");
-        return string(buffer);
-    }
-
-    bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
 
     // Helper functions
     function setWithdrawRevert(bool _withdrawRevert) public {
@@ -184,19 +180,28 @@ contract MockStakingPrecompile {
         return activationEpoch + WITHDRAWAL_DELAY;
     }
 
-    function _handleAddValidator() internal {
+    function addValidator(bytes calldata payload, bytes calldata signedSecpMessage, bytes calldata signedBlsMessage)
+        external
+        payable
+        override
+        returns (uint64 validatorId)
+    {
+        // Unpack the payload according to the official specification
         (bytes memory secp_pubkey, bytes memory bls_pubkey, address auth_address, uint256 amount, uint256 commission) =
-            abi.decode(msg.data[4:], (bytes, bytes, address, uint256, uint256));
+            _unpackAddValidatorPayload(payload);
 
         require(msg.value == amount, "Amount mismatch");
         require(amount >= MIN_VALIDATE_STAKE, "Below min validate stake");
         require(commission <= 20e16, "Commission too high"); // Max 20%
 
+        // For testing, we skip signature verification
+        // In production, would verify signedSecpMessage and signedBlsMessage
+
         last_val_id++;
-        uint64 valId = last_val_id;
+        validatorId = last_val_id;
 
         // Create validator
-        val_execution[valId] = ValExecution({
+        val_execution[validatorId] = ValExecution({
             stake: amount,
             acc: 0,
             commission: commission,
@@ -207,88 +212,83 @@ contract MockStakingPrecompile {
 
         // Create delegator account for validator
         uint64 activationEpoch = _getActivationEpoch();
-        delegator[valId][auth_address] = DelInfo({
+        delegator[validatorId][auth_address] = DelInfo({
             stake: 0,
             acc: 0,
             rewards: 0,
-            delta_stake: amount,
-            next_delta_stake: 0,
-            delta_epoch: activationEpoch,
-            next_delta_epoch: 0
+            deltaStake: amount,
+            nextDeltaStake: 0,
+            deltaEpoch: activationEpoch,
+            nextDeltaEpoch: 0
         });
 
         // Add to execution valset if meets threshold
         if (amount >= ACTIVE_VALIDATOR_STAKE) {
-            execution_valset.push(valId);
+            execution_valset.push(validatorId);
         }
 
-        bytes memory result = abi.encode(valId);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+        return validatorId;
     }
 
-    function _handleDelegate() internal {
-        (uint64 valId) = abi.decode(msg.data[4:], (uint64));
+    function delegate(uint64 validatorId) external payable override returns (bool success) {
         uint256 amount = msg.value;
         require(amount > 0, "Amount must be > 0");
-        require(val_execution[valId].stake > 0, "Invalid validator");
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
 
-        DelInfo storage del = delegator[valId][msg.sender];
+        DelInfo storage del = delegator[validatorId][msg.sender];
         uint64 activationEpoch = _getActivationEpoch();
 
         // Track this delegator for this validator
-        if (!hasDelegator[valId][msg.sender]) {
-            validatorDelegators[valId].push(msg.sender);
-            hasDelegator[valId][msg.sender] = true;
+        if (!hasDelegator[validatorId][msg.sender]) {
+            validatorDelegators[validatorId].push(msg.sender);
+            hasDelegator[validatorId][msg.sender] = true;
         }
 
         // Update validator stake
-        val_execution[valId].stake += amount;
+        val_execution[validatorId].stake += amount;
 
         // Update delegator info
-        if (del.delta_epoch == 0) {
+        if (del.deltaEpoch == 0) {
             // First delegation
-            del.delta_stake = amount;
-            del.delta_epoch = activationEpoch;
-        } else if (del.delta_epoch == activationEpoch) {
+            del.deltaStake = amount;
+            del.deltaEpoch = activationEpoch;
+        } else if (del.deltaEpoch == activationEpoch) {
             // Same activation epoch
-            del.delta_stake += amount;
+            del.deltaStake += amount;
         } else {
             // Different activation epoch
-            del.next_delta_stake += amount;
-            del.next_delta_epoch = activationEpoch;
+            del.nextDeltaStake += amount;
+            del.nextDeltaEpoch = activationEpoch;
         }
 
         // Add to execution valset if threshold met
-        if (val_execution[valId].stake >= ACTIVE_VALIDATOR_STAKE) {
+        if (val_execution[validatorId].stake >= ACTIVE_VALIDATOR_STAKE) {
             bool found = false;
             for (uint256 i = 0; i < execution_valset.length; i++) {
-                if (execution_valset[i] == valId) {
+                if (execution_valset[i] == validatorId) {
                     found = true;
                     break;
                 }
             }
             if (!found) {
-                execution_valset.push(valId);
+                execution_valset.push(validatorId);
             }
         }
 
-        bytes memory result = abi.encode(true);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+        return true;
     }
 
-    function _handleUndelegate() internal {
-        (uint64 valId, uint256 amount, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, uint256, uint8));
-
+    function undelegate(uint64 validatorId, uint256 amount, uint8 withdrawId)
+        external
+        override
+        returns (bool success)
+    {
         require(amount > 0, "Amount must be > 0");
-        require(val_execution[valId].stake > 0, "Invalid validator");
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
 
-        DelInfo storage del = delegator[valId][msg.sender];
+        DelInfo storage del = delegator[validatorId][msg.sender];
         require(del.stake >= amount, "Insufficient stake");
-        require(val_execution[valId].stake >= amount, "Validator insufficient stake");
+        require(val_execution[validatorId].stake >= amount, "Validator insufficient stake");
 
         // Deactivation timing
         uint64 withdrawalEpoch = _getWithdrawalEpoch();
@@ -301,59 +301,52 @@ contract MockStakingPrecompile {
         }
 
         // Update validator stake (safely)
-        if (val_execution[valId].stake >= amount) {
-            val_execution[valId].stake -= amount;
+        if (val_execution[validatorId].stake >= amount) {
+            val_execution[validatorId].stake -= amount;
         } else {
-            val_execution[valId].stake = 0;
+            val_execution[validatorId].stake = 0;
         }
 
         // Create withdrawal request
-        withdrawal[valId][msg.sender][withdrawalId] =
-            WithdrawalRequest({amount: amount, acc: val_execution[valId].acc, epoch: withdrawalEpoch});
+        withdrawal[validatorId][msg.sender][withdrawId] =
+            WithdrawalRequest({amount: amount, acc: val_execution[validatorId].acc, epoch: withdrawalEpoch});
 
         // Remove from execution valset if below threshold
-        if (val_execution[valId].stake < ACTIVE_VALIDATOR_STAKE) {
+        if (val_execution[validatorId].stake < ACTIVE_VALIDATOR_STAKE) {
             for (uint256 i = 0; i < execution_valset.length; i++) {
-                if (execution_valset[i] == valId) {
+                if (execution_valset[i] == validatorId) {
                     execution_valset[i] = execution_valset[execution_valset.length - 1];
                     execution_valset.pop();
                     break;
                 }
             }
         }
-        bytes memory result = abi.encode(true);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+
+        return true;
     }
 
-    function _handleWithdraw() internal {
+    function withdraw(uint64 validatorId, uint8 withdrawId) external override returns (bool success) {
         if (withdrawRevert) {
-            revert();
+            return false;
         }
-        (uint64 valId, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, uint8));
 
-        WithdrawalRequest storage request = withdrawal[valId][msg.sender][withdrawalId];
+        WithdrawalRequest storage request = withdrawal[validatorId][msg.sender][withdrawId];
         require(request.amount > 0, "No withdrawal request");
         require(request.epoch <= epoch, "Withdrawal not ready");
 
         uint256 amount = request.amount;
-        delete withdrawal[valId][msg.sender][withdrawalId];
+        delete withdrawal[validatorId][msg.sender][withdrawId];
 
-        (bool success,) = msg.sender.call{value: amount}("");
-        require(success, "Transfer failed");
+        (bool transferSuccess,) = msg.sender.call{value: amount}("");
+        require(transferSuccess, "Transfer failed");
 
-        bytes memory result = abi.encode(true);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+        return true;
     }
 
-    function _handleCompound() internal {
-        (uint64 valId) = abi.decode(msg.data[4:], (uint64));
-        require(val_execution[valId].stake > 0, "Invalid validator");
+    function compound(uint64 validatorId) external override returns (bool success) {
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
 
-        DelInfo storage del = delegator[valId][msg.sender];
+        DelInfo storage del = delegator[validatorId][msg.sender];
         require(del.rewards > 0, "No rewards to compound");
 
         uint256 rewards = del.rewards;
@@ -361,142 +354,201 @@ contract MockStakingPrecompile {
 
         // Add rewards as new delegation
         uint64 activationEpoch = _getActivationEpoch();
-        val_execution[valId].stake += rewards;
+        val_execution[validatorId].stake += rewards;
 
-        if (del.delta_epoch == 0) {
-            del.delta_stake = rewards;
-            del.delta_epoch = activationEpoch;
-        } else if (del.delta_epoch == activationEpoch) {
-            del.delta_stake += rewards;
+        if (del.deltaEpoch == 0) {
+            del.deltaStake = rewards;
+            del.deltaEpoch = activationEpoch;
+        } else if (del.deltaEpoch == activationEpoch) {
+            del.deltaStake += rewards;
         } else {
-            del.next_delta_stake += rewards;
-            del.next_delta_epoch = activationEpoch;
+            del.nextDeltaStake += rewards;
+            del.nextDeltaEpoch = activationEpoch;
         }
 
-        bytes memory result = abi.encode(true);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+        return true;
     }
 
-    function _handleClaimRewards() internal {
-        (uint64 valId) = abi.decode(msg.data[4:], (uint64));
-        require(val_execution[valId].stake > 0, "Invalid validator");
+    function claimRewards(uint64 validatorId) external override returns (bool success) {
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
 
-        DelInfo storage del = delegator[valId][msg.sender];
+        DelInfo storage del = delegator[validatorId][msg.sender];
         require(del.rewards > 0, "No rewards to claim");
 
         uint256 rewards = del.rewards;
         del.rewards = 0;
 
-        (bool success,) = msg.sender.call{value: rewards}("");
-        require(success, "Reward transfer failed");
+        (bool transferSuccess,) = msg.sender.call{value: rewards}("");
+        require(transferSuccess, "Reward transfer failed");
+
+        return true;
     }
 
-    function _handleGetValidatorInfo() internal view {
-        (uint64 valId) = abi.decode(msg.data[4:], (uint64));
-
-        ValExecution memory valExec = val_execution[valId];
-        ValConsensus memory valCons = val_consensus[valId];
-        ValConsensus memory valSnap = val_snapshot[valId];
-
-        bytes memory result = abi.encode(valExec, valCons.stake, valSnap.stake);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+    // Missing interface functions that need to be implemented
+    function changeCommission(uint64 validatorId, uint256 commission) external override returns (bool success) {
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
+        require(commission <= 20e16, "Commission too high"); // Max 20%
+        val_execution[validatorId].commission = commission;
+        return true;
     }
 
-    function _handleGetDelegatorInfo() internal view {
-        (uint64 valId, address delegatorAddr) = abi.decode(msg.data[4:], (uint64, address));
-
-        DelInfo memory del = delegator[valId][delegatorAddr];
-        // Return the full DelInfo struct as expected by CoreVault's _getDelegatorInfo
-        bytes memory result = abi.encode(
-            del.stake,
-            del.acc,
-            del.rewards,
-            del.delta_stake,
-            del.next_delta_stake,
-            del.delta_epoch,
-            del.next_delta_epoch
-        );
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+    function externalReward(uint64 validatorId) external override returns (bool success) {
+        // For testing purposes, this is a no-op
+        require(val_execution[validatorId].stake > 0, "Invalid validator");
+        return true;
     }
 
-    function _handleGetWithdrawalRequest() internal view {
-        (uint64 valId, address delegatorAddr, uint8 withdrawalId) = abi.decode(msg.data[4:], (uint64, address, uint8));
+    function getValidator(uint64 validatorId)
+        external
+        view
+        override
+        returns (
+            address authAddress,
+            uint64 flags,
+            uint256 stake,
+            uint256 accRewardPerToken,
+            uint256 commission,
+            uint256 unclaimedRewards,
+            uint256 consensusStake,
+            uint256 consensusCommission,
+            uint256 snapshotStake,
+            uint256 snapshotCommission,
+            bytes memory secpPubkey,
+            bytes memory blsPubkey
+        )
+    {
+        // Split into multiple assignments to avoid stack too deep
+        ValExecution storage valExec = val_execution[validatorId];
 
-        WithdrawalRequest memory request = withdrawal[valId][delegatorAddr][withdrawalId];
-        bytes memory result = abi.encode(request.amount / slashDivider, request.acc, request.epoch);
-        assembly {
-            return(add(result, 0x20), mload(result))
-        }
+        authAddress = address(0); // simplified for testing
+        flags = uint64(valExec.address_flags);
+        stake = valExec.stake;
+        accRewardPerToken = valExec.acc;
+        commission = valExec.commission;
+        unclaimedRewards = valExec.unclaimed_rewards;
+        consensusStake = val_consensus[validatorId].stake;
+        consensusCommission = valExec.commission; // simplified
+        snapshotStake = val_snapshot[validatorId].stake;
+        snapshotCommission = valExec.commission; // simplified
+        secpPubkey = valExec.keys.secp_pubkey;
+        blsPubkey = valExec.keys.bls_pubkey;
     }
 
-    function _handleGetConsensusValset() internal view {
-        (uint32 start_index) = abi.decode(msg.data[4:], (uint32));
+    function getDelegator(uint64 validatorId, address delegatorAddr)
+        external
+        view
+        override
+        returns (
+            uint256 stake,
+            uint256 accRewardPerToken,
+            uint256 unclaimedRewards,
+            uint256 deltaStake,
+            uint256 nextDeltaStake,
+            uint64 deltaEpoch,
+            uint64 nextDeltaEpoch
+        )
+    {
+        DelInfo memory del = delegator[validatorId][delegatorAddr];
+        return (del.stake, del.acc, del.rewards, del.deltaStake, del.nextDeltaStake, del.deltaEpoch, del.nextDeltaEpoch);
+    }
 
+    function getWithdrawalRequest(uint64 validatorId, address delegatorAddr, uint8 withdrawId)
+        external
+        override
+        returns (uint256 withdrawalAmount, uint256 accRewardPerToken, uint64 withdrawEpoch)
+    {
+        WithdrawalRequest memory request = withdrawal[validatorId][delegatorAddr][withdrawId];
+        return (request.amount / slashDivider, request.acc, request.epoch);
+    }
+
+    function getConsensusValidatorSet(uint32 startIndex)
+        external
+        override
+        returns (bool isDone, uint32 nextIndex, uint64[] memory valIds)
+    {
         uint256 len = consensus_valset.length;
-        uint256 end = start_index + 100; // Max 100 per call
+        uint256 end = startIndex + 100; // Max 100 per call
         if (end > len) end = len;
 
-        uint64[] memory result = new uint64[](end - start_index);
-        for (uint256 i = start_index; i < end; i++) {
-            result[i - start_index] = consensus_valset[i];
+        uint64[] memory result = new uint64[](end - startIndex);
+        for (uint256 i = startIndex; i < end; i++) {
+            result[i - startIndex] = consensus_valset[i];
         }
 
-        bool at_end = end >= len;
-        uint32 next_start = uint32(end);
-
-        bytes memory encoded = abi.encode(at_end, next_start, result);
-        assembly {
-            return(add(encoded, 0x20), mload(encoded))
-        }
+        return (end >= len, uint32(end), result);
     }
 
-    function _handleGetSnapshotValset() internal view {
-        (uint32 start_index) = abi.decode(msg.data[4:], (uint32));
-
+    function getSnapshotValidatorSet(uint32 startIndex)
+        external
+        override
+        returns (bool isDone, uint32 nextIndex, uint64[] memory valIds)
+    {
         uint256 len = snapshot_valset.length;
-        uint256 end = start_index + 100;
+        uint256 end = startIndex + 100;
         if (end > len) end = len;
 
-        uint64[] memory result = new uint64[](end - start_index);
-        for (uint256 i = start_index; i < end; i++) {
-            result[i - start_index] = snapshot_valset[i];
+        uint64[] memory result = new uint64[](end - startIndex);
+        for (uint256 i = startIndex; i < end; i++) {
+            result[i - startIndex] = snapshot_valset[i];
         }
 
-        bool at_end = end >= len;
-        uint32 next_start = uint32(end);
-
-        bytes memory encoded = abi.encode(at_end, next_start, result);
-        assembly {
-            return(add(encoded, 0x20), mload(encoded))
-        }
+        return (end >= len, uint32(end), result);
     }
 
-    function _handleGetExecutionValset() internal view {
-        (uint32 start_index) = abi.decode(msg.data[4:], (uint32));
-
+    function getExecutionValidatorSet(uint32 startIndex)
+        external
+        override
+        returns (bool isDone, uint32 nextIndex, uint64[] memory valIds)
+    {
         uint256 len = execution_valset.length;
-        uint256 end = start_index + 100;
+        uint256 end = startIndex + 100;
         if (end > len) end = len;
 
-        uint64[] memory result = new uint64[](end - start_index);
-        for (uint256 i = start_index; i < end; i++) {
-            result[i - start_index] = execution_valset[i];
+        uint64[] memory result = new uint64[](end - startIndex);
+        for (uint256 i = startIndex; i < end; i++) {
+            result[i - startIndex] = execution_valset[i];
         }
 
-        bool at_end = end >= len;
-        uint32 next_start = uint32(end);
-
-        bytes memory encoded = abi.encode(at_end, next_start, result);
-        assembly {
-            return(add(encoded, 0x20), mload(encoded))
-        }
+        return (end >= len, uint32(end), result);
     }
+
+    function getDelegations(address delegatorAddr, uint64 startValId)
+        external
+        override
+        returns (bool isDone, uint64 nextValId, uint64[] memory valIds)
+    {
+        // Simplified implementation for testing
+        uint64[] memory result = new uint64[](0);
+        return (true, startValId, result);
+    }
+
+    function getDelegators(uint64 validatorId, address startDelegator)
+        external
+        override
+        returns (bool isDone, address nextDelegator, address[] memory delegators)
+    {
+        // Return the stored delegators for this validator
+        address[] memory result = validatorDelegators[validatorId];
+        return (true, startDelegator, result);
+    }
+
+    function getEpoch() external override returns (uint64, bool) {
+        return (epoch, in_boundary);
+    }
+
+    function syscallOnEpochChange(uint64) external override {
+        // No-op for testing
+    }
+
+    function syscallReward(address) external override {
+        // No-op for testing
+    }
+
+    function syscallSnapshot() external override {
+        // No-op for testing
+    }
+
+    // Old handler functions removed - now using direct interface implementation
 
     // Admin functions for testing
     function advanceBlock() external {
@@ -551,10 +603,10 @@ contract MockStakingPrecompile {
 
         // Clear all pending stakes to avoid ErrPendingStakeNotZero issues
         delegator[valId][delegatorAddr].stake = amount;
-        delegator[valId][delegatorAddr].delta_stake = 0;
-        delegator[valId][delegatorAddr].next_delta_stake = 0;
-        delegator[valId][delegatorAddr].delta_epoch = 0;
-        delegator[valId][delegatorAddr].next_delta_epoch = 0;
+        delegator[valId][delegatorAddr].deltaStake = 0;
+        delegator[valId][delegatorAddr].nextDeltaStake = 0;
+        delegator[valId][delegatorAddr].deltaEpoch = 0;
+        delegator[valId][delegatorAddr].nextDeltaEpoch = 0;
 
         // Update validator total stake by adjusting for this delegator's change
         if (val_execution[valId].stake == 0) {
@@ -592,8 +644,8 @@ contract MockStakingPrecompile {
     function setDelegatorPendingStake(uint64 valId, address delegatorAddr, uint256 deltaStake, uint256 nextDeltaStake)
         external
     {
-        delegator[valId][delegatorAddr].delta_stake = deltaStake;
-        delegator[valId][delegatorAddr].next_delta_stake = nextDeltaStake;
+        delegator[valId][delegatorAddr].deltaStake = deltaStake;
+        delegator[valId][delegatorAddr].nextDeltaStake = nextDeltaStake;
     }
 
     // Helper function to manually set up a validator with specific ID for testing
@@ -630,18 +682,18 @@ contract MockStakingPrecompile {
             address delegatorAddr = delegators[i];
             DelInfo storage del = delegator[valId][delegatorAddr];
 
-            // Activate delta_stake if the epoch matches
-            if (del.delta_epoch <= epoch && del.delta_stake > 0) {
-                del.stake += del.delta_stake;
-                del.delta_stake = 0;
+            // Activate deltaStake if the epoch matches
+            if (del.deltaEpoch <= epoch && del.deltaStake > 0) {
+                del.stake += del.deltaStake;
+                del.deltaStake = 0;
             }
 
-            // Move next_delta_stake to delta_stake if needed
-            if (del.next_delta_epoch <= epoch && del.next_delta_stake > 0) {
-                del.delta_stake = del.next_delta_stake;
-                del.delta_epoch = epoch + 1;
-                del.next_delta_stake = 0;
-                del.next_delta_epoch = 0;
+            // Move nextDeltaStake to deltaStake if needed
+            if (del.nextDeltaEpoch <= epoch && del.nextDeltaStake > 0) {
+                del.deltaStake = del.nextDeltaStake;
+                del.deltaEpoch = epoch + 1;
+                del.nextDeltaStake = 0;
+                del.nextDeltaEpoch = 0;
             }
         }
     }

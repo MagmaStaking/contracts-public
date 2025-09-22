@@ -41,6 +41,7 @@ interface IMonadStaking {
 
     function getDelegator(uint64 validatorId, address delegator)
         external
+        view
         returns (
             uint256 stake,
             uint256 accRewardPerToken,
