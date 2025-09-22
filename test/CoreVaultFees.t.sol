@@ -90,7 +90,7 @@ contract CoreVaultRewardsTest is BaseTest {
 
         // Complete withdrawal directly on CoreVault from Magma context (mirrors other tests)
         vm.prank(address(magma));
-        uint256 gross = coreVault.completeUserWithdrawal(user);
+        (uint256 gross,) = coreVault.completeUserWithdrawal(user);
 
         // Expect 1% fee (per 1000 rounding) on gross ~= deposit/20 for first deposit
         uint256 expectedGross = depositAmt / 20;

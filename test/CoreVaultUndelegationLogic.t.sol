@@ -658,7 +658,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         console.log("Attempting withdrawal completion...");
 
         vm.prank(address(magma));
-        uint256 actualWithdrawn = coreVault.completeUserWithdrawal(alice);
+        (uint256 actualWithdrawn,) = coreVault.completeUserWithdrawal(alice);
 
         // Check final state
         uint256 finalTotalAssets = coreVault.totalAssets();
@@ -902,13 +902,13 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         // Complete withdrawals for all users
         vm.prank(address(magma));
-        uint256 aliceWithdrawn = coreVault.completeUserWithdrawal(alice);
+        (uint256 aliceWithdrawn,) = coreVault.completeUserWithdrawal(alice);
 
         vm.prank(address(magma));
-        uint256 bobWithdrawn = coreVault.completeUserWithdrawal(bob);
+        (uint256 bobWithdrawn,) = coreVault.completeUserWithdrawal(bob);
 
         vm.prank(address(magma));
-        uint256 charlieWithdrawn = coreVault.completeUserWithdrawal(charlie);
+        (uint256 charlieWithdrawn,) = coreVault.completeUserWithdrawal(charlie);
 
         uint256 finalTotalAssets = coreVault.totalAssets();
         uint256 finalTotalPendingUndelegations = coreVault.totalPendingUndelegations();
@@ -1117,7 +1117,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         // Clear Alice's requests and check asset changes
         vm.prank(address(magma));
-        uint256 aliceTinyWithdrawn = coreVault.completeUserWithdrawal(alice);
+        (uint256 aliceTinyWithdrawn,) = coreVault.completeUserWithdrawal(alice);
 
         uint256 afterTinyCompletionTotalAssets = coreVault.totalAssets();
         uint256 afterTinyCompletionPendingUndelegations = coreVault.totalPendingUndelegations();

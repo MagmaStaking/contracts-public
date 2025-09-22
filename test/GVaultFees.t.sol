@@ -94,7 +94,7 @@ contract GVaultRewardsTest is BaseTest {
 
         // Complete withdrawal directly on gVault from Magma context
         vm.prank(address(magma));
-        uint256 gross = gvault.completeUserWithdrawal(user);
+        (uint256 gross,) = gvault.completeUserWithdrawal(user);
 
         // Expect 1% fee (per 1000 rounding) on gross ~= deposit/20
         uint256 expectedGross = depositAmt / 20;

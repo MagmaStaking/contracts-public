@@ -321,7 +321,7 @@ contract GVaultDelegationLogicTest is BaseTest {
 
         // Complete withdrawal
         vm.prank(address(magma));
-        uint256 actualWithdrawn = gvault.completeUserWithdrawal(alice);
+        (uint256 actualWithdrawn,) = gvault.completeUserWithdrawal(alice);
 
         // Record final state
         uint256 finalPendingUndelegations = gvault.totalPendingUndelegations();
@@ -486,7 +486,7 @@ contract GVaultDelegationLogicTest is BaseTest {
         _advanceEpochsForWithdrawal();
 
         vm.prank(address(magma));
-        uint256 withdrawn = gvault.completeUserWithdrawal(alice);
+        (uint256 withdrawn,) = gvault.completeUserWithdrawal(alice);
         assertApproxEqAbs(withdrawn, aliceEntitlementBefore, 1, "Withdrawn should match entitlement");
 
         // After redeem, multiplier-accounted entitlement should be ~0
