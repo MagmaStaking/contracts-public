@@ -82,11 +82,8 @@ contract BaseTest is Test {
 
         // Then add them to the CoreVault
         vm.startPrank(admin);
-        // TODO: functionality to add more than one validator
         coreVault.addValidator(1);
-        coreVault.redelegateToValidators();
         coreVault.addValidator(2);
-        coreVault.redelegateToValidators();
         vm.stopPrank();
     }
 
