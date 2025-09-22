@@ -25,12 +25,11 @@ library BitMapLib {
     }
 
     /**
-     * @dev Initialize bitmap for CoreVault with ADMIN_WID marked as reserved
+     * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function init(WithdrawalBitMap storage bitMap) internal {
-        uint256 adminMask = 1 << ADMIN_WID;
-        bitMap.bitmap |= adminMask;
+    function allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
+        _allocateADMIN_WID(bitMap);
     }
 
     /**
@@ -49,9 +48,6 @@ library BitMapLib {
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function markWithdrawalCompleted(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
-        // Don't clear the ADMIN_WID since it's reserved and shouldn't be reused
-        if (withdrawalId == ADMIN_WID) return;
-
         uint256 mask = 1 << withdrawalId;
         bitMap.bitmap &= ~mask; // Clear the bit
     }
@@ -125,5 +121,14 @@ library BitMapLib {
         }
         // If all 256 are occupied, revert
         revert NoFreeWithdrawalId();
+    }
+
+    /**
+     * @dev Mark ADMIN_WID as reserved
+     * @param bitMap The bitmap storage reference
+     */
+    function _allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
+        uint256 adminMask = 1 << ADMIN_WID;
+        bitMap.bitmap |= adminMask;
     }
 }

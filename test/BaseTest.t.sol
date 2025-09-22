@@ -81,10 +81,10 @@ contract BaseTest is Test {
         _advanceEpoch();
 
         // Then add them to the CoreVault
-        vm.prank(admin);
+        vm.startPrank(admin);
         coreVault.addValidator(1);
-        vm.prank(admin);
         coreVault.addValidator(2);
+        vm.stopPrank();
     }
 
     // Helper function to register a validator in the staking precompile

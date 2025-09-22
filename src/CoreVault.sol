@@ -295,7 +295,8 @@ contract CoreVault is
                 uint256 _toUndelegate = _excess < _availableStake ? _excess : _availableStake;
 
                 if (_toUndelegate > 0) {
-                    _undelegate(_v, _toUndelegate, ADMIN_WID);
+                    _checkFreeAdminWid(_v);
+                    _allocateADMIN_WIDandUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
                     pendingRedelegateByValidator[_v] += _toUndelegate;
                     totalPendingRedelegation += _toUndelegate;

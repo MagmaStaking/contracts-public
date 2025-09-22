@@ -255,8 +255,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             uint256 amt = _getDelegatorStake(v, address(this));
             uint256 pull = (amt * _bps) / 10_000;
             if (pull > 0) {
-                uint8 _wid = ADMIN_WID;
-                _undelegate(v, pull, _wid);
+                _checkFreeAdminWid(v);
+                _allocateADMIN_WIDandUndelegate(v, pull);
                 pendingRedelegateByValidator[v] += pull;
                 totalPendingRedelegation += pull;
             }
@@ -276,6 +276,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (!exists || amt == 0) continue;
             _withdraw(_valId, ADMIN_WID);
+            _markWithdrawalCompleted(_valId, ADMIN_WID);
             emit AdminCompletedRebalanceWithdrawal(_valId, amt);
             pendingRedelegateByValidator[_valId] -= amt;
             totalPendingRedelegation -= amt;

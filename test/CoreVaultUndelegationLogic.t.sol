@@ -68,8 +68,20 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             _setupValidatorStake(valId, stakeAmounts[i]);
 
             // Add validator to CoreVault AFTER stake is set
-            vm.prank(admin);
+            vm.startPrank(admin);
             coreVault.addValidator(valId);
+
+            // Complete the rebalancing immediately after each validator addition
+            // This clears the admin withdrawal ID so the next validator can be added
+            if (i < validatorIds.length - 1) {
+                // Don't need to do this for the last validator
+                // Advance epochs to make admin withdrawals ready
+                _advanceEpochsForWithdrawal();
+
+                // Complete the rebalancing to clear admin withdrawal IDs
+                coreVault.redelegateToValidators();
+            }
+            vm.stopPrank();
         }
     }
 
@@ -795,10 +807,21 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             );
         }
 
+        // Add validators one by one, completing rebalancing between each to avoid AdminWidInUse
+        vm.startPrank(admin);
         for (uint256 i = 0; i < validators.length; i++) {
-            vm.prank(admin);
             freshCoreVault.addValidator(validators[i]);
+
+            // Complete rebalancing after each validator addition (except the last one)
+            if (i < validators.length - 1) {
+                // Advance epochs to make admin withdrawals ready
+                _advanceEpochsForWithdrawal();
+
+                // Complete the rebalancing to clear admin withdrawal IDs
+                freshCoreVault.redelegateToValidators();
+            }
         }
+        vm.stopPrank();
 
         // Calculate actual available active stake (much smaller than total)
         uint256 totalActiveStake = 0;
