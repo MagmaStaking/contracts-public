@@ -292,6 +292,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.totalAssets(), assetsBefore + assets);
         assertEq(wmon.balanceOf(address(magma)), 0);
 
+        // gVault assertions
+        assertEq(assets, gvault.delegatedAmountOf(user, 3));
+        assertEq(shares, gvault.delegatedSharesOf(user, 3));
+        assertEq(assets, gvault.maxWithdrawableFromGVault(user, 3));
+
         // User assertions
         assertEq(magma.balanceOf(user), shares);
         assertEq(wmon.balanceOf(user), 0);
@@ -465,6 +470,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets() + assets);
 
+        // gVault assertions
+        assertEq(0, gvault.delegatedAmountOf(user, 3));
+        assertEq(0, gvault.delegatedSharesOf(user, 3));
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
+
         // user assertions
         assertEq(magma.balanceOf(user), sharesUserBefore - shares);
     }
@@ -552,6 +562,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // gVault assertions
+        assertEq(0, gvault.delegatedAmountOf(user, 3));
+        assertEq(0, gvault.delegatedSharesOf(user, 3));
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
 
         // User assertions
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
@@ -805,6 +820,102 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(assetsBefore, magma.totalAssets());
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // gVault assertions
+        assertEq(assets, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
+        assertEq(shares, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
+        assertEq(assets, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
+
+        // User assertions
+        assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
+        assertEq(magma.balanceOf(address(user)), 0);
+        assertEq(user.balance, 0);
+    }
+
+    function test_GVaultRedeemFlowWhenRebalance() public {
+        uint256 assets = 5 ether;
+        // CoreVault stake so user can redeem from corevault with his remaining shares after redeeming from gVault
+        _depositHelper(assets * 100, address(1000), false);
+        uint256 assetsBefore = magma.totalAssets();
+        uint256 shares = _depositGVaultHelper(assets);
+        uint256 userWMONBefore = wmon.balanceOf(address(user));
+
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5_000);
+
+        uint256 assetsGVault = gvault.maxWithdrawableFromGVault(user, 3);
+        uint256 sharesGVault = magma.convertToAssets(assetsGVault);
+
+        assertEq(assets / 2, assetsGVault);
+        assertEq(assets, magma.convertToAssets(shares));
+
+        vm.startPrank(user);
+        uint256 requestId1 = magma.requestRedeemGVault(sharesGVault, user, user, 3);
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
+        assertEq(assets / 2, magma.redeem(requestId1, user, user));
+
+        // 7540 vault assertions
+        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
+            magma.pendingRedeemRequests(user, requestId1);
+        assertEq(address(0), _owner);
+        assertEq(0, _shares);
+        assertEq(0, _assets);
+        assertEq(0, _claimableTime);
+
+        assertEq(0, magma.balanceOf(address(magma)));
+        assertEq(
+            assetsBefore + assets / 2,
+            magma.totalAssets(),
+            "Total assets should be equal to assets before + 1/2 of depositted assets"
+        );
+        assertEq(address(magma).balance, 0);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // gVault assertions
+        assertEq(assets / 2, gvault.delegatedAmountOf(user, 3), "Delegated amount in gVault should be 0");
+        assertEq(shares - sharesGVault, gvault.delegatedSharesOf(user, 3), "Delegates shares in gVault should be 0");
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
+
+        // User assertions
+        assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets / 2);
+        assertEq(
+            magma.balanceOf(address(user)),
+            shares - sharesGVault,
+            "Shares to be redeemed on corevault should be consistent with the balance of the user"
+        );
+        assertEq(user.balance, 0);
+
+        uint256 requestId2 = magma.requestRedeem(shares - sharesGVault, user, user);
+        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        _advanceEpochsForWithdrawal();
+        assertEq(
+            assets / 2, magma.redeem(requestId2, user, user), "Redeem from coreVault should return half the assets"
+        );
+
+        vm.stopPrank();
+
+        // 7540 vault assertions
+        (address _owner_, uint256 _shares_, uint256 _assets_, uint256 _claimableTime_,) =
+            magma.pendingRedeemRequests(user, requestId2);
+        assertEq(address(0), _owner_);
+        assertEq(0, _shares_);
+        assertEq(0, _assets_);
+        assertEq(0, _claimableTime_);
+
+        assertEq(0, magma.balanceOf(address(magma)));
+        assertEq(
+            assetsBefore,
+            magma.totalAssets(),
+            "Assets before depositing should equal assets after depositing and redeeming"
+        );
+        assertEq(address(magma).balance, 0);
+        assertEq(wmon.balanceOf(address(magma)), 0);
+
+        // gVault assertions
+        assertEq(assets / 2, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
+        assertEq(shares - sharesGVault, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);

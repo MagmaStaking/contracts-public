@@ -114,7 +114,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
-        return _requestRedeem(shares, controller, owner, 0, false);
+        uint256 assets = convertToAssets(shares);
+        return _requestRedeem(shares, assets, controller, owner, 0, false);
     }
 
     function requestRedeemGVault(uint256 shares, address controller, address owner, uint64 valId)
@@ -123,7 +124,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
-        return _requestRedeem(shares, controller, owner, valId, true);
+        uint256 assets = convertToAssets(shares);
+        if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
+            revert NotEnoughAssetsGVault();
+        }
+        return _requestRedeem(shares, assets, controller, owner, valId, true);
     }
 
     /**
@@ -139,17 +144,20 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
-    function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
-        private
-        returns (uint256)
-    {
+    function _requestRedeem(
+        uint256 shares,
+        uint256 assets,
+        address controller,
+        address owner,
+        uint64 valId,
+        bool isGVault
+    ) private returns (uint256) {
         if (controller == address(0)) revert ErrZeroAddress();
         if (_ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
         if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
-        uint256 assets = convertToAssets(shares);
         uint256 requestId = _requestIdCount;
         pendingRedeemRequests[controller][requestId] = RedeemRequests({
             owner: owner,

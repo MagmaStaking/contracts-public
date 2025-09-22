@@ -8,7 +8,6 @@ import {DelInfo} from "./MagmaDelegationModule.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {console} from "forge-std/console.sol";
 
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
@@ -260,10 +259,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Send all accumulated ETH to user in a single transaction
         if (_totalSuccessfulWithdrawals > 0) {
             uint256 _fee = _chargeWithdrawalFee(_totalSuccessfulWithdrawals);
-            console.log("totalSuccessfulWithdrawals", _totalSuccessfulWithdrawals);
-            console.log("fee", _fee);
             uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
-            console.log("remaining", _remaining);
             (bool success,) = address(magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
