@@ -212,8 +212,14 @@ contract CoreVault is
      * @dev Processes all withdrawal requests for the user and returns total amount distributed
      * @param _user The user whose withdrawal requests to complete
      * @return _totalWithdrawn The actual amount successfully withdrawn and sent to the user
+     * @return _totalWithdrawnAfterFee The amount withdrawn after applying withdrawal fees
      */
-    function completeUserWithdrawal(address _user) external nonReentrant onlyMagma returns (uint256 _totalWithdrawn) {
+    function completeUserWithdrawal(address _user)
+        external
+        nonReentrant
+        onlyMagma
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         return _completeUserWithdrawal(_user);
     }
 
