@@ -81,11 +81,13 @@ contract BaseTest is Test {
         _advanceEpoch();
 
         // Then add them to the CoreVault
-        vm.prank(admin);
+        vm.startPrank(admin);
+        // TODO: functionality to add more than one validator
         coreVault.addValidator(1);
-        // TODO: call redelegateToValidators
-        vm.prank(admin);
+        coreVault.redelegateToValidators();
         coreVault.addValidator(2);
+        coreVault.redelegateToValidators();
+        vm.stopPrank();
     }
 
     // Helper function to register a validator in the staking precompile
