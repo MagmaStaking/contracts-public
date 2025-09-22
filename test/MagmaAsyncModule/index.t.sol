@@ -98,6 +98,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         return (requestId, shares);
     }
 
+    function _setWithdrawalFee(uint256 fee) internal {
+        vm.prank(admin);
+        magma.setWithdrawalFee(fee);
+    }
+
     function test_ERC165Support() public view {
         bytes4 erc7540InterfaceId = 0x620ee8e4;
         assertTrue(magma.supportsInterface(erc7540InterfaceId));

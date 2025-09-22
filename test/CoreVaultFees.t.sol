@@ -15,7 +15,7 @@ contract CoreVaultRewardsTest is BaseTest {
     function _mulDivCeil1000(uint256 x, uint256 y) internal pure returns (uint256) {
         // computes ceil(x * y / 1000)
         uint256 prod = x * y;
-        return (prod + 999) / 1000;
+        return (prod + 9990) / 10_000;
     }
 
     uint64 constant VAL_1 = 1;
@@ -90,7 +90,7 @@ contract CoreVaultRewardsTest is BaseTest {
 
         // Complete withdrawal directly on CoreVault from Magma context (mirrors other tests)
         vm.prank(address(magma));
-        uint256 gross = coreVault.completeUserWithdrawal(user);
+        (uint256 gross,) = coreVault.completeUserWithdrawal(user);
 
         // Expect 1% fee (per 1000 rounding) on gross ~= deposit/20 for first deposit
         uint256 expectedGross = depositAmt / 20;

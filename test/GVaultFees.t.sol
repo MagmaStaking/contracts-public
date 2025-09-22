@@ -8,7 +8,7 @@ import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 contract GVaultRewardsTest is BaseTest {
     function _mulDivCeil1000(uint256 x, uint256 y) internal pure returns (uint256) {
         uint256 prod = x * y;
-        return (prod + 999) / 1000;
+        return (prod + 9990) / 10_000;
     }
 
     uint64 constant VAL_1 = 1;
@@ -34,7 +34,7 @@ contract GVaultRewardsTest is BaseTest {
         // Call: gVault compounds rewards per validator
         gvault.claimAndCompoundRewards(VAL_1);
 
-        // Rewards total = 10 ether; fee uses magma.rewardsFee() per 1000
+        // Rewards total = 10 ether; fee uses magma.rewardsFee() per 10_000
         uint256 feeReceiverAfter = admin.balance;
         uint256 expectedFee = _mulDivCeil1000(10 ether, magma.rewardsFee());
         assertEq(feeReceiverAfter - feeReceiverBefore, expectedFee, "fee incorrect");
@@ -48,7 +48,7 @@ contract GVaultRewardsTest is BaseTest {
     function testWithdrawalsFeeIsCharged() public {
         // Configure withdrawal fee and receiver as admin
         vm.startPrank(admin);
-        magma.setWithdrawalFee(10); // 10 per 1000 = 1%
+        magma.setWithdrawalFee(100); // 100 per 10_000 = 1%
         magma.setFeeReceiver(admin);
         vm.stopPrank();
 
@@ -94,7 +94,7 @@ contract GVaultRewardsTest is BaseTest {
 
         // Complete withdrawal directly on gVault from Magma context
         vm.prank(address(magma));
-        uint256 gross = gvault.completeUserWithdrawal(user);
+        (uint256 gross,) = gvault.completeUserWithdrawal(user);
 
         // Expect 1% fee (per 1000 rounding) on gross ~= deposit/20
         uint256 expectedGross = depositAmt / 20;
