@@ -25,14 +25,6 @@ library BitMapLib {
     }
 
     /**
-     * @dev Initialize bitmap for CoreVault with ADMIN_WID marked as reserved
-     * @param bitMap The bitmap storage reference
-     */
-    function init(WithdrawalBitMap storage bitMap) internal {
-        _allocateADMIN_WID(bitMap);
-    }
-
-    /**
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */

@@ -316,16 +316,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         _delegate(_valId, _remaining);
     }
 
-    function _registerValidator(uint64 _valId) internal {
-        if (_valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
-
-        validators.push(_valId);
-        isWhitelisted[_valId] = true;
-
-        emit ValidatorAdded(_valId);
-    }
-
     /**
      * @dev Convert assets to shares for a specific validator (EIP-4626 style)
      * @param _valId The validator ID

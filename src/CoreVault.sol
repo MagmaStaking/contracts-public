@@ -464,20 +464,6 @@ contract CoreVault is
         }
     }
 
-    function _registerValidator(uint64 _valId) internal {
-        if (_valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
-
-        validators.push(_valId);
-        isWhitelisted[_valId] = true;
-
-        _checkFreeAdminWid(_valId);
-        // Initialize bitmap with ADMIN_WID marked as reserved
-        withdrawalIdBitmaps[_valId].init();
-
-        emit ValidatorAdded(_valId);
-    }
-
     /**
      * @dev Simple insertion sort for ValidatorAmount array (ascending by amount)
      */
