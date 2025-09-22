@@ -19,7 +19,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     }
 
     function test_RedeemWithdrawalFee() public {
-        // TODO: if in basis points change to 500
+        // TODO: if in basis points change to 500 everywhere
         _setWithdrawalFee(50);
         uint256 assets = 100 ether;
         uint256 assetsAfterFee = 95 ether;
@@ -66,55 +66,57 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(user.balance, 0);
     }
 
-    // function test_RedeemGVaultWithdrawalFee() public {
-    //     uint256 assets = 5 ether;
-    //     (uint256 requestId, uint256 shares) = _requestRedeemGVaultHelper(assets);
-    //     uint256 userWMONBefore = wmon.balanceOf(address(user));
-    //     uint256 assetsBefore = magma.totalAssets();
+    function test_RedeemGVaultWithdrawalFee() public {
+        _setWithdrawalFee(50);
+        uint256 assets = 1 ether;
+        uint256 assetsAfterFee = 950000000000000000;
+        (uint256 requestId, uint256 shares) = _requestRedeemGVaultHelper(assets);
+        uint256 userWMONBefore = wmon.balanceOf(address(user));
+        uint256 assetsBefore = magma.totalAssets();
 
-    //     // Assertions before redeem
-    //     (address owner, uint256 pendingShares, uint256 pendingAssets,, bool isGVault) =
-    //         magma.pendingRedeemRequests(user, requestId);
-    //     assertEq(user, owner);
-    //     assertEq(shares, pendingShares);
-    //     assertEq(assets, pendingAssets);
-    //     assertEq(true, isGVault);
+        // Assertions before redeem
+        (address owner, uint256 pendingShares, uint256 pendingAssets,, bool isGVault) =
+            magma.pendingRedeemRequests(user, requestId);
+        assertEq(user, owner);
+        assertEq(shares, pendingShares);
+        assertEq(assets, pendingAssets);
+        assertEq(true, isGVault);
 
-    //     vm.expectEmit(true, true, true, true);
-    //     emit UserWithdrawalCompleted(user, assets);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit WrappedMonad.Deposit(address(magma), assets);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit WrappedMonad.Transfer(address(magma), user, assets);
-    //     vm.expectEmit(true, true, true, true);
-    //     emit IERC4626.Withdraw(user, user, address(magma), assets, shares);
+        vm.expectEmit(true, true, true, true);
+        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Deposit(address(magma), assetsAfterFee);
+        vm.expectEmit(true, true, true, true);
+        emit WrappedMonad.Transfer(address(magma), user, assetsAfterFee);
+        vm.expectEmit(true, true, true, true);
+        emit IERC4626.Withdraw(user, user, address(magma), assetsAfterFee, shares);
 
-    //     vm.prank(user);
-    //     assertEq(assets, magma.redeem(requestId, user, user));
+        vm.prank(user);
+        assertEq(assetsAfterFee, magma.redeem(requestId, user, user));
 
-    //     // 7540 vault assertions
-    //     (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
-    //         magma.pendingRedeemRequests(user, requestId);
-    //     assertEq(address(0), _owner);
-    //     assertEq(0, _shares);
-    //     assertEq(0, _assets);
-    //     assertEq(0, _claimableTime);
+        // 7540 vault assertions
+        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
+            magma.pendingRedeemRequests(user, requestId);
+        assertEq(address(0), _owner);
+        assertEq(0, _shares);
+        assertEq(0, _assets);
+        assertEq(0, _claimableTime);
 
-    //     assertEq(0, magma.balanceOf(address(magma)));
-    //     assertEq(assetsBefore, magma.totalAssets());
-    //     assertEq(address(magma).balance, 0);
-    //     assertEq(wmon.balanceOf(address(magma)), 0);
+        assertEq(0, magma.balanceOf(address(magma)));
+        assertEq(assetsBefore, magma.totalAssets());
+        assertEq(address(magma).balance, 0);
+        assertEq(wmon.balanceOf(address(magma)), 0);
 
-    //     // gVault assertions
-    //     assertEq(0, gvault.delegatedAmountOf(user, 3));
-    //     assertEq(0, gvault.delegatedSharesOf(user, 3));
-    //     assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
+        // gVault assertions
+        assertEq(0, gvault.delegatedAmountOf(user, 3));
+        assertEq(0, gvault.delegatedSharesOf(user, 3));
+        assertEq(0, gvault.maxWithdrawableFromGVault(user, 3));
 
-    //     // User assertions
-    //     assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
-    //     assertEq(magma.balanceOf(address(user)), 0);
-    //     assertEq(user.balance, 0);
-    // }
+        // User assertions
+        assertEq(wmon.balanceOf(address(user)), userWMONBefore + assetsAfterFee);
+        assertEq(magma.balanceOf(address(user)), 0);
+        assertEq(user.balance, 0);
+    }
 
     // function test_RedeemMONWithdrawalFee() public {
     //     uint256 assets = 5 ether;
