@@ -10,6 +10,7 @@ import "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
+    // TODO: check this is not needed
     using Math for uint256;
 
     function totalAssets() public view virtual override returns (uint256) {
@@ -223,11 +224,12 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
 
+        // TODO: change to 10_000 everywhere
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
-        uint256 totalWithdrawn =
+        (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) =
             request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
 
         uint256 shares =
@@ -241,18 +243,18 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         if (receiveWMON) {
-            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
-            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawn);
+            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawnAfterFee}();
+            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawnAfterFee);
         } else {
-            (bool sent,) = payable(receiver).call{value: totalWithdrawn}("");
+            (bool sent,) = payable(receiver).call{value: totalWithdrawnAfterFee}("");
             if (!sent) {
                 revert ErrNativeTransferFailed();
             }
         }
 
-        emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
+        emit Withdraw(controller, receiver, address(this), totalWithdrawnAfterFee, shares);
 
-        return totalWithdrawn;
+        return totalWithdrawnAfterFee;
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
