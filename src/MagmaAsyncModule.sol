@@ -221,7 +221,6 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
 
-        // TODO: change to 10_000 everywhere
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;

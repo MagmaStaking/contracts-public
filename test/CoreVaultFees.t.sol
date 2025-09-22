@@ -15,7 +15,7 @@ contract CoreVaultRewardsTest is BaseTest {
     function _mulDivCeil1000(uint256 x, uint256 y) internal pure returns (uint256) {
         // computes ceil(x * y / 1000)
         uint256 prod = x * y;
-        return (prod + 999) / 1000;
+        return (prod + 9990) / 10_000;
     }
 
     uint64 constant VAL_1 = 1;

@@ -23,10 +23,10 @@ contract MagmaScript is Script {
         address feeReceiverAddress = vm.envAddress("FEE_RECEIVER");
         require(feeReceiverAddress != address(0), "missing FEE_RECEIVER");
 
-        uint256 rewardsFee = vm.envUint("REWARDS_FEE"); // rewards fee in basis points, ie over 1000.
+        uint256 rewardsFee = vm.envUint("REWARDS_FEE"); // rewards fee in basis points, ie over 10_000.
         require(rewardsFee != 0, "missing REWARDS_FEE");
 
-        uint256 withdrawalFee = vm.envUint("WITHDRAWAL_FEE"); // withdrawal fee in basis points, ie over 1000.
+        uint256 withdrawalFee = vm.envUint("WITHDRAWAL_FEE"); // withdrawal fee in basis points, ie over 10_000.
         require(withdrawalFee == 0, "WITHDRAWAL_FEE should be 0 on deployment");
 
         // Deploy UUPS proxy and initialize

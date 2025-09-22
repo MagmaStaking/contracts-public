@@ -19,8 +19,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     }
 
     function test_RedeemWithdrawalFee() public {
-        // TODO: if in basis points change to 500 everywhere
-        _setWithdrawalFee(50);
+        _setWithdrawalFee(500);
         uint256 assets = 100 ether;
         uint256 assetsAfterFee = 95 ether;
         (uint256 requestId, uint256 shares) = _requestRedeemHelper(assets);
@@ -67,7 +66,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     }
 
     function test_RedeemGVaultWithdrawalFee() public {
-        _setWithdrawalFee(50);
+        _setWithdrawalFee(500);
         uint256 assets = 1 ether;
         uint256 assetsAfterFee = 950000000000000000;
         (uint256 requestId, uint256 shares) = _requestRedeemGVaultHelper(assets);
@@ -119,7 +118,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     }
 
     function test_RedeemMONWithdrawalFee() public {
-        _setWithdrawalFee(50);
+        _setWithdrawalFee(500);
         uint256 assets = 100 ether;
         uint256 assetsAfterFee = 95 ether;
         (uint256 requestId, uint256 shares) = _requestRedeemHelper(assets);
@@ -162,7 +161,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     }
 
     function test_RedeemWithdrawalSlashedWithdrawalFee() public {
-        _setWithdrawalFee(50);
+        _setWithdrawalFee(500);
         uint256 assets = 120 ether;
         uint256 assetsAfterFee = 114 ether;
         uint256 expectedAssets = assetsAfterFee / 2;

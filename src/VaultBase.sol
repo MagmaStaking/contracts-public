@@ -70,7 +70,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 1000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 10_000, Math.Rounding.Ceil);
         if (_fee > 0) {
             (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
