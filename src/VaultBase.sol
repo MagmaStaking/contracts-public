@@ -264,7 +264,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
-            _totalWithdrawn = _totalSuccessfulWithdrawals;
+            _totalWithdrawn = _remaining;
         }
 
         // Clear all withdrawal requests for this user after processing
