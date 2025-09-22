@@ -30,11 +30,15 @@ abstract contract MagmaBase is
     // Tracks principal assets for each user for rewards calculation
     mapping(address => uint256) internal principalAssets;
     /// @notice The fee for rewards.
-    /// @dev The fee is expressed as a percentage of the reward amount.
+    /// @dev The fee is expressed as a bps percentage of the reward amount.
     uint256 public rewardsFee;
 
-    /// @notice The address that receives the rewards fee.
-    address public rewardsFeeReceiver;
+    /// @notice The fee for withdrawals.
+    /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
+    uint256 public withdrawalFee;
+
+    /// @notice The address that receives the fees.
+    address public feeReceiver;
 
     /// @notice Struct to track pending redeem requests
     /// @dev Claimable state may transition automatically after a timestamp has passed.
@@ -84,7 +88,8 @@ abstract contract MagmaBase is
         string memory symbol_,
         address admin_,
         uint256 rewardsFee_,
-        address rewardsFeeReceiver_
+        uint256 withdrawalFee_,
+        address feeReceiver_
     ) internal onlyInitializing {
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -93,7 +98,8 @@ abstract contract MagmaBase is
         __ERC165_init();
         admin = admin_;
         rewardsFee = rewardsFee_;
-        rewardsFeeReceiver = rewardsFeeReceiver_;
+        withdrawalFee = withdrawalFee_;
+        feeReceiver = feeReceiver_;
     }
 
     /**

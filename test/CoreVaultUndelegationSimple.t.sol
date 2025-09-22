@@ -52,7 +52,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         address magmaProxy = UnsafeUpgrades.deployUUPSProxy(
             magmaImpl,
             abi.encodeCall(
-                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, admin)
+                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin)
             )
         );
         magma = Magma(payable(magmaProxy));

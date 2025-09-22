@@ -26,6 +26,9 @@ contract MagmaScript is Script {
         uint256 rewardsFee = vm.envUint("REWARDS_FEE"); // rewards fee in basis points, ie over 1000.
         require(rewardsFee != 0, "missing REWARDS_FEE");
 
+        uint256 withdrawalFee = vm.envUint("WITHDRAWAL_FEE"); // withdrawal fee in basis points, ie over 1000.
+        require(withdrawalFee == 0, "WITHDRAWAL_FEE should be 0 on deployment");
+
         // Deploy UUPS proxy and initialize
         address magmaProxy = Upgrades.deployUUPSProxy(
             "Magma.sol",
@@ -39,6 +42,7 @@ contract MagmaScript is Script {
                     address(0),
                     address(0),
                     rewardsFee,
+                    withdrawalFee,
                     feeReceiverAddress
                 )
             )

@@ -59,4 +59,7 @@ interface IGVault is IBaseVault {
     event WithdrawalPaymentFailed(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
+    event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
+    event RewardsFeeTransferFailed(uint256 indexed amount);
+    event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 }

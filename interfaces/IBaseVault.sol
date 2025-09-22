@@ -23,6 +23,8 @@ interface IBaseVault {
     event ValidatorRemovalInitiated(uint64 indexed valId);
     event ValidatorRemoved(uint64 indexed valId);
     event ValidatorRemovalCompleted(uint64 indexed valId);
+    event WithdrawalFeeTransferFailed(uint256 indexed amount);
+    event WithdrawalFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 
     event UserWithdrawalCompleted(address indexed user, uint256 totalWithdrawn);
     event WithdrawalPaymentSuccess(

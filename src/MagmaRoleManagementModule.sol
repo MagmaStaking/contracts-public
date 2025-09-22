@@ -25,8 +25,13 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
         rewardsFee = _rewardsFee;
     }
 
-    function setRewardsFeeReceiver(address _rewardsFeeReceiver) external {
+    function setWithdrawalFee(uint256 _withdrawalFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        rewardsFeeReceiver = _rewardsFeeReceiver;
+        withdrawalFee = _withdrawalFee;
+    }
+
+    function setFeeReceiver(address _feeReceiver) external {
+        if (msg.sender != admin) revert ErrNotAdmin();
+        feeReceiver = _feeReceiver;
     }
 }
