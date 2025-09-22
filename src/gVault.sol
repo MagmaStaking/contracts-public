@@ -211,7 +211,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
     }
 
-    function completeUserWithdrawal(address _user) external nonReentrant returns (uint256 _totalWithdrawn) {
+    function completeUserWithdrawal(address _user)
+        external
+        nonReentrant
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         return _completeUserWithdrawal(_user);
     }
 
