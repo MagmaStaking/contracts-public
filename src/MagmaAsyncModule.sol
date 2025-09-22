@@ -10,8 +10,6 @@ import "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
-    using Math for uint256;
-
     function totalAssets() public view virtual override returns (uint256) {
         return coreVault.totalAssets() + gVault.totalAssets();
     }
@@ -114,7 +112,8 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
-        return _requestRedeem(shares, controller, owner, 0, false);
+        uint256 assets = convertToAssets(shares);
+        return _requestRedeem(shares, assets, controller, owner, 0, false);
     }
 
     // TODO: _convertToAssets from gVault in this case, but if you rebalance you will have less assets, check both exchange rates and give him the most assets
@@ -125,14 +124,11 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
-        /**
-         *  TODO: case you withdraw part from gVault, other part from corevault, becuase of rebalance, in this case we do the contracty of liquity
-         * TODO: you can only withdraw 8 gMON instead of 10 in this case
-         * TODO: example https://github.com/liquity/dev/blob/main/packages/contracts/contracts/StabilityPool.sol -> look at the P, linea 872 _updateDepositAndSnapshots
-         */
-        // TODO: redo this part by itself, see if enough shares if not revert, if enough shares redeem, function in gVault which is going
-        // TODO: if rebalance we update the globalP, no the userP, and there is also a scale
-        return _requestRedeem(shares, controller, owner, valId, true);
+        uint256 assets = convertToAssets(shares);
+        if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
+            revert NotEnoughAssetsGVault();
+        }
+        return _requestRedeem(shares, assets, controller, owner, valId, true);
     }
 
     /**
@@ -148,17 +144,20 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * @dev https://eips.ethereum.org/EIPS/eip-7540#symmetry-and-non-inclusion-of-requestwithdraw-and-requestmint
      * @dev https://eips.ethereum.org/EIPS/eip-7540#methods
      */
-    function _requestRedeem(uint256 shares, address controller, address owner, uint64 valId, bool isGVault)
-        private
-        returns (uint256)
-    {
+    function _requestRedeem(
+        uint256 shares,
+        uint256 assets,
+        address controller,
+        address owner,
+        uint64 valId,
+        bool isGVault
+    ) private returns (uint256) {
         if (controller == address(0)) revert ErrZeroAddress();
         if (_ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
         if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
-        uint256 assets = convertToAssets(shares);
         uint256 requestId = _requestIdCount;
         pendingRedeemRequests[controller][requestId] = RedeemRequests({
             owner: owner,
@@ -228,7 +227,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         delete pendingRedeemRequests[controller][requestId];
         _ownerRequested[owner] = false;
 
-        uint256 totalWithdrawn =
+        (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) =
             request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
 
         uint256 shares =
@@ -242,18 +241,18 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         }
 
         if (receiveWMON) {
-            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawn}();
-            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawn);
+            WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawnAfterFee}();
+            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawnAfterFee);
         } else {
-            (bool sent,) = payable(receiver).call{value: totalWithdrawn}("");
+            (bool sent,) = payable(receiver).call{value: totalWithdrawnAfterFee}("");
             if (!sent) {
                 revert ErrNativeTransferFailed();
             }
         }
 
-        emit Withdraw(controller, receiver, address(this), totalWithdrawn, shares);
+        emit Withdraw(controller, receiver, address(this), totalWithdrawnAfterFee, shares);
 
-        return totalWithdrawn;
+        return totalWithdrawnAfterFee;
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows

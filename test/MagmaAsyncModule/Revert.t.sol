@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-
 import {MagmaAsyncModuleTest} from "./index.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
@@ -62,7 +61,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 maxAssets = 3 ether;
         MockMaxDeposit mockMagma = new MockMaxDeposit();
         mockMagma.initialize(
-            IERC20(address(wmon)), "gMON", "gMON", admin, address(coreVault), address(gvault), 0, address(0)
+            IERC20(address(wmon)), "gMON", "gMON", admin, address(coreVault), address(gvault), 0, 0, address(0)
         );
 
         vm.deal(user, assets);
@@ -162,7 +161,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         _activateAllStakes();
         _activateGVaultStakes();
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
@@ -170,15 +169,27 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 assets = 5 ether;
         uint256 shares = _depositHelper(assets);
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
-    function test_DepositGVaultRedeemFromCoreVaultNoStake() public {
+    function test_RevertWhen_DepositGVaultRedeemFromCoreVaultNoStake() public {
         uint256 assets = 5 ether;
         uint256 shares = _depositGVaultHelper(assets);
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, 5000000000000000000, 0));
         magma.requestRedeem(shares, user, user);
+    }
+
+    function test_RevertWhen_RebalanceDepositGVaultRequestAllShares() public {
+        uint256 assets = 5 ether;
+        uint256 shares = _depositGVaultHelper(assets);
+
+        vm.prank(admin);
+        gvault.adminInitiateRebalanceBps(5_000);
+
+        vm.prank(user);
+        vm.expectRevert(NotEnoughAssetsGVault.selector);
+        assertEq(0, magma.requestRedeemGVault(shares, user, user, 3));
     }
 }

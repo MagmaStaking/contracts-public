@@ -213,8 +213,14 @@ contract CoreVault is
      * @dev Processes all withdrawal requests for the user and returns total amount distributed
      * @param _user The user whose withdrawal requests to complete
      * @return _totalWithdrawn The actual amount successfully withdrawn and sent to the user
+     * @return _totalWithdrawnAfterFee The amount withdrawn after applying withdrawal fees
      */
-    function completeUserWithdrawal(address _user) external nonReentrant onlyMagma returns (uint256 _totalWithdrawn) {
+    function completeUserWithdrawal(address _user)
+        external
+        nonReentrant
+        onlyMagma
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
+    {
         return _completeUserWithdrawal(_user);
     }
 
@@ -255,14 +261,14 @@ contract CoreVault is
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 1000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
 
         // send fee to fee receiver
-        (bool _ok,) = magma.rewardsFeeReceiver().call{value: _fee}("");
+        (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
         if (!_ok) {
             emit RewardsFeeTransferFailed(_fee);
         } else {
-            emit RewardsFeeTransferSuccess(_fee, magma.rewardsFeeReceiver());
+            emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
         }
 
         uint256 _remaining = _rewards - _fee;

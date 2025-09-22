@@ -15,7 +15,9 @@ interface IGVault is IBaseVault {
     function adminCompleteRebalance() external;
 
     // Withdrawal completion function
-    function completeUserWithdrawal(address user) external returns (uint256 totalWithdrawn);
+    function completeUserWithdrawal(address user)
+        external
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFeen);
 
     // Delegation functions (onlyMagma)
     function delegate(address user, uint64 valId) external payable;
@@ -28,6 +30,7 @@ interface IGVault is IBaseVault {
 
     // View functions
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
+    function maxWithdrawableFromGVault(address _user, uint64 _valId) external view returns (uint256);
     function minQueueDelaySeconds() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
@@ -59,4 +62,7 @@ interface IGVault is IBaseVault {
     event WithdrawalPaymentFailed(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
+    event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
+    event RewardsFeeTransferFailed(uint256 indexed amount);
+    event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 }

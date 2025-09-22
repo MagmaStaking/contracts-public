@@ -15,7 +15,8 @@ interface IMagma {
 
     // Rewards functions
     function rewardsFee() external view returns (uint256);
-    function rewardsFeeReceiver() external view returns (address);
+    function withdrawalFee() external view returns (uint256);
+    function feeReceiver() external view returns (address);
 
     // Total assets functions
     function totalAssets() external view returns (uint256);

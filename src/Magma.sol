@@ -21,9 +21,10 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule {
         address coreVault_,
         address gVault_,
         uint256 rewardsFee_,
-        address rewardsFeeReceiver_
+        uint256 withdrawalFee_,
+        address feeReceiver_
     ) external initializer {
-        __MagmaBase_init(asset_, name_, symbol_, admin_, rewardsFee_, rewardsFeeReceiver_);
+        __MagmaBase_init(asset_, name_, symbol_, admin_, rewardsFee_, withdrawalFee_, feeReceiver_);
         coreVault = ICoreVault(coreVault_);
         gVault = IGVault(gVault_);
     }
