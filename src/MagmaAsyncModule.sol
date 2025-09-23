@@ -3,7 +3,16 @@ pragma solidity 0.8.30;
 
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import "./MagmaErrorsModule.sol";
+import {
+    NotEnoughAssetsGVault,
+    ErrZeroAddress,
+    ErrRequestPending,
+    ErrZeroShares,
+    ErrNotAuthorized,
+    ErrInsufficientShares,
+    RequestInexistent,
+    ErrNativeTransferFailed
+} from "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
