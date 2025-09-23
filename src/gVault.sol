@@ -5,7 +5,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
@@ -13,6 +12,17 @@ import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {
+    ErrNotWhitelisted,
+    ErrInvalidBps,
+    ErrZeroAddress,
+    ErrCapZero,
+    ErrExceedsCap,
+    ErrBelowMinWithdraw,
+    ErrInsufficientDelegated,
+    ErrRebalanceInProgress,
+    ErrNotAdmin
+} from "./MagmaErrorsModule.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
