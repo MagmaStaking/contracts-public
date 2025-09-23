@@ -42,9 +42,8 @@ contract GVaultValidatorOperations is BaseTest {
         BaseTest.setUp();
         // Redeploy gVault with epochSeconds = 0 to bypass epoch guard for most tests
         address gVaultImpl = address(new gVault());
-        address gVaultProxy = UnsafeUpgrades.deployUUPSProxy(
-            gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address gVaultProxy =
+            UnsafeUpgrades.deployUUPSProxy(gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gVaultProxy));
         // Wire magma to new gVault
         vm.prank(admin);
@@ -506,7 +505,6 @@ contract GVaultValidatorOperations is BaseTest {
         _advanceEpochsForWithdrawal();
 
         // For now, skip the completion step since fund forwarding has issues in tests
-        // TODO: Fix fund forwarding test by properly setting up compatible validators
 
         // Verify intermediate state - validator should be in UNDELEGATING status
         assertEq(uint256(gvault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));

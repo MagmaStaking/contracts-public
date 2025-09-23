@@ -23,6 +23,10 @@ contract MagmaScript is Script {
         address feeReceiverAddress = vm.envAddress("FEE_RECEIVER");
         require(feeReceiverAddress != address(0), "missing FEE_RECEIVER");
 
+        // Based on 250 parallel withdraws per 25,000 second epoch
+        uint256 delay = 25000 / 250;
+        uint256 epoch = 25000;
+
         // Deploy UUPS proxy and initialize
         address magmaProxy = Upgrades.deployUUPSProxy(
             "Magma.sol",
@@ -37,21 +41,18 @@ contract MagmaScript is Script {
                     address(0),
                     0,
                     0,
-                    feeReceiverAddress
+                    feeReceiverAddress,
+                    delay
                 )
             )
         );
         magma = Magma(payable(magmaProxy));
 
-        // Based on 250 parallel withdraws per 25,000 second epoch
-        uint256 delay = 25000 / 250;
-        uint256 epoch = 25000;
-
         address coreProxy = Upgrades.deployUUPSProxy(
-            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
+            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), epoch, uint64(10)))
         );
         address gvProxy =
-            Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), delay, epoch)));
+            Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), epoch)));
 
         magma.setVaults(coreProxy, gvProxy);
 
@@ -61,7 +62,6 @@ contract MagmaScript is Script {
         console.log("Vault Name:", magma.name());
         console.log("Vault Symbol:", magma.symbol());
         console.log("Underlying Asset:", address(magma.asset()));
-        console.log("Default Delay:", magma.DEFAULT_DELAY());
 
         vm.stopBroadcast();
     }

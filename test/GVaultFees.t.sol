@@ -85,7 +85,7 @@ contract GVaultRewardsTest is BaseTest {
         uint256 requestId = magma.requestRedeemGVault(sharesToRedeem, user, user, VAL_1);
 
         // Wait for async delay and withdrawal maturity in the mock
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         // Balances before completion

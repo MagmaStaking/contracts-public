@@ -23,10 +23,10 @@ contract CoreVault is
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    // Per-validator amounts submitted for undelegation but not yet completed
-
-    uint256 public minQueueDelaySeconds;
     uint256 public epochSeconds;
+
+    // Limit batch of validators that can be added at once to prevent gas issues on the for loop
+    uint64 private _maxValidatorPerBatch;
 
     // Rebalance pacing guard
     uint256 public lastRebalanceTimestamp;
@@ -45,20 +45,19 @@ contract CoreVault is
         return super.paused();
     }
 
-    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+    function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
         __ReentrancyGuard_init();
         __Pausable_init();
         __VaultBase_init(_magma);
-        minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true;
+        _maxValidatorPerBatch = maxValidatorPerBatch_;
     }
 
     // Accept native funds returned from precompile withdrawals
     receive() external payable {}
 
     // whenNotPaused modifier is now inherited from PausableUpgradeable
-
     modifier onlyAfterEpoch() {
         if (epochSeconds != 0) {
             if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
@@ -76,10 +75,6 @@ contract CoreVault is
         _unpause();
     }
 
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
-        minQueueDelaySeconds = secondsDelay;
-    }
-
     // --------------------------------------------------------------------------------------------------------------
     // Validator management functions
     // --------------------------------------------------------------------------------------------------------------
@@ -91,6 +86,20 @@ contract CoreVault is
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
         _registerValidator(_valId);
+        _redelegateInitiate();
+    }
+
+    /**
+     * @notice Step 1: Add validators and initiate rebalance phase 1 (undelegation)
+     * @dev Add validators and trigger excess undelegation. Redistribution must be done manually via redistributeToValidators()
+     * @param validators The array of validator IDs to add
+     */
+    function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
+        if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            _registerValidator(validators[i]);
+        }
         _redelegateInitiate();
     }
 
@@ -260,15 +269,7 @@ contract CoreVault is
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
-
-        // send fee to fee receiver
-        (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
-        if (!_ok) {
-            emit RewardsFeeTransferFailed(_fee);
-        } else {
-            emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
-        }
+        uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
         uint256 _remaining = _rewards - _fee;
         _distributeAmountEquallyToValidators(_remaining);
@@ -298,7 +299,7 @@ contract CoreVault is
                     _checkFreeAdminWid(_v);
                     _allocateADMIN_WIDandUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
-                    pendingRedelegateByValidator[_v] += _toUndelegate;
+                    pendingRedelegateByValidator[_v] = _toUndelegate;
                     totalPendingRedelegation += _toUndelegate;
                 }
             }
@@ -341,18 +342,10 @@ contract CoreVault is
                 // For admin withdrawals, we need to handle pending redelegation amounts
                 _withdraw(_valId, ADMIN_WID);
                 // Update pending redelegation tracking
-                // TODO: consider slashing events
-                if (pendingRedelegateByValidator[_valId] >= _amount) {
-                    pendingRedelegateByValidator[_valId] -= _amount;
-                } else {
-                    pendingRedelegateByValidator[_valId] = 0;
-                }
 
-                if (totalPendingRedelegation >= _amount) {
-                    totalPendingRedelegation -= _amount;
-                } else {
-                    totalPendingRedelegation = 0;
-                }
+                // Note: in the case where the withdrawal is slashed we use the cached amount to deduct from totalPendingRedelegation
+                totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+                pendingRedelegateByValidator[_valId] = 0;
 
                 // Mark withdrawal ID as completed
                 _markWithdrawalCompleted(_valId, ADMIN_WID);
@@ -526,6 +519,10 @@ contract CoreVault is
      */
     function getUserWithdrawalRequestCount(address _user) external view returns (uint256) {
         return userWithdrawalRequests[_user].length;
+    }
+
+    function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyAdmin {
+        _maxValidatorPerBatch = maxValidatorPerBatch;
     }
 
     function _authorizeUpgrade(address) internal view override {

@@ -26,12 +26,11 @@ interface IGVault is IBaseVault {
     // Withdrawal completion functions
 
     // Initialization
-    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
+    function initialize(address _magma, uint256 _epochSeconds) external;
 
     // View functions
     function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
     function maxWithdrawableFromGVault(address _user, uint64 _valId) external view returns (uint256);
-    function minQueueDelaySeconds() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
@@ -62,7 +61,4 @@ interface IGVault is IBaseVault {
     event WithdrawalPaymentFailed(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
-    event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
-    event RewardsFeeTransferFailed(uint256 indexed amount);
-    event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
 }

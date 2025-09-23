@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "forge-std/Test.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {CoreVault} from "../src/CoreVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
-import {console} from "forge-std/console.sol";
 import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 import {
     ErrNotAdmin,
@@ -17,7 +17,8 @@ import {
     ErrPendingStakeNotZero,
     ErrNoPendingWithdrawRequest,
     ErrEpochGuard,
-    ErrNotEnoughValidators
+    ErrNotEnoughValidators,
+    MaxValidators
 } from "../src/MagmaErrorsModule.sol";
 
 /**
@@ -38,7 +39,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Redeploy CoreVault with epochSeconds = 0 to bypass epoch guard for most tests
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
         );
         coreVault = CoreVault(payable(coreProxy));
         // Wire magma to new coreVault
@@ -84,7 +85,8 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.addValidator(VAL_1);
     }
 
-    function test_addMultipleValidators() public {
+    // Using AddValidator function
+    function test_addMultipleValidators_AddValidator() public {
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
         coreVault.addValidator(VAL_2);
@@ -95,6 +97,67 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_1));
         assertTrue(coreVault.isWhitelisted(VAL_2));
         assertTrue(coreVault.isWhitelisted(VAL_3));
+    }
+
+    // Using AddValidators function
+    function test_AddMultipleValidators_AddValidators() public {
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = VAL_1;
+        validators[1] = VAL_2;
+        validators[2] = VAL_3;
+        vm.prank(admin);
+        coreVault.addValidators(validators);
+
+        assertEq(coreVault.getValidatorCount(), 3);
+        assertTrue(coreVault.isWhitelisted(VAL_1));
+        assertTrue(coreVault.isWhitelisted(VAL_2));
+        assertTrue(coreVault.isWhitelisted(VAL_3));
+    }
+
+    function test_AddValidatorsRedelegateOccurs() public {
+        // Add 3 validators with different stake amounts
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = uint64(10);
+        validators[1] = uint64(20);
+        validators[2] = uint64(30);
+        uint256[3] memory stakeAmounts = [uint256(100 ether), uint256(400 ether), uint256(400 ether)];
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            uint64 valId = validators[i];
+
+            _setupValidatorInStakingPrecompile(valId);
+
+            _setupValidatorStake(valId, stakeAmounts[i]);
+
+            if (i == validators.length - 1) {
+                vm.startPrank(admin);
+                coreVault.addValidators(validators);
+                _advanceEpochsForWithdrawal();
+                coreVault.redelegateToValidators();
+                vm.stopPrank();
+            }
+        }
+        assertEq(coreVault.getValidatorCount(), 3);
+        assertTrue(coreVault.isWhitelisted(uint64(10)));
+        assertTrue(coreVault.isWhitelisted(uint64(20)));
+        assertTrue(coreVault.isWhitelisted(uint64(30)));
+        assertEq(coreVault.delegatedAmount(uint64(10)), 300 ether, "Validator 10 should have 300 ether");
+        assertEq(coreVault.delegatedAmount(uint64(20)), 300 ether, "Validator 20 should have 300 ether");
+        assertEq(coreVault.delegatedAmount(uint64(30)), 300 ether, "Validator 30 should have 300 ether");
+    }
+
+    function test_RevertWhen_ExceedMaxValidatorPerBatch() public {
+        vm.prank(admin);
+        coreVault.setMaxValidatorPerBatch(1);
+
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = VAL_1;
+        validators[1] = VAL_2;
+        validators[2] = VAL_3;
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(MaxValidators.selector, 1));
+        coreVault.addValidators(validators);
     }
 
     // ============ STAKE REDISTRIBUTION TESTS ============
@@ -147,13 +210,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val2Initial = coreVault.delegatedAmount(VAL_2);
         uint256 val3Initial = coreVault.delegatedAmount(VAL_3);
 
-        console.log("Initial imbalanced stakes:");
-        console.log("VAL_1:", val1Initial);
-        console.log("VAL_2:", val2Initial);
-        console.log("VAL_3:", val3Initial);
-        console.log("Total:", val1Initial + val2Initial + val3Initial);
-        console.log("Expected target per validator:", expectedTarget);
-
         // Verify we have the expected imbalanced distribution
         assertEq(val1Initial, 400 ether, "VAL_1 should have 400 ether");
         assertEq(val2Initial, 200 ether, "VAL_2 should have 200 ether");
@@ -171,10 +227,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val1PendingRedelegation = coreVault.pendingRedelegateByValidator(VAL_1);
         assertTrue(val1PendingRedelegation > 0, "VAL_1 should have pending undelegations");
 
-        console.log("After adminRebalanceInitiate:");
-        console.log("Total pending redelegation:", coreVault.totalPendingRedelegation());
-        console.log("VAL_1 pending redelegation:", val1PendingRedelegation);
-
         // Step 2: Wait for withdrawal delay (simulate time passing)
         _advanceEpochsForWithdrawal();
 
@@ -186,12 +238,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val1Final = coreVault.delegatedAmount(VAL_1);
         uint256 val2Final = coreVault.delegatedAmount(VAL_2);
         uint256 val3Final = coreVault.delegatedAmount(VAL_3);
-
-        console.log("Final stakes:");
-        console.log("VAL_1:", val1Final);
-        console.log("VAL_2:", val2Final);
-        console.log("VAL_3:", val3Final);
-        console.log("Expected target:", expectedTarget);
 
         // All validators should now have stakes close to the target (~233.33 ether each)
         // Allow for small rounding differences
@@ -860,12 +906,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 initialValidator3Stake = coreVault.delegatedAmount(VAL_3);
         uint256 initialTotal = coreVault.getTotalDelegated();
 
-        console.log("=== INITIAL STATE ===");
-        console.log("VAL_1 stake:", initialValidator1Stake);
-        console.log("VAL_2 stake:", initialValidator2Stake);
-        console.log("VAL_3 stake:", initialValidator3Stake);
-        console.log("Total delegated:", initialTotal);
-
         // Verify initial distribution (should be equal since delegate() distributes equally)
         assertTrue(initialValidator1Stake > 0);
         assertTrue(initialValidator2Stake > 0);
@@ -882,10 +922,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
         assertTrue(coreVault.totalPendingRedelegation() > 0);
 
-        console.log("=== AFTER UNDELEGATION ===");
-        console.log("VAL_1 stake:", coreVault.delegatedAmount(VAL_1));
-        console.log("Pending redistribution:", coreVault.totalPendingRedelegation());
-
         // Step 2: Complete withdrawal to trigger redistribution
         _advanceEpochsForWithdrawal();
 
@@ -896,11 +932,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 finalValidator2Stake = coreVault.delegatedAmount(VAL_2);
         uint256 finalValidator3Stake = coreVault.delegatedAmount(VAL_3);
         uint256 finalTotal = coreVault.getTotalDelegated();
-
-        console.log("=== AFTER REDISTRIBUTION ===");
-        console.log("VAL_2 final stake:", finalValidator2Stake);
-        console.log("VAL_3 final stake:", finalValidator3Stake);
-        console.log("Final total delegated:", finalTotal);
 
         // Verify redistribution behavior
         // VAL_2 and VAL_3 should have received additional stake

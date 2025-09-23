@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-
 import {BaseTest} from "../BaseTest.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -81,7 +80,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
 
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         return (requestId, shares);
@@ -92,7 +91,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         uint256 requestId = magma.requestRedeemGVault(shares, user, user, 3);
 
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         return (requestId, shares);
@@ -393,9 +392,9 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, controller, user);
         assertEq(0, magma.claimableRedeemRequest(requestId, controller));
-        vm.warp(block.timestamp + (magma.DEFAULT_DELAY() / 2));
+        vm.warp(block.timestamp + (magma.redeemDelay() / 2));
         assertEq(0, magma.claimableRedeemRequest(requestId, controller));
-        vm.warp(block.timestamp + (magma.DEFAULT_DELAY() / 2));
+        vm.warp(block.timestamp + (magma.redeemDelay() / 2));
         assertEq(shares, magma.claimableRedeemRequest(requestId, controller));
     }
 
@@ -443,7 +442,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(shares, pendingShares);
         assertEq(assets, pendingAssets);
         assertEq(expectedIsGVault, isGVault);
-        assertEq(block.timestamp + magma.DEFAULT_DELAY(), claimableTime);
+        assertEq(block.timestamp + magma.redeemDelay(), claimableTime);
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets() + assets);
 
@@ -710,7 +709,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         uint256 assetsBefore = magma.totalAssets();
 
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         assertEq(
@@ -776,7 +775,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 requestId = magma.requestRedeem(shares, controller, user);
         uint256 assetsBefore = magma.totalAssets();
 
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         // Test controller operator will handle redemption to a different receiver
@@ -811,7 +810,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
 
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
         uint256 userWMONBefore = wmon.balanceOf(address(user));
         uint256 assetsBefore = magma.totalAssets();
@@ -892,7 +891,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         vm.startPrank(user);
         requestId1 = magma.requestRedeemGVault(sharesGVault, user, user, 3);
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
         assertEq(assets / 2, magma.redeem(requestId1, user, user));
     }
@@ -945,7 +944,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 sharesGVault = magma.convertToAssets(assetsGVault);
 
         requestId2 = magma.requestRedeem(shares - sharesGVault, user, user);
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
         assertEq(
             assets / 2, magma.redeem(requestId2, user, user), "Redeem from coreVault should return half the assets"
@@ -991,5 +990,14 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets);
         assertEq(magma.balanceOf(address(user)), 0);
         assertEq(user.balance, 0);
+    }
+
+    function test_setRedeemDelay_OnlyAdmin_Success() public {
+        uint256 newDelay = 3600; // 1 hour
+
+        vm.prank(admin);
+        magma.setRedeemDelay(newDelay);
+
+        assertEq(magma.redeemDelay(), newDelay, "Should update delay");
     }
 }
