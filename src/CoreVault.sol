@@ -260,15 +260,7 @@ contract CoreVault is
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
-
-        // send fee to fee receiver
-        (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
-        if (!_ok) {
-            emit RewardsFeeTransferFailed(_fee);
-        } else {
-            emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
-        }
+        uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
         uint256 _remaining = _rewards - _fee;
         _distributeAmountEquallyToValidators(_remaining);
