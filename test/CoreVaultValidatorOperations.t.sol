@@ -83,12 +83,28 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.addValidator(VAL_1);
     }
 
-    function test_addMultipleValidators() public {
+    // Using AddValidator function
+    function test_addMultipleValidators_AddValidator() public {
         vm.startPrank(admin);
         coreVault.addValidator(VAL_1);
         coreVault.addValidator(VAL_2);
         coreVault.addValidator(VAL_3);
         vm.stopPrank();
+
+        assertEq(coreVault.getValidatorCount(), 3);
+        assertTrue(coreVault.isWhitelisted(VAL_1));
+        assertTrue(coreVault.isWhitelisted(VAL_2));
+        assertTrue(coreVault.isWhitelisted(VAL_3));
+    }
+
+    // Using AddValidators function
+    function test_addMultipleValidators_AddValidators() public {
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = VAL_1;
+        validators[1] = VAL_2;
+        validators[2] = VAL_3;
+        vm.prank(admin);
+        coreVault.addValidators(validators);
 
         assertEq(coreVault.getValidatorCount(), 3);
         assertTrue(coreVault.isWhitelisted(VAL_1));
