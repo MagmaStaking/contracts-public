@@ -70,7 +70,6 @@ contract CoreVaultAccessControl is BaseTest {
         coreVault.unpause();
     }
 
-
     function test_setMinUserWithdrawAmount_OnlyAdmin_Success() public {
         uint256 newAmount = 100 ether;
 

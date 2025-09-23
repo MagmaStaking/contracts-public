@@ -49,17 +49,16 @@ contract BaseTest is Test {
         address magmaProxy = UnsafeUpgrades.deployUUPSProxy(
             magmaImpl,
             abi.encodeCall(
-                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, delay)
+                Magma.initialize,
+                (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, delay)
             )
         );
         magma = Magma(payable(magmaProxy));
 
-
         // CoreVault
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch)));
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault

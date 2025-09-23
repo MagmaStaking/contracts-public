@@ -48,9 +48,8 @@ contract MagmaScript is Script {
         );
         magma = Magma(payable(magmaProxy));
 
-        address coreProxy = Upgrades.deployUUPSProxy(
-            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), epoch))
-        );
+        address coreProxy =
+            Upgrades.deployUUPSProxy("CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), epoch)));
         address gvProxy =
             Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), epoch)));
 
