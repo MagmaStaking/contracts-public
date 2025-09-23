@@ -6,12 +6,26 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
-import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {VaultBase} from "./VaultBase.sol";
+
+import {
+    ErrEpochGuard,
+    MaxValidators,
+    ErrRebalanceInProgress,
+    ErrNotEnoughValidators,
+    ErrNotMagma,
+    ErrBelowMinWithdraw,
+    ErrNoValidators,
+    ErrExistingWithdrawalInProgress,
+    ErrInsufficientDelegated,
+    ErrZeroAmount,
+    ErrInvalidAmount,
+    ErrNotAdmin
+} from "./MagmaErrorsModule.sol";
 
 contract CoreVault is
     Initializable,
