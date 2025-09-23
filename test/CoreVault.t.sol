@@ -13,7 +13,7 @@ contract CoreVaultTest is BaseTest {
         // Redeploy CoreVault with epochSeconds = 0 to bypass epoch guard for this unit test
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0)))
         );
         coreVault = CoreVault(payable(coreProxy));
         // Wire magma to new coreVault
