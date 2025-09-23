@@ -3,12 +3,24 @@ pragma solidity 0.8.30;
 
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
-import "./MagmaErrorsModule.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {
+    ErrNotAdmin,
+    ErrNotMagma,
+    ErrInvalidAmount,
+    ErrInvalidStatus,
+    ErrNoPendingWithdrawRequest,
+    ErrPendingStakeNotZero,
+    ErrZeroValidatorId,
+    ErrAlreadyWhitelisted,
+    ErrNativeTransferFailed,
+    AdminWidInUse,
+    ErrNotWhitelisted
+} from "./MagmaErrorsModule.sol";
 
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
