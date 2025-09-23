@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "forge-std/Test.sol";
 import {BaseTest} from "./BaseTest.t.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {CoreVault} from "../src/CoreVault.sol";
@@ -110,6 +111,38 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_1));
         assertTrue(coreVault.isWhitelisted(VAL_2));
         assertTrue(coreVault.isWhitelisted(VAL_3));
+    }
+
+    function test_addValidatorsRedelegateOccurs() public {
+        // Add 3 validators with different stake amounts
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = uint64(10);
+        validators[1] = uint64(20);
+        validators[2] = uint64(30);
+        uint256[3] memory stakeAmounts = [uint256(100 ether), uint256(400 ether), uint256(400 ether)];
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            uint64 valId = validators[i];
+
+            _setupValidatorInStakingPrecompile(valId);
+
+            _setupValidatorStake(valId, stakeAmounts[i]);
+
+            if (i == validators.length - 1) {
+                vm.startPrank(admin);
+                coreVault.addValidators(validators);
+                _advanceEpochsForWithdrawal();
+                coreVault.redelegateToValidators();
+                vm.stopPrank();
+            }
+        }
+        assertEq(coreVault.getValidatorCount(), 3);
+        assertTrue(coreVault.isWhitelisted(uint64(10)));
+        assertTrue(coreVault.isWhitelisted(uint64(20)));
+        assertTrue(coreVault.isWhitelisted(uint64(30)));
+        assertEq(coreVault.delegatedAmount(uint64(10)), 300 ether, "Validator 10 should have 300 ether");
+        assertEq(coreVault.delegatedAmount(uint64(20)), 300 ether, "Validator 20 should have 300 ether");
+        assertEq(coreVault.delegatedAmount(uint64(30)), 300 ether, "Validator 30 should have 300 ether");
     }
 
     // ============ STAKE REDISTRIBUTION TESTS ============
