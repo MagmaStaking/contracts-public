@@ -185,7 +185,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             _total += _getTotalStakedToValidator(validators[_i]);
         }
         return _total;
@@ -227,7 +227,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {
-        for (uint256 i = 0; i < array.length; i++) {
+        for (uint256 i = 0; i < array.length; ++i) {
             if (array[i] == valId) {
                 array[i] = array[array.length - 1];
                 array.pop();
@@ -248,7 +248,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _totalSuccessfulWithdrawals = 0;
 
         // Process each withdrawal request for this user
-        for (uint256 i = 0; i < _userRequests.length; i++) {
+        for (uint256 i = 0; i < _userRequests.length; ++i) {
             WithdrawalRequestInfo storage _request = _userRequests[i];
             uint64 _valId = _request.validator;
             uint8 _withdrawalId = _request.withdrawalId;
