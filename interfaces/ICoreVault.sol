@@ -7,11 +7,13 @@ import {IBaseVault} from "./IBaseVault.sol";
 interface ICoreVault is IBaseVault {
     // Admin functions
     function addValidator(uint64 valId) external;
+    function addValidators(uint64[] memory validators) external;
     function executeValidatorUndelegation(uint64 valId) external;
     function completeValidatorRemovalWithdrawal(uint64 valId) external;
     function adminRebalanceInitiate() external;
     function pause() external;
     function unpause() external;
+    function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external;
 
     // Delegation functions (onlyMagma)
     function delegate() external payable;
@@ -23,7 +25,7 @@ interface ICoreVault is IBaseVault {
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee);
 
     // Initialization
-    function initialize(address _magma, uint256 _epochSeconds) external;
+    function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external;
 
     // View functions
     function delegatedAmount(uint64 valId) external view returns (uint256);
