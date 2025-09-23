@@ -285,7 +285,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
 
-    function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
+    function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId) internal {
         _withdraw(_valId, _withdrawalId);
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
