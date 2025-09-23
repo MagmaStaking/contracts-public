@@ -92,3 +92,4 @@ contract MagmaScript is Script {
  * Every time you read or update a struct field, use the utility function to point to the base of the struct.
  * In the next section, we will see how to document the utilization of namespaces within a contract.
  */
+// TODO: storage look at how many functions we change of parents, use functions instead of variables
