@@ -71,16 +71,11 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             vm.startPrank(admin);
             coreVault.addValidator(valId);
 
-            // Complete the rebalancing immediately after each validator addition
-            // This clears the admin withdrawal ID so the next validator can be added
-            if (i < validatorIds.length - 1) {
-                // Don't need to do this for the last validator
-                // Advance epochs to make admin withdrawals ready
-                _advanceEpochsForWithdrawal();
+            // Advance epochs to make admin withdrawals ready
+            _advanceEpochsForWithdrawal();
 
-                // Complete the rebalancing to clear admin withdrawal IDs
-                coreVault.redelegateToValidators();
-            }
+            // Complete the rebalancing to clear admin withdrawal IDs
+            coreVault.redelegateToValidators();
             vm.stopPrank();
         }
     }
