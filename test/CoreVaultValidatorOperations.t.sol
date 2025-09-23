@@ -17,7 +17,8 @@ import {
     ErrPendingStakeNotZero,
     ErrNoPendingWithdrawRequest,
     ErrEpochGuard,
-    ErrNotEnoughValidators
+    ErrNotEnoughValidators,
+    MaxValidators
 } from "../src/MagmaErrorsModule.sol";
 
 /**
@@ -99,7 +100,7 @@ contract CoreVaultValidatorOperations is BaseTest {
     }
 
     // Using AddValidators function
-    function test_addMultipleValidators_AddValidators() public {
+    function test_AddMultipleValidators_AddValidators() public {
         uint64[] memory validators = new uint64[](3);
         validators[0] = VAL_1;
         validators[1] = VAL_2;
@@ -113,7 +114,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_3));
     }
 
-    function test_addValidatorsRedelegateOccurs() public {
+    function test_AddValidatorsRedelegateOccurs() public {
         // Add 3 validators with different stake amounts
         uint64[] memory validators = new uint64[](3);
         validators[0] = uint64(10);
@@ -143,6 +144,20 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.delegatedAmount(uint64(10)), 300 ether, "Validator 10 should have 300 ether");
         assertEq(coreVault.delegatedAmount(uint64(20)), 300 ether, "Validator 20 should have 300 ether");
         assertEq(coreVault.delegatedAmount(uint64(30)), 300 ether, "Validator 30 should have 300 ether");
+    }
+
+    function test_RevertWhen_ExceedMaxValidatorPerBatch() public {
+        vm.prank(admin);
+        coreVault.setMaxValidatorPerBatch(1);
+
+        uint64[] memory validators = new uint64[](3);
+        validators[0] = VAL_1;
+        validators[1] = VAL_2;
+        validators[2] = VAL_3;
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(MaxValidators.selector, 1));
+        coreVault.addValidators(validators);
     }
 
     // ============ STAKE REDISTRIBUTION TESTS ============
