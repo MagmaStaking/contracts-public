@@ -70,22 +70,6 @@ contract CoreVaultAccessControl is BaseTest {
         coreVault.unpause();
     }
 
-    function test_setMinQueueDelaySeconds_OnlyAdmin_Success() public {
-        uint256 newDelay = 3600; // 1 hour
-
-        vm.prank(admin);
-        coreVault.setMinQueueDelaySeconds(newDelay);
-
-        assertEq(coreVault.minQueueDelaySeconds(), newDelay, "Should update delay");
-    }
-
-    function test_setMinQueueDelaySeconds_OnlyAdmin_RevertUnauthorized() public {
-        uint256 newDelay = 3600;
-
-        vm.prank(UNAUTHORIZED_USER);
-        vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
-        coreVault.setMinQueueDelaySeconds(newDelay);
-    }
 
     function test_setMinUserWithdrawAmount_OnlyAdmin_Success() public {
         uint256 newAmount = 100 ether;
@@ -311,9 +295,6 @@ contract CoreVaultAccessControl is BaseTest {
         coreVault.unpause();
 
         vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
-        coreVault.setMinQueueDelaySeconds(3600);
-
-        vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
         coreVault.setMinUserWithdrawAmount(100 ether);
 
         vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
@@ -361,7 +342,6 @@ contract CoreVaultAccessControl is BaseTest {
         vm.startPrank(admin);
 
         // These should all succeed
-        coreVault.setMinQueueDelaySeconds(7200);
         coreVault.setMinUserWithdrawAmount(50 ether);
         coreVault.addValidator(VAL_1);
         coreVault.redelegateToValidators(); // Complete any pending rebalance
@@ -375,7 +355,6 @@ contract CoreVaultAccessControl is BaseTest {
         vm.stopPrank();
 
         // Verify state changes
-        assertEq(coreVault.minQueueDelaySeconds(), 7200);
         assertEq(coreVault.minUserWithdrawAmount(), 50 ether);
         assertTrue(coreVault.isWhitelisted(VAL_1));
         assertFalse(coreVault.paused());
