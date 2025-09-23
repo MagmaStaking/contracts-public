@@ -297,7 +297,7 @@ contract CoreVault is
 
                 if (_toUndelegate > 0) {
                     _checkFreeAdminWid(_v);
-                    _allocateADMIN_WIDandUndelegate(_v, _toUndelegate);
+                    _allocateAdminWidAndUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
                     pendingRedelegateByValidator[_v] = _toUndelegate;
                     totalPendingRedelegation += _toUndelegate;

@@ -26,8 +26,8 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
-        _allocateADMIN_WID(bitMap);
+    function allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
+        _allocateAdminWid(bitMap);
     }
 
     /**
@@ -125,7 +125,7 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function _allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
+    function _allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
         uint256 adminMask = 1 << ADMIN_WID;
         bitMap.bitmap |= adminMask;
     }

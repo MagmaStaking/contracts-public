@@ -81,6 +81,7 @@ abstract contract MagmaBase is
     ICoreVault public coreVault;
     IGVault public gVault;
 
+    /* solhint-disable-next-line func-name-mixedcase */
     function __MagmaBase_init(
         IERC20 asset_,
         string memory name_,

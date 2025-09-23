@@ -44,6 +44,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     IMagma public magma;
 
+    /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
         magma = IMagma(_magma);
     }
@@ -97,7 +98,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
+        _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
         // Reduce the pending redistribution amount by the amount we just redistributed
         if (totalPendingRedelegation >= _withdrawalAmount) {
@@ -136,7 +137,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
             _checkFreeAdminWid(_valId);
-            _allocateADMIN_WIDandUndelegate(_valId, _amountToRedelegate);
+            _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
             emit ValidatorRemoved(_valId);
         } else {
@@ -184,8 +185,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _wid;
     }
 
-    function _allocateADMIN_WIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        withdrawalIdBitmaps[_valId].allocateADMIN_WID();
+    function _allocateAdminWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
+        withdrawalIdBitmaps[_valId].allocateAdminWid();
         _undelegate(_valId, _amount, ADMIN_WID);
         return _wid;
     }
