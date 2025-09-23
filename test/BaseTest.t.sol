@@ -57,8 +57,9 @@ contract BaseTest is Test {
 
         // CoreVault
         address coreImpl = address(new CoreVault());
-        address coreProxy =
-            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch)));
+        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch, uint64(10)))
+        );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
