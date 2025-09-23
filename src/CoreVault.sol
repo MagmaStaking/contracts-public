@@ -25,6 +25,7 @@ contract CoreVault is
 
     uint256 public epochSeconds;
 
+    // Limit batch of validators that can be added at once to prevent gas issues on the for loop
     uint64 private _maxValidatorPerBatch;
 
     // Rebalance pacing guard
