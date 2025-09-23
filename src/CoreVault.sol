@@ -42,6 +42,12 @@ contract CoreVault is
         return super.paused();
     }
 
+    /**
+     * @notice Initialize the CoreVault contract with configuration parameters
+     * @dev Sets up the vault with Magma protocol address and epoch timing configuration
+     * @param _magma The address of the Magma protocol contract
+     * @param _epochSeconds The duration of each epoch in seconds (0 disables epoch guard)
+     */
     function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -63,10 +69,18 @@ contract CoreVault is
         _;
     }
 
+    /**
+     * @notice Pause all vault operations
+     * @dev Emergency function to halt deposits, withdrawals, and delegations. Only callable by admin
+     */
     function pause() external onlyAdmin {
         _pause();
     }
 
+    /**
+     * @notice Resume all vault operations
+     * @dev Removes emergency pause from deposits, withdrawals, and delegations. Only callable by admin
+     */
     function unpause() external onlyAdmin {
         _unpause();
     }
@@ -85,7 +99,12 @@ contract CoreVault is
         _redelegateInitiate();
     }
 
-    // Phase 1: initiate by undelegating excess from over-target validators
+    /**
+     * @notice Phase 1: Initiate validator rebalancing by undelegating excess stakes
+     * @dev Begins the rebalancing process by undelegating excess amounts from over-target validators.
+     *      Sets finishedLastRebalance to false and updates the rebalance timestamp.
+     *      Reverts if a rebalance is already in progress.
+     */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         finishedLastRebalance = false;
@@ -138,6 +157,11 @@ contract CoreVault is
     // Delegation functions
     // --------------------------------------------------------------------------------------------------------------
 
+    /**
+     * @notice Delegate native MON to validators equally
+     * @dev Distributes the sent MON equally among all registered validators.
+     *      Only callable by Magma protocol or gVault contract.
+     */
     function delegate() external payable whenNotPaused {
         if (msg.sender != address(magma) && msg.sender != magma.gVault()) {
             revert ErrNotMagma();
@@ -145,6 +169,13 @@ contract CoreVault is
         _distributeAmountEquallyToValidators(msg.value);
     }
 
+    /**
+     * @notice Initiate undelegation of specified amount for a user
+     * @dev Creates withdrawal requests by undelegating from validators with highest stake first.
+     *      Enforces minimum withdrawal amount and prevents multiple concurrent withdrawals per user.
+     * @param _amount The amount of ETH to undelegate
+     * @param _user The user address requesting the withdrawal
+     */
     function undelegate(uint256 _amount, address _user) external onlyMagma whenNotPaused {
         if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
@@ -214,14 +245,29 @@ contract CoreVault is
         return _completeUserWithdrawal(_user);
     }
 
+    /**
+     * @notice Get all registered validator IDs
+     * @dev Returns array of validator IDs currently registered in the vault
+     * @return Array of validator IDs
+     */
     function getValidators() external view returns (uint64[] memory) {
         return validators;
     }
 
+    /**
+     * @notice Get the total number of registered validators
+     * @dev Returns the count of validators currently registered in the vault
+     * @return The number of registered validators
+     */
     function getValidatorCount() external view returns (uint256) {
         return validators.length;
     }
 
+    /**
+     * @notice Get total amount delegated across all validators
+     * @dev Calculates and returns the sum of all delegated amounts including pending stakes
+     * @return Total delegated amount in wei
+     */
     function getTotalDelegated() external view returns (uint256) {
         uint256 _total = 0;
         for (uint256 _i = 0; _i < validators.length; _i++) {
@@ -230,10 +276,21 @@ contract CoreVault is
         return _total;
     }
 
+    /**
+     * @notice Get total amount delegated to a specific validator
+     * @dev Returns the total stake (active + pending) for the specified validator
+     * @param _valId The validator ID to query
+     * @return Total delegated amount to the validator in wei
+     */
     function delegatedAmount(uint64 _valId) external view returns (uint256) {
         return _getTotalStakedToValidator(_valId);
     }
 
+    /**
+     * @notice Claim staking rewards from all validators and redistribute them
+     * @dev Claims rewards from all validators, deducts protocol fees, and redistributes
+     *      remaining rewards equally among validators for compound staking.
+     */
     function claimAndCompoundRewards() external {
         _claimAndCompoundRewards();
     }
@@ -241,6 +298,10 @@ contract CoreVault is
     // Internal functions
     //--------------------------------------------------------------------------------------------------------------
 
+    /**
+     * @notice Internal function to claim and compound staking rewards
+     * @dev Claims rewards from all validators, calculates fees, and redistributes remaining rewards
+     */
     function _claimAndCompoundRewards() internal {
         uint256 _startingBalance = address(this).balance;
         for (uint256 _i = 0; _i < validators.length; _i++) {
@@ -257,6 +318,10 @@ contract CoreVault is
         _distributeAmountEquallyToValidators(_remaining);
     }
 
+    /**
+     * @notice Internal function to initiate rebalancing by undelegating excess stakes
+     * @dev Calculates target delegation per validator and undelegates excess from over-target validators
+     */
     function _redelegateInitiate() internal {
         if (validators.length == 0) return;
 
@@ -289,6 +354,10 @@ contract CoreVault is
         emit RebalanceInitiated();
     }
 
+    /**
+     * @notice Internal function to complete rebalancing by redistributing undelegated funds
+     * @dev Completes pending withdrawals and redistributes funds to under-target validators
+     */
     function _redelegateRedistribute() internal {
         // Step 1: Complete all pending withdrawals
         uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
@@ -503,6 +572,10 @@ contract CoreVault is
         return userWithdrawalRequests[_user].length;
     }
 
+    /**
+     * @notice Internal function to authorize contract upgrades
+     * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
+     */
     function _authorizeUpgrade(address) internal view override {
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }

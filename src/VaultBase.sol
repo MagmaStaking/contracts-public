@@ -44,6 +44,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     IMagma public magma;
 
+    /**
+     * @notice Initialize the VaultBase contract with Magma protocol reference
+     * @dev Sets the Magma protocol contract address for vault operations
+     * @param _magma The address of the Magma protocol contract
+     */
     function __VaultBase_init(address _magma) internal {
         magma = IMagma(_magma);
     }
@@ -58,17 +63,31 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _;
     }
 
-    // Function totalAssets to get all the stake, delta stake, next delta stake, and pending redelegations for all validators
+    /**
+     * @notice Get total assets under management including pending operations
+     * @dev Calculates total stake across all validators plus pending redelegations
+     * @return Total assets in wei (active stake + pending redelegation amounts)
+     */
     function totalAssets() external view returns (uint256) {
         return _getTotalStakedToAllValidators() + totalPendingRedelegation;
     }
 
-    // Minimum user withdraw amount default amount is missing precision
+    /**
+     * @notice Set the minimum withdrawal amount for users
+     * @dev Updates the minimum amount users can withdraw in a single transaction
+     * @param _amount The minimum withdrawal amount in wei (must be less than 10,000 ether)
+     */
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
         minUserWithdrawAmount = _amount;
     }
 
+    /**
+     * @notice Calculate and charge withdrawal fees
+     * @dev Calculates withdrawal fee based on protocol fee rate and sends it to fee receiver
+     * @param _totalWithdrawalAmount The total amount being withdrawn
+     * @return The fee amount charged
+     */
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
@@ -84,6 +103,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _fee;
     }
 
+    /**
+     * @notice Complete withdrawal process for a removed validator
+     * @dev Finalizes validator removal by completing pending withdrawal and updating state
+     * @param _valId The validator ID being removed
+     * @return The amount withdrawn from the validator
+     */
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
@@ -97,14 +122,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        _completeRedelegationWithdrawal(_valId, ADMIN_WID, _withdrawalAmount);
-
-        // Reduce the pending redistribution amount by the amount we just redistributed
-        if (totalPendingRedelegation >= _withdrawalAmount) {
-            totalPendingRedelegation -= _withdrawalAmount;
-        } else {
-            totalPendingRedelegation = 0;
-        }
+        totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+        _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
         delete validatorStatus[_valId];
         emit ValidatorRemovalCompleted(_valId);
@@ -145,6 +164,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
+    /**
+     * @notice Register a new validator in the vault
+     * @dev Adds validator to the active validators list and marks as whitelisted
+     * @param _valId The validator ID to register
+     */
     function _registerValidator(uint64 _valId) internal {
         if (_valId == 0) revert ErrZeroValidatorId();
         if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
@@ -155,6 +179,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit ValidatorAdded(_valId);
     }
 
+    /**
+     * @notice Initiate the removal process for a validator
+     * @dev Pauses validator, removes from active list, and tracks pending redelegation
+     * @param _valId The validator ID to remove
+     */
     function _initiateValidatorRemoval(uint64 _valId) internal {
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
         validatorStatus[_valId] = ValidatorStatus.PAUSED;
@@ -170,6 +199,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit ValidatorRemovalInitiated(_valId);
     }
 
+    /**
+     * @notice Get total stake delegated to all validators
+     * @dev Calculates sum of stakes across all active validators
+     * @return Total staked amount in wei
+     */
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;
         for (uint256 _i = 0; _i < validators.length; _i++) {
@@ -178,12 +212,26 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _total;
     }
 
+    /**
+     * @notice Allocate withdrawal ID and initiate undelegation
+     * @dev Allocates a free withdrawal ID and starts undelegation process
+     * @param _valId The validator ID to undelegate from
+     * @param _amount The amount to undelegate
+     * @return _wid The allocated withdrawal ID
+     */
     function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
         _wid = withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
         return _wid;
     }
 
+    /**
+     * @notice Allocate admin withdrawal ID and initiate undelegation
+     * @dev Uses reserved admin withdrawal ID (255) for administrative operations
+     * @param _valId The validator ID to undelegate from
+     * @param _amount The amount to undelegate
+     * @return _wid The admin withdrawal ID (always 255)
+     */
     function _allocateADMIN_WIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
         withdrawalIdBitmaps[_valId].allocateADMIN_WID();
         _undelegate(_valId, _amount, ADMIN_WID);
@@ -203,16 +251,34 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         );
     }
 
+    /**
+     * @notice Get total stake for validator including pending operations
+     * @dev Returns active stake plus pending stakes plus pending redelegation amounts
+     * @param _valId The validator ID to query
+     * @return Total stake including all pending operations
+     */
     function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake + pendingRedelegateByValidator[_valId];
     }
 
+    /**
+     * @notice Get total active stake for a validator
+     * @dev Returns current active stake plus pending stake changes
+     * @param _valId The validator ID to query
+     * @return Total active stake amount
+     */
     function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
     }
 
+    /**
+     * @notice Remove validator ID from storage array
+     * @dev Efficiently removes validator by swapping with last element
+     * @param array The storage array to modify
+     * @param valId The validator ID to remove
+     */
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {
         for (uint256 i = 0; i < array.length; i++) {
             if (array[i] == valId) {
@@ -223,6 +289,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
+    /**
+     * @notice Complete all pending withdrawal requests for a user
+     * @dev Processes all user withdrawal requests, charges fees, and transfers funds
+     * @param _user The user address whose withdrawals to complete
+     * @return _totalWithdrawn The total amount withdrawn before fees
+     * @return _totalWithdrawnAfterFee The amount transferred to user after fees
+     */
     function _completeUserWithdrawal(address _user)
         internal
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
@@ -285,7 +358,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
 
-    function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId, uint256 _amt) internal {
+    /**
+     * @notice Complete a redelegation withdrawal process
+     * @dev Withdraws funds and marks the withdrawal as completed
+     * @param _valId The validator ID
+     * @param _withdrawalId The withdrawal ID to complete
+     */
+    function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId) internal {
         _withdraw(_valId, _withdrawalId);
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
@@ -302,6 +381,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
     }
 
+    /**
+     * @notice Check if admin withdrawal ID is available
+     * @dev Reverts if admin withdrawal ID is already in use
+     * @param _valId The validator ID to check
+     */
     function _checkFreeAdminWid(uint64 _valId) internal view {
         if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert AdminWidInUse();
     }
@@ -334,6 +418,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
+    /**
+     * @notice Calculate rewards fee and send to fee receiver
+     * @dev Calculates protocol rewards fee and transfers it to the designated receiver
+     * @param _totalRewards The total rewards amount to calculate fee from
+     * @return _fee The fee amount calculated and sent
+     */
     function _calculateRewardsFeeAndSend(uint256 _totalRewards) internal returns (uint256 _fee) {
         _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
