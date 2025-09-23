@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-
 /**
  * @title BitMapLib
  * @dev Library for managing withdrawal ID bitmaps for validator operations
