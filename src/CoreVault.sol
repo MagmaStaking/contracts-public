@@ -25,6 +25,9 @@ contract CoreVault is
 
     uint256 public epochSeconds;
 
+    // Limit batch of validators that can be added at once to prevent gas issues on the for loop
+    uint64 private _maxValidatorPerBatch;
+
     // Rebalance pacing guard
     uint256 public lastRebalanceTimestamp;
 
@@ -42,12 +45,13 @@ contract CoreVault is
         return super.paused();
     }
 
-    function initialize(address _magma, uint256 _epochSeconds) external initializer {
+    function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
         __ReentrancyGuard_init();
         __Pausable_init();
         __VaultBase_init(_magma);
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true;
+        _maxValidatorPerBatch = maxValidatorPerBatch_;
     }
 
     // Accept native funds returned from precompile withdrawals
@@ -82,6 +86,20 @@ contract CoreVault is
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
         _registerValidator(_valId);
+        _redelegateInitiate();
+    }
+
+    /**
+     * @notice Step 1: Add validators and initiate rebalance phase 1 (undelegation)
+     * @dev Add validators and trigger excess undelegation. Redistribution must be done manually via redistributeToValidators()
+     * @param validators The array of validator IDs to add
+     */
+    function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
+        if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            _registerValidator(validators[i]);
+        }
         _redelegateInitiate();
     }
 
@@ -501,6 +519,10 @@ contract CoreVault is
      */
     function getUserWithdrawalRequestCount(address _user) external view returns (uint256) {
         return userWithdrawalRequests[_user].length;
+    }
+
+    function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyAdmin {
+        _maxValidatorPerBatch = maxValidatorPerBatch;
     }
 
     function _authorizeUpgrade(address) internal view override {
