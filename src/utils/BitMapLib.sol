@@ -89,7 +89,7 @@ library BitMapLib {
         // Brian Kernighan's algorithm to count set bits
         while (bitmap != 0) {
             bitmap &= bitmap - 1; // Clear the lowest set bit
-            count++;
+            ++count;
         }
     }
 
@@ -105,7 +105,7 @@ library BitMapLib {
         uint8 start = bitMap.nextWithdrawalId;
 
         // Find first free slot starting from cursor
-        for (uint16 i = 0; i < 256; i++) {
+        for (uint16 i = 0; i < 256; ++i) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == reservedId) continue;
 
