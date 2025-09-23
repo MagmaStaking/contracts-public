@@ -37,9 +37,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         // Redeploy CoreVault with epochSeconds = 0 to bypass epoch guard for testing
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
         coreVault = CoreVault(payable(coreProxy));
 
         // Wire magma to new coreVault
@@ -408,9 +407,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_UndelegateNoValidators() public {
         // Deploy fresh CoreVault with no validators
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
         // Wire magma to fresh coreVault
@@ -431,9 +429,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_UndelegateInsufficientAmount() public {
         // Create fresh CoreVault with controlled stakes to avoid rebalancing interference
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
         vm.prank(admin);
@@ -738,9 +735,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_UndelegateSingleValidatorExactAmount() public {
         // Deploy fresh CoreVault with single validator
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
         // Wire magma to fresh coreVault
@@ -785,9 +781,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_UndelegateLargeScaleAllValidators() public {
         // Create fresh CoreVault with proper validator setup to avoid rebalancing issues
         address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address coreProxy =
+            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
         vm.prank(admin);

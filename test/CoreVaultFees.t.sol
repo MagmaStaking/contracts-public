@@ -81,7 +81,7 @@ contract CoreVaultRewardsTest is BaseTest {
         uint256 requestId = magma.requestRedeem(sharesToRedeem, user, user);
 
         // Wait for async delay and withdrawal maturity in the mock
-        vm.warp(block.timestamp + magma.DEFAULT_DELAY());
+        vm.warp(block.timestamp + magma.redeemDelay());
         _advanceEpochsForWithdrawal();
 
         // Balances before completion

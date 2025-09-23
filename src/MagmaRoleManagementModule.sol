@@ -34,4 +34,9 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
         if (msg.sender != admin) revert ErrNotAdmin();
         feeReceiver = _feeReceiver;
     }
+
+    function setRedeemDelay(uint256 _redeemDelay) external {
+        if (msg.sender != admin) revert ErrNotAdmin();
+        redeemDelay = _redeemDelay;
+    }
 }

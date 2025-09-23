@@ -61,7 +61,16 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 maxAssets = 3 ether;
         MockMaxDeposit mockMagma = new MockMaxDeposit();
         mockMagma.initialize(
-            IERC20(address(wmon)), "gMON", "gMON", admin, address(coreVault), address(gvault), 0, 0, address(0)
+            IERC20(address(wmon)),
+            "gMON",
+            "gMON",
+            admin,
+            address(coreVault),
+            address(gvault),
+            0,
+            0,
+            address(0),
+            uint256(1)
         );
 
         vm.deal(user, assets);
@@ -191,5 +200,12 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         vm.prank(user);
         vm.expectRevert(NotEnoughAssetsGVault.selector);
         assertEq(0, magma.requestRedeemGVault(shares, user, user, 3));
+    }
+
+    function test_RevertWhen_setRedeemDelayNotAdmin() public {
+        uint256 newDelay = 3600;
+
+        vm.expectRevert(abi.encodeWithSelector(ErrNotAdmin.selector));
+        magma.setRedeemDelay(newDelay);
     }
 }
