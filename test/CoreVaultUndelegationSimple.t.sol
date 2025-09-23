@@ -52,7 +52,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         address magmaProxy = UnsafeUpgrades.deployUUPSProxy(
             magmaImpl,
             abi.encodeCall(
-                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin)
+                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, uint256(0))
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -60,14 +60,14 @@ contract CoreVaultUndelegationSimpleTest is Test {
         // Deploy CoreVault
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0)))
         );
         coreVault = CoreVault(payable(coreProxy));
 
         // Deploy gVault
         address gvImpl = address(new gVault());
         address gvProxy = UnsafeUpgrades.deployUUPSProxy(
-            gvImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0), uint256(0)))
+            gvImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0)))
         );
         gvault = gVault(payable(gvProxy));
 
@@ -177,7 +177,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         // Setup fresh CoreVault to avoid interference
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint256(0)))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0)))
         );
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
