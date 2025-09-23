@@ -60,8 +60,9 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         // Deploy CoreVault
         address coreImpl = address(new CoreVault());
-        address coreProxy =
-            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
+        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
+        );
         coreVault = CoreVault(payable(coreProxy));
 
         // Deploy gVault
@@ -175,8 +176,9 @@ contract CoreVaultUndelegationSimpleTest is Test {
     function test_InsufficientStake() public {
         // Setup fresh CoreVault to avoid interference
         address coreImpl = address(new CoreVault());
-        address coreProxy =
-            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0))));
+        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
+        );
         CoreVault freshCoreVault = CoreVault(payable(coreProxy));
 
         vm.prank(admin);
