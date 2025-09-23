@@ -119,7 +119,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // Admin: update default cap percent (bps)
     function setDefaultCapBps(uint256 _newBps) external onlyAdmin {
-        if (_newBps > 10_000) revert ErrInvalidBps();
+        if (_newBps > BASE_BPS) revert ErrInvalidBps();
         defaultCapBps = _newBps;
         emit DefaultCapUpdated(_newBps);
     }
@@ -129,7 +129,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (cap != 0) return cap;
 
         uint256 total = magma.totalAssets();
-        return (total * defaultCapBps) / 10_000;
+        return (total * defaultCapBps) / BASE_BPS;
     }
 
     /**
@@ -222,9 +222,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
 
-        if (_bps > 10_000) revert ErrInvalidBps();
+        if (_bps > BASE_BPS) revert ErrInvalidBps();
         // Handle 100% outflow without letting P hit zero
-        if (_bps == 10_000) {
+        if (_bps == BASE_BPS) {
             // Bump the global scale so previous units' entitlement -> ~0, keep P finite for future math
             uint256 K_FULL = 1e9; // large-but-safe scale bump
             gvaultScaleS = gvaultScaleS * K_FULL;
@@ -233,7 +233,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         } else {
             // Update cumulative gVault multiplier P to reflect retained fraction after moving bps to CoreVault
             uint256 _oldP = gvaultMultiplierP;
-            uint256 _factor1e27 = uint256(10_000 - _bps) * 1e23; // 1e27 * (1 - bps/10000)
+            uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // 1e27 * (1 - bps/10000)
             gvaultMultiplierP = Math.mulDiv(gvaultMultiplierP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
             emit GVaultMultiplierUpdated(_oldP, gvaultMultiplierP, _bps);
 
@@ -251,11 +251,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             uint64 v = _list[i];
             // Decode vault-level delegation from precompile
             uint256 amt = _getDelegatorStake(v, address(this));
-            uint256 pull = (amt * _bps) / 10_000;
+            uint256 pull = (amt * _bps) / BASE_BPS;
             if (pull > 0) {
                 _checkFreeAdminWid(v);
                 _allocateADMIN_WIDandUndelegate(v, pull);
-                pendingRedelegateByValidator[v] += pull;
+                pendingRedelegateByValidator[v] = pull;
                 totalPendingRedelegation += pull;
             }
         }
@@ -276,8 +276,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             _withdraw(_valId, ADMIN_WID);
             _markWithdrawalCompleted(_valId, ADMIN_WID);
             emit AdminCompletedRebalanceWithdrawal(_valId, amt);
-            pendingRedelegateByValidator[_valId] -= amt;
-            totalPendingRedelegation -= amt;
+            // Note: in the case where the withdrawal is slashed we use the cached amount to deduct from totalPendingRedelegation
+            totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+            pendingRedelegateByValidator[_valId] = 0;
         }
         uint256 _delta = address(this).balance - _beforeBal;
         if (_delta > 0) {
@@ -300,15 +301,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = Math.mulDiv(_rewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
-
-        // send fee to fee receiver
-        (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
-        if (!_ok) {
-            emit RewardsFeeTransferFailed(_fee);
-        } else {
-            emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
-        }
+        uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
         uint256 _remaining = _rewards - _fee;
         _delegate(_valId, _remaining);

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {IMagma} from "../interfaces/IMagma.sol";
+import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import "./MagmaErrorsModule.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
@@ -16,6 +17,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
     uint8 internal constant ADMIN_WID = 255;
+    uint256 internal constant BASE_BPS = 10_000;
     uint256 public minUserWithdrawAmount;
 
     mapping(uint64 => bool) public override isWhitelisted;
@@ -23,12 +25,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     mapping(uint64 => ValidatorStatus) public override validatorStatus;
 
-    // Pending redelegations totals
-    mapping(uint64 => uint256) public override pendingRedelegateByValidator;
+    // Pending redelegations totals for each validator (we can only use this once for an ADMIN_WID process)
+    mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
     uint256 public override totalPendingRedelegation;
 
     // Pending withdrawals totals
-    mapping(uint64 => uint256) public override pendingUndelegateByValidator;
+    mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
     uint256 public override totalPendingUndelegations;
 
     struct WithdrawalRequestInfo {
@@ -70,7 +72,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 10_000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
             (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
@@ -85,7 +87,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
-        // TODO: Claim rewards
         // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
         if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
             revert ErrNoPendingWithdrawRequest();
@@ -125,7 +126,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             revert ErrPendingStakeNotZero();
         }
 
-        // TODO: Claim rewards here as well and distribute to remaining validators
+        // Claim rewards for this validator before undelegation
+        if (_coreVaultDelInfo.rewards > 0) {
+            _claimValidatorRewards(_valId);
+        }
 
         uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
 
@@ -286,11 +290,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
 
-        if (pendingRedelegateByValidator[_valId] >= _amt) {
-            pendingRedelegateByValidator[_valId] -= _amt;
-        } else {
-            pendingRedelegateByValidator[_valId] = 0;
-        }
+        pendingRedelegateByValidator[_valId] = 0;
     }
 
     /**
@@ -304,5 +304,47 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function _checkFreeAdminWid(uint64 _valId) internal view {
         if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert AdminWidInUse();
+    }
+
+    /**
+     * @dev Claim rewards for a specific validator and send to CoreVault for distribution
+     * @param _valId The validator ID to claim rewards for
+     */
+    function _claimValidatorRewards(uint64 _valId) internal {
+        uint256 _balanceBefore = address(this).balance;
+
+        // Try to claim rewards from the validator - if there are no rewards, this will fail gracefully
+        _claim(_valId);
+
+        uint256 _balanceAfter = address(this).balance;
+        uint256 _rewardsClaimed = _balanceAfter - _balanceBefore;
+
+        if (_rewardsClaimed > 0) {
+            // Calculate and send fee to fee receiver
+            uint256 _fee = _calculateRewardsFeeAndSend(_rewardsClaimed);
+
+            uint256 _remaining = _rewardsClaimed - _fee;
+
+            // Send remaining rewards to CoreVault for distribution
+            if (_remaining > 0) {
+                ICoreVault _coreVault = ICoreVault(magma.coreVault());
+                // Call delegate function on CoreVault to distribute to remaining validators
+                _coreVault.delegate{value: _remaining}();
+            }
+        }
+    }
+
+    function _calculateRewardsFeeAndSend(uint256 _totalRewards) internal returns (uint256 _fee) {
+        _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
+        if (_fee > 0) {
+            // send fee to fee receiver
+            (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
+            if (!_ok) {
+                emit RewardsFeeTransferFailed(_fee);
+            } else {
+                emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
+            }
+        }
+        return _fee;
     }
 }

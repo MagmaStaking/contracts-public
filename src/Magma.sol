@@ -30,18 +30,18 @@ contract Magma is Initializable, UUPSUpgradeable, MagmaAsyncModule {
         gVault = IGVault(gVault_);
     }
 
-    //TODO: refactor if (msg.sender != admin) revert ErrNotAdmin();
-    function pause() external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function pause() external onlyAdmin {
         _pause();
     }
 
-    function unpause() external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function unpause() external onlyAdmin {
         _unpause();
     }
 
-    function _authorizeUpgrade(address) internal view override {
+    function _authorizeUpgrade(address) internal view override onlyAdmin {}
+
+    modifier onlyAdmin() {
         if (msg.sender != admin) revert ErrNotAdmin();
+        _;
     }
 }

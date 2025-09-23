@@ -370,16 +370,22 @@ contract MockStakingPrecompile is IMonadStaking {
     }
 
     function claimRewards(uint64 validatorId) external override returns (bool success) {
-        require(val_execution[validatorId].stake > 0, "Invalid validator");
+        if (val_execution[validatorId].stake == 0) {
+            return false;
+        }
 
         DelInfo storage del = delegator[validatorId][msg.sender];
-        require(del.rewards > 0, "No rewards to claim");
+        if (del.rewards == 0) {
+            return false;
+        }
 
         uint256 rewards = del.rewards;
         del.rewards = 0;
 
         (bool transferSuccess,) = msg.sender.call{value: rewards}("");
-        require(transferSuccess, "Reward transfer failed");
+        if (!transferSuccess) {
+            return false;
+        }
 
         return true;
     }
