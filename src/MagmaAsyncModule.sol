@@ -170,7 +170,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             claimableTime: block.timestamp + redeemDelay,
             isGVault: isGVault
         });
-        _requestIdCount++;
+        ++_requestIdCount;
         _ownerRequested[owner] = true;
 
         _burn(owner, shares);
