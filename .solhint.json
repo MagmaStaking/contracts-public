@@ -2,6 +2,7 @@
     "extends": "solhint:recommended",
     "rules": {
         "compiler-version": ["error", "0.8.30"],
-        "use-natspec": "off"
+        "use-natspec": "off",
+        "no-unused-vars": "error"
     }
 }
