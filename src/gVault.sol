@@ -121,7 +121,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // Admin: update default cap percent (bps)
     function setDefaultCapBps(uint256 _newBps) external onlyAdmin {
-        if (_newBps > 10_000) revert ErrInvalidBps();
+        if (_newBps > BASE_BPS) revert ErrInvalidBps();
         defaultCapBps = _newBps;
         emit DefaultCapUpdated(_newBps);
     }
@@ -131,7 +131,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (cap != 0) return cap;
 
         uint256 total = magma.totalAssets();
-        return (total * defaultCapBps) / 10_000;
+        return (total * defaultCapBps) / BASE_BPS;
     }
 
     /**
@@ -224,9 +224,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
 
-        if (_bps > 10_000) revert ErrInvalidBps();
+        if (_bps > BASE_BPS) revert ErrInvalidBps();
         // Handle 100% outflow without letting P hit zero
-        if (_bps == 10_000) {
+        if (_bps == BASE_BPS) {
             // Bump the global scale so previous units' entitlement -> ~0, keep P finite for future math
             uint256 K_FULL = 1e9; // large-but-safe scale bump
             gvaultScaleS = gvaultScaleS * K_FULL;
@@ -235,7 +235,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         } else {
             // Update cumulative gVault multiplier P to reflect retained fraction after moving bps to CoreVault
             uint256 _oldP = gvaultMultiplierP;
-            uint256 _factor1e27 = uint256(10_000 - _bps) * 1e23; // 1e27 * (1 - bps/10000)
+            uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // 1e27 * (1 - bps/10000)
             gvaultMultiplierP = Math.mulDiv(gvaultMultiplierP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
             emit GVaultMultiplierUpdated(_oldP, gvaultMultiplierP, _bps);
 
@@ -253,7 +253,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             uint64 v = _list[i];
             // Decode vault-level delegation from precompile
             uint256 amt = _getDelegatorStake(v, address(this));
-            uint256 pull = (amt * _bps) / 10_000;
+            uint256 pull = (amt * _bps) / BASE_BPS;
             if (pull > 0) {
                 _checkFreeAdminWid(v);
                 _allocateADMIN_WIDandUndelegate(v, pull);

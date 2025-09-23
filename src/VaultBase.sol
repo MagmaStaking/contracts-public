@@ -17,6 +17,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
     uint8 internal constant ADMIN_WID = 255;
+    uint256 internal constant BASE_BPS = 10_000;
     uint256 public minUserWithdrawAmount;
 
     mapping(uint64 => bool) public override isWhitelisted;
@@ -71,7 +72,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         if (_totalWithdrawalAmount == 0) return 0;
         if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), 10_000, Math.Rounding.Ceil);
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
             (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
@@ -334,7 +335,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     function _calculateRewardsFeeAndSend(uint256 _totalRewards) internal returns (uint256 _fee) {
-        _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), 10_000, Math.Rounding.Ceil);
+        _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
             // send fee to fee receiver
             (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
