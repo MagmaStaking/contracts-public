@@ -6,7 +6,6 @@ import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {CoreVault} from "../src/CoreVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
-import {console} from "forge-std/console.sol";
 import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 import {
     ErrNotAdmin,
@@ -147,13 +146,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val2Initial = coreVault.delegatedAmount(VAL_2);
         uint256 val3Initial = coreVault.delegatedAmount(VAL_3);
 
-        console.log("Initial imbalanced stakes:");
-        console.log("VAL_1:", val1Initial);
-        console.log("VAL_2:", val2Initial);
-        console.log("VAL_3:", val3Initial);
-        console.log("Total:", val1Initial + val2Initial + val3Initial);
-        console.log("Expected target per validator:", expectedTarget);
-
         // Verify we have the expected imbalanced distribution
         assertEq(val1Initial, 400 ether, "VAL_1 should have 400 ether");
         assertEq(val2Initial, 200 ether, "VAL_2 should have 200 ether");
@@ -171,10 +163,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val1PendingRedelegation = coreVault.pendingRedelegateByValidator(VAL_1);
         assertTrue(val1PendingRedelegation > 0, "VAL_1 should have pending undelegations");
 
-        console.log("After adminRebalanceInitiate:");
-        console.log("Total pending redelegation:", coreVault.totalPendingRedelegation());
-        console.log("VAL_1 pending redelegation:", val1PendingRedelegation);
-
         // Step 2: Wait for withdrawal delay (simulate time passing)
         _advanceEpochsForWithdrawal();
 
@@ -186,12 +174,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val1Final = coreVault.delegatedAmount(VAL_1);
         uint256 val2Final = coreVault.delegatedAmount(VAL_2);
         uint256 val3Final = coreVault.delegatedAmount(VAL_3);
-
-        console.log("Final stakes:");
-        console.log("VAL_1:", val1Final);
-        console.log("VAL_2:", val2Final);
-        console.log("VAL_3:", val3Final);
-        console.log("Expected target:", expectedTarget);
 
         // All validators should now have stakes close to the target (~233.33 ether each)
         // Allow for small rounding differences
@@ -860,12 +842,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 initialValidator3Stake = coreVault.delegatedAmount(VAL_3);
         uint256 initialTotal = coreVault.getTotalDelegated();
 
-        console.log("=== INITIAL STATE ===");
-        console.log("VAL_1 stake:", initialValidator1Stake);
-        console.log("VAL_2 stake:", initialValidator2Stake);
-        console.log("VAL_3 stake:", initialValidator3Stake);
-        console.log("Total delegated:", initialTotal);
-
         // Verify initial distribution (should be equal since delegate() distributes equally)
         assertTrue(initialValidator1Stake > 0);
         assertTrue(initialValidator2Stake > 0);
@@ -882,10 +858,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(coreVault.delegatedAmount(VAL_1), 0);
         assertTrue(coreVault.totalPendingRedelegation() > 0);
 
-        console.log("=== AFTER UNDELEGATION ===");
-        console.log("VAL_1 stake:", coreVault.delegatedAmount(VAL_1));
-        console.log("Pending redistribution:", coreVault.totalPendingRedelegation());
-
         // Step 2: Complete withdrawal to trigger redistribution
         _advanceEpochsForWithdrawal();
 
@@ -896,11 +868,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 finalValidator2Stake = coreVault.delegatedAmount(VAL_2);
         uint256 finalValidator3Stake = coreVault.delegatedAmount(VAL_3);
         uint256 finalTotal = coreVault.getTotalDelegated();
-
-        console.log("=== AFTER REDISTRIBUTION ===");
-        console.log("VAL_2 final stake:", finalValidator2Stake);
-        console.log("VAL_3 final stake:", finalValidator3Stake);
-        console.log("Final total delegated:", finalTotal);
 
         // Verify redistribution behavior
         // VAL_2 and VAL_3 should have received additional stake
