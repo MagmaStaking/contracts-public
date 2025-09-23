@@ -21,7 +21,7 @@ abstract contract MagmaBase is
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 internal constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
-    // Time in seconds a user needs to wait before requestRedeem and redeem to be able to withdraw his stake
+    // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
     uint256 public redeemDelay;
 
     // Admin for Magma, CoreVault validator management, etc
