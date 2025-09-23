@@ -28,6 +28,8 @@ contract BaseTest is Test {
     function setUp() public virtual {
         admin = address(0xA11CE);
         user = address(0xB0B);
+        uint256 delay = 25000 / 250;
+        uint256 epoch = 0; // Disable epoch guard for testing
 
         // Deploy mock staking precompile at the expected address
         stakingPrecompile = new MockStakingPrecompile();
@@ -47,25 +49,23 @@ contract BaseTest is Test {
         address magmaProxy = UnsafeUpgrades.deployUUPSProxy(
             magmaImpl,
             abi.encodeCall(
-                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin)
+                Magma.initialize, (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, delay)
             )
         );
         magma = Magma(payable(magmaProxy));
 
-        uint256 delay = 25000 / 250;
-        uint256 epoch = 0; // Disable epoch guard for testing
 
         // CoreVault
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), delay, epoch))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch))
         );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
         address gvImpl = address(new gVault());
         address gvProxy =
-            UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), delay, epoch)));
+            UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), epoch)));
         gvault = gVault(payable(gvProxy));
 
         // Wire magma vault refs
