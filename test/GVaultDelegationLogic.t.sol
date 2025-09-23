@@ -48,9 +48,8 @@ contract GVaultDelegationLogicTest is BaseTest {
 
         // Redeploy gVault with epochSeconds = 0 to bypass epoch guard for testing
         address gVaultImpl = address(new gVault());
-        address gVaultProxy = UnsafeUpgrades.deployUUPSProxy(
-            gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0), uint256(0)))
-        );
+        address gVaultProxy =
+            UnsafeUpgrades.deployUUPSProxy(gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gVaultProxy));
 
         // Wire magma to new gVault

@@ -12,7 +12,6 @@ interface ICoreVault is IBaseVault {
     function adminRebalanceInitiate() external;
     function pause() external;
     function unpause() external;
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external;
 
     // Delegation functions (onlyMagma)
     function delegate() external payable;
@@ -24,11 +23,10 @@ interface ICoreVault is IBaseVault {
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee);
 
     // Initialization
-    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external;
+    function initialize(address _magma, uint256 _epochSeconds) external;
 
     // View functions
     function delegatedAmount(uint64 valId) external view returns (uint256);
-    function minQueueDelaySeconds() external view returns (uint256);
     function epochSeconds() external view returns (uint256);
     function lastRebalanceTimestamp() external view returns (uint256);
 

@@ -16,12 +16,11 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
-    // Track user positions: shares delegated per validator id (EIP-4626 style)
 
+    // Track user positions: shares delegated per validator id (EIP-4626 style)
     mapping(address => mapping(uint64 => uint256)) public delegatedSharesOf; // user => valId => shares
     mapping(uint64 => uint256) public totalSharesByValidator; // valId => total shares issued for this validator
 
-    uint256 public minQueueDelaySeconds;
     uint256 public lastRebalanceTimestamp;
     uint256 public epochSeconds;
     bool public finishedLastRebalance;
@@ -51,11 +50,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
     event GVaultRescaled(uint256 factorK, uint256 newP, uint256 newS);
 
-    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+    function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __VaultBase_init(_magma);
         magma = IMagma(_magma);
-        minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true; // Initialize to true so rebalancing can start
         // initialize multiplier system for proxies (declarations don't run)

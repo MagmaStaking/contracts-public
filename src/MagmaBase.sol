@@ -21,8 +21,8 @@ abstract contract MagmaBase is
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 internal constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
-    // Default delay for async operations (1 day)
-    uint256 public constant DEFAULT_DELAY = 1 days;
+    // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
+    uint256 public redeemDelay;
 
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
@@ -89,7 +89,8 @@ abstract contract MagmaBase is
         address admin_,
         uint256 rewardsFee_,
         uint256 withdrawalFee_,
-        address feeReceiver_
+        address feeReceiver_,
+        uint256 redeemDelay_
     ) internal onlyInitializing {
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -101,6 +102,7 @@ abstract contract MagmaBase is
         withdrawalFee = withdrawalFee_;
         feeReceiver = feeReceiver_;
         _requestIdCount = 0;
+        redeemDelay = redeemDelay_;
     }
 
     /**

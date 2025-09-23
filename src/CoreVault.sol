@@ -23,9 +23,6 @@ contract CoreVault is
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    // Per-validator amounts submitted for undelegation but not yet completed
-
-    uint256 public minQueueDelaySeconds;
     uint256 public epochSeconds;
 
     // Rebalance pacing guard
@@ -45,11 +42,10 @@ contract CoreVault is
         return super.paused();
     }
 
-    function initialize(address _magma, uint256 _minQueueDelaySeconds, uint256 _epochSeconds) external initializer {
+    function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __Pausable_init();
         __VaultBase_init(_magma);
-        minQueueDelaySeconds = _minQueueDelaySeconds;
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true;
     }
@@ -58,7 +54,6 @@ contract CoreVault is
     receive() external payable {}
 
     // whenNotPaused modifier is now inherited from PausableUpgradeable
-
     modifier onlyAfterEpoch() {
         if (epochSeconds != 0) {
             if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
@@ -74,10 +69,6 @@ contract CoreVault is
 
     function unpause() external onlyAdmin {
         _unpause();
-    }
-
-    function setMinQueueDelaySeconds(uint256 secondsDelay) external onlyAdmin {
-        minQueueDelaySeconds = secondsDelay;
     }
 
     // --------------------------------------------------------------------------------------------------------------
