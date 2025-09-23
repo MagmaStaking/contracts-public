@@ -1,42 +1,55 @@
 name: Forge Format Check
 
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    push:
+        branches: [main, master]
+    pull_request:
+        branches: [main, master]
 
 jobs:
-  forge-fmt:
-    runs-on: ubuntu-latest
+    forge-fmt:
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  submodules: recursive
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
+            - name: Install Foundry
+              uses: foundry-rs/foundry-toolchain@v1
+              with:
+                  version: nightly
 
-      - name: Check Solidity formatting
-        run: |
-          forge fmt --check
-        working-directory: .
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '18'
 
-      - name: Run tests
-        run: |
-          forge test
-        working-directory: .
+            - name: Install solhint
+              run: npm install -g solhint
 
-      - name: Show formatting differences (if any)
-        if: failure()
-        run: |
-          echo "❌ Code is not properly formatted!"
-          echo "To fix formatting issues, run: forge fmt"
-          echo ""
-          echo "Files that need formatting:"
-          forge fmt --check --diff
-        working-directory: .
+            - name: Run solhint
+              run: |
+                  solhint "src/**/*.sol" "interfaces/**/*.sol"
+              working-directory: .
+
+            - name: Check Solidity formatting
+              run: |
+                  forge fmt --check
+              working-directory: .
+
+            - name: Run tests
+              run: |
+                  forge test
+              working-directory: .
+
+            - name: Show formatting differences (if any)
+              if: failure()
+              run: |
+                  echo "❌ Code is not properly formatted!"
+                  echo "To fix formatting issues, run: forge fmt"
+                  echo ""
+                  echo "Files that need formatting:"
+                  forge fmt --check --diff
+              working-directory: .
