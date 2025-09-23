@@ -63,10 +63,3 @@ error MaxValidators(uint64 maxValidators);
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
 error ErrExistingWithdrawalInProgress();
 error ErrWithdrawalFailed(uint64 valId, uint8 withdrawalId);
-
-// Events for user withdrawal completion
-event WithdrawalNotReady(
-    uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 requestedAmount
-);
-
-event UserWithdrawalCompleted(address indexed user, uint256 totalWithdrawn);

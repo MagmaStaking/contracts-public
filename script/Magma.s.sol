@@ -66,3 +66,16 @@ contract MagmaScript is Script {
         vm.stopBroadcast();
     }
 }
+
+// TODO: npm install solhint and check ci cd install
+// TODO: solhint "src/**/*.sol" "interfaces/**/*.sol" maybe the script should be another one
+// TODO: check rules here https://github.com/ferrodri/ethernaut-solutions/blob/main/.solhint.json
+// TODO: implement the following ones
+// "func-order": "error",
+// "func-name-mixedcase": "error",
+// "func-param-name-mixedcase": "error",
+// "modifier-name-mixedcase": "error",
+// "named-parameters-mapping": "error",
+// "ordering": "error",
+// "private-vars-leading-underscore": "error",
+// "no-unused-vars": "error"
