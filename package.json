@@ -1,0 +1,9 @@
+{
+    "name": "magma-protocol",
+    "version": "0.0.1",
+    "private": true,
+    "repository": "https://github.com/MagmaStaking/protocol.git",
+    "devDependencies": {
+        "solhint": "6.0.1"
+    }
+}
