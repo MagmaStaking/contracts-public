@@ -111,7 +111,7 @@ contract CoreVault is
     function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
         if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
 
-        for (uint256 i = 0; i < validators.length; i++) {
+        for (uint256 i = 0; i < validators.length; ++i) {
             _registerValidator(validators[i]);
         }
         _redelegateInitiate();
@@ -193,7 +193,7 @@ contract CoreVault is
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
 
-        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; ++_i) {
             uint64 _valId = _sortedValidators[_i].valId;
             uint256 _availableStake = _sortedValidators[_i].amount; // Use stake from sorted array
 
@@ -256,7 +256,7 @@ contract CoreVault is
 
     function getTotalDelegated() external view returns (uint256) {
         uint256 _total = 0;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             _total += _getTotalStakedToValidator(validators[_i]);
         }
         return _total;
@@ -275,7 +275,7 @@ contract CoreVault is
 
     function _claimAndCompoundRewards() internal {
         uint256 _startingBalance = address(this).balance;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             uint256 _before = address(this).balance;
             _claim(validators[_i]);
             emit RewardsClaimed(validators[_i], address(this).balance - _before);
@@ -296,7 +296,7 @@ contract CoreVault is
         if (_totalDelegated == 0) return;
 
         uint256 _targetPerValidator = _totalDelegated / validators.length;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             uint64 _v = validators[_i];
             if (_getTotalStakedToValidator(_v) > _targetPerValidator) {
                 uint256 _excess = _getTotalStakedToValidator(_v) - _targetPerValidator;
@@ -343,7 +343,7 @@ contract CoreVault is
      * @return _totalWithdrawn The total amount withdrawn from all validators
      */
     function _completeAllPendingRedelegationWithdrawals() internal returns (uint256 _totalWithdrawn) {
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             uint64 _valId = validators[_i];
 
             // Check bitmap first - if ADMIN_WID is not in use, skip expensive precompile call
@@ -376,7 +376,7 @@ contract CoreVault is
     function _getSortedValidatorsByStake() internal view returns (ValidatorAmount[] memory _sortedValidators) {
         _sortedValidators = new ValidatorAmount[](validators.length);
 
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             uint64 _valId = validators[_i];
             DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
             _sortedValidators[_i] = ValidatorAmount(
@@ -401,7 +401,7 @@ contract CoreVault is
         _sortedValidators = new ValidatorAmount[](validators.length);
         _activeStake = 0;
 
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             uint64 _valId = validators[_i];
             DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
             uint256 _validatorStake = _coreVaultDelInfo.stake;
@@ -426,7 +426,7 @@ contract CoreVault is
 
         // Calculate total current stake to determine new target
         uint256 _currentTotalStake = 0;
-        for (uint256 _i = 0; _i < _sortedValidators.length; _i++) {
+        for (uint256 _i = 0; _i < _sortedValidators.length; ++_i) {
             _currentTotalStake += _sortedValidators[_i].amount;
         }
 
@@ -435,7 +435,7 @@ contract CoreVault is
         uint256 _remainingToDistribute = _totalAmountToDistribute;
 
         // Distribute to under-target validators, starting with lowest stake
-        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingToDistribute > 0; _i++) {
+        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingToDistribute > 0; ++_i) {
             uint64 _valId = _sortedValidators[_i].valId;
             uint256 _currentAmount = _sortedValidators[_i].amount;
 
@@ -465,7 +465,7 @@ contract CoreVault is
         }
 
         uint256 _amountPerValidator = _amount / validators.length;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             _delegate(validators[_i], _amountPerValidator);
         }
     }
@@ -475,12 +475,12 @@ contract CoreVault is
      */
     function _sort(ValidatorAmount[] memory _arr) internal pure {
         uint256 _length = _arr.length;
-        for (uint256 _i = 1; _i < _length; _i++) {
+        for (uint256 _i = 1; _i < _length; ++_i) {
             ValidatorAmount memory key = _arr[_i];
             uint256 _j = _i;
             while (_j > 0 && _arr[_j - 1].amount > key.amount) {
                 _arr[_j] = _arr[_j - 1];
-                _j--;
+                --_j;
             }
             _arr[_j] = key;
         }
@@ -491,12 +491,12 @@ contract CoreVault is
      */
     function _sortDescending(ValidatorAmount[] memory _arr) internal pure {
         uint256 _length = _arr.length;
-        for (uint256 _i = 1; _i < _length; _i++) {
+        for (uint256 _i = 1; _i < _length; ++_i) {
             ValidatorAmount memory key = _arr[_i];
             uint256 _j = _i;
             while (_j > 0 && _arr[_j - 1].amount < key.amount) {
                 _arr[_j] = _arr[_j - 1];
-                _j--;
+                --_j;
             }
             _arr[_j] = key;
         }
