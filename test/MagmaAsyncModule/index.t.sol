@@ -992,4 +992,13 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(magma.balanceOf(address(user)), 0);
         assertEq(user.balance, 0);
     }
+
+    function test_setRedeemDelay_OnlyAdmin_Success() public {
+        uint256 newDelay = 3600; // 1 hour
+
+        vm.prank(admin);
+        magma.setRedeemDelay(newDelay);
+
+        assertEq(magma.redeemDelay(), newDelay, "Should update delay");
+    }
 }
