@@ -290,7 +290,7 @@ contract CoreVault is
                     _checkFreeAdminWid(_v);
                     _allocateADMIN_WIDandUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
-                    pendingRedelegateByValidator[_v] += _toUndelegate;
+                    pendingRedelegateByValidator[_v] = _toUndelegate;
                     totalPendingRedelegation += _toUndelegate;
                 }
             }
@@ -333,18 +333,10 @@ contract CoreVault is
                 // For admin withdrawals, we need to handle pending redelegation amounts
                 _withdraw(_valId, ADMIN_WID);
                 // Update pending redelegation tracking
-                // TODO: consider slashing events
-                if (pendingRedelegateByValidator[_valId] >= _amount) {
-                    pendingRedelegateByValidator[_valId] -= _amount;
-                } else {
-                    pendingRedelegateByValidator[_valId] = 0;
-                }
 
-                if (totalPendingRedelegation >= _amount) {
-                    totalPendingRedelegation -= _amount;
-                } else {
-                    totalPendingRedelegation = 0;
-                }
+                // Note: in the case where the withdrawal is slashed we use the cached amount to deduct from totalPendingRedelegation
+                totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+                pendingRedelegateByValidator[_valId] = 0;
 
                 // Mark withdrawal ID as completed
                 _markWithdrawalCompleted(_valId, ADMIN_WID);

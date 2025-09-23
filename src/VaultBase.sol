@@ -24,7 +24,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     mapping(uint64 => ValidatorStatus) public override validatorStatus;
 
-    // Pending redelegations totals
+    // Pending redelegations totals for each validator (we can only use this once for an ADMIN_WID process)
     mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
     uint256 public override totalPendingRedelegation;
 
@@ -289,11 +289,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
 
-        if (pendingRedelegateByValidator[_valId] >= _amt) {
-            pendingRedelegateByValidator[_valId] -= _amt;
-        } else {
-            pendingRedelegateByValidator[_valId] = 0;
-        }
+        pendingRedelegateByValidator[_valId] = 0;
     }
 
     /**
