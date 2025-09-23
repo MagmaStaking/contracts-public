@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {IMagma} from "./IMagma.sol";
 import {IBaseVault} from "./IBaseVault.sol";
