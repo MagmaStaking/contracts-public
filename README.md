@@ -22,6 +22,20 @@ Magma is a liquid staking protocol built specifically for the Monad blockchain. 
 | [gVault](src/gVault.sol)               | Targeted delegation vault with per-validator stake caps and curated validator sets                                                  | `TBD`           |
 | [WrappedMonad](monad/WrappedMonad.sol) | ERC-20 wrapper for native MON tokens                                                                                                | `TBD`           |
 
+### Architecture Overview
+
+```mermaid
+graph TB
+    Users[Users] --> Magma[Magma Vault<br/>ERC-4626]
+    Magma --> CoreVault[CoreVault<br/>Equal Distribution]
+    Magma --> gVault[gVault<br/>Targeted Delegation]
+    CoreVault --> Precompile[Monad Staking<br/>Precompile]
+    gVault --> Precompile
+    Admin[Admin/Governor] --> Magma
+    Admin --> CoreVault
+    Admin --> gVault
+```
+
 ### Asset Flow
 
 #### Deposits
