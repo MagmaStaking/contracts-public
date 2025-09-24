@@ -134,6 +134,7 @@ contract CoreVaultValidatorOperations is BaseTest {
                 vm.startPrank(admin);
                 coreVault.addValidators(validators);
                 _advanceEpochsForWithdrawal();
+                magma.refreshCache();
                 coreVault.redelegateToValidators();
                 vm.stopPrank();
             }
