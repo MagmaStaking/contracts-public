@@ -2,7 +2,7 @@
 pragma solidity 0.8.30;
 
 import {MagmaBase} from "./MagmaBase.sol";
-import {ErrNotAdmin, ErrZeroAddress} from "./MagmaErrorsModule.sol";
+import {ErrNotAdmin, ErrZeroAddress, ErrInvalidBps} from "./MagmaErrorsModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 
@@ -22,11 +22,13 @@ abstract contract MagmaRoleManagementModule is MagmaBase {
 
     function setRewardsFee(uint256 _rewardsFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
+        if (_rewardsFee > BASE_BPS) revert ErrInvalidBps();
         rewardsFee = _rewardsFee;
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
+        if (_withdrawalFee > BASE_BPS) revert ErrInvalidBps();
         withdrawalFee = _withdrawalFee;
     }
 
