@@ -31,7 +31,6 @@ contract Magma is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
-    // TODO: everything in this struct should be underscore
     struct MagmaStorage {
         uint256 _requestIdCount;
         mapping(address owner => bool) _ownerRequested;
@@ -56,9 +55,6 @@ contract Magma is
         address _gVault;
     }
 
-    // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
-
     /// @notice Struct to track pending redeem requests
     /// @dev Claimable state may transition automatically after a timestamp has passed.
     /// @dev https://eips.ethereum.org/EIPS/eip-7540#no-event-for-claimable-state
@@ -70,6 +66,26 @@ contract Magma is
         uint256 claimableTime; // When assets become claimable
         bool isGVault; // If redeemRequest is for gVault or not
     }
+
+    struct InitializeParams {
+        IERC20 asset;
+        string name;
+        string symbol;
+        address admin;
+        address coreVault;
+        address gVault;
+        uint256 rewardsFee;
+        uint256 withdrawalFee;
+        address feeReceiver;
+        uint256 redeemDelay;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
+    /* solhint-disable-next-line const-name-snakecase */
+    bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
+
+    // ERC-7540 Asynchronous redemption Vault Interface ID
+    bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
     /// @dev Emitted upon a successful deposit, will be sent on every deposit to facilitate on the indexer side
     event DepositWithReferral(
@@ -87,27 +103,9 @@ contract Magma is
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );
 
-    // TODO: does this go after events or not
-    // ERC-7540 Asynchronous redemption Vault Interface ID
-    bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
-
-    struct InitializeParams {
-        IERC20 asset;
-        string name;
-        string symbol;
-        address admin;
-        address coreVault;
-        address gVault;
-        uint256 rewardsFee;
-        uint256 withdrawalFee;
-        address feeReceiver;
-        uint256 redeemDelay;
-    }
-
-    function _getMagmaStorage() private pure returns (MagmaStorage storage $) {
-        assembly {
-            $.slot := _MagmaStorageLocation
-        }
+    modifier onlyAdmin() {
+        if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
+        _;
     }
 
     function initialize(InitializeParams calldata params) external initializer {
@@ -132,6 +130,12 @@ contract Magma is
      */
     receive() external payable {}
 
+    function _getMagmaStorage() private pure returns (MagmaStorage storage $) {
+        assembly {
+            $.slot := _MagmaStorageLocation
+        }
+    }
+
     function pause() external onlyAdmin {
         _pause();
     }
@@ -143,14 +147,6 @@ contract Magma is
     // TODO: see if we need UUPSUpgradeable and this and change onlyAdmin i other spots
     // function _authorizeUpgrade(address) internal view override onlyAdmin {}
 
-    modifier onlyAdmin() {
-        if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
-        _;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            ERC-165 SUPPORT
-    //////////////////////////////////////////////////////////////*/
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }

@@ -69,27 +69,11 @@ contract MagmaScript is Script {
 
 /**
  * TODO:
- * ffi = true
  * @custom:oz-upgrades-from Magma review https://docs.openzeppelin.com/upgrades-plugins/api-foundry-upgrades https://docs.openzeppelin.com/upgrades-plugins/api-core#define-reference-contracts
  * @custom:storage-location erc7201:openzeppelin.storage.ERC4626,
  * MakeFile with ----force or forge clean before running forge script https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades?tab=readme-ov-file
  * fix openzeppelin lib here
  * you can do a test script just to test
  * Important Include the --sender <ADDRESS> flag for the forge script command when performing upgrades, specifying an address that owns the proxy or proxy admin. Otherwise, OwnableUnauthorizedAccount errors will occur.
- * NO STATE VARIABLES above struct
  * read https://eips.ethereum.org/EIPS/eip-7201 before PR
  */
-
-/**
- * Summary of how to implement a namespace-base root layout
- * To implement this pattern, simply follow these steps:
- *
- * Do not use state variables.
- * Would be state variables must be defined as fields in a struct.
- * Choose a unique namespace for the contract.
- * Use a function to calculate the new root of this contract from the namespace. ERC-7201 proposes a function to be used.
- * Create a utility function to return a reference to the struct base. Use assembly to explicitly indicate that the slot where the base of the struct is located is the slot calculated by the function defined in the previous item.
- * Every time you read or update a struct field, use the utility function to point to the base of the struct.
- * In the next section, we will see how to document the utilization of namespaces within a contract.
- */
-// TODO: storage look at how many functions we change of parents, use functions instead of variables
