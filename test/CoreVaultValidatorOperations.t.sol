@@ -864,6 +864,106 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.delegatedAmount(VAL_2) > 100 ether);
     }
 
+    // ============ VALIDATOR REMOVAL WITH REWARDS TESTS ============
+
+    function test_validatorRemovalWithPendingRewards() public {
+        // Test removing a validator that has accumulated rewards
+        // This verifies that rewards are properly claimed and distributed during the removal process
+
+        // Setup: Add 2 validators (need at least 2 to remove one)
+        _setupValidatorInStakingPrecompile(VAL_1);
+        _setupValidatorInStakingPrecompile(VAL_2);
+
+        vm.startPrank(admin);
+        coreVault.addValidator(VAL_1);
+        coreVault.addValidator(VAL_2);
+        vm.stopPrank();
+
+        // Set up initial stakes through delegation
+        vm.deal(address(magma), 200 ether);
+        vm.prank(address(magma));
+        coreVault.delegate{value: 200 ether}(); // 100 ether each
+
+        // Activate delegations
+        _activatePendingDelegations();
+        _activateAllStakes();
+
+        // Verify initial stakes
+        uint256 val1InitialStake = coreVault.delegatedAmount(VAL_1);
+        uint256 val2InitialStake = coreVault.delegatedAmount(VAL_2);
+        assertEq(val1InitialStake, 100 ether);
+        assertEq(val2InitialStake, 100 ether);
+
+        // Set up rewards for VAL_1 using MockStakingPrecompile
+        uint256 rewardsAmount = 5 ether;
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorRewards(VAL_1, address(coreVault), rewardsAmount);
+
+        // Fund the staking precompile with ETH to pay out rewards
+        vm.deal(STAKING_PRECOMPILE, 100 ether);
+
+        // Step 1: Initiate removal of VAL_1 (which has pending rewards)
+        vm.prank(admin);
+        coreVault.initiateValidatorRemoval(VAL_1);
+
+        // Verify VAL_1 is paused
+        assertFalse(coreVault.isWhitelisted(VAL_1));
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.PAUSED));
+
+        // Step 2: Execute undelegation - this should claim the rewards automatically
+        // The fixed _claimValidatorRewards function should now work properly
+        vm.prank(admin);
+        coreVault.executeValidatorUndelegation(VAL_1);
+
+        // Verify rewards were claimed and validator moved to UNDELEGATING status
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));
+        assertEq(coreVault.delegatedAmount(VAL_1), 0);
+
+        // The rewards should have been claimed and redistributed to remaining validators
+        // VAL_2 should have received additional stake from the rewards distribution
+        uint256 val2StakeAfterRewards = coreVault.delegatedAmount(VAL_2);
+
+        // VAL_2 should have received the rewards (minus fees) through internal distribution
+        assertTrue(val2StakeAfterRewards > val2InitialStake, "VAL_2 should have received rewards distribution");
+
+        // Step 3: Complete the withdrawal process
+        _advanceEpochsForWithdrawal();
+
+        // Ensure the staking precompile has enough ETH for the withdrawal
+        vm.deal(STAKING_PRECOMPILE, 500 ether);
+
+        vm.prank(admin);
+        coreVault.completeValidatorRemovalWithdrawal(VAL_1);
+
+        // Verify final state
+        assertEq(uint256(coreVault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
+        assertFalse(coreVault.isWhitelisted(VAL_1));
+        assertTrue(coreVault.isWhitelisted(VAL_2));
+        assertEq(coreVault.getValidatorCount(), 1);
+
+        // VAL_2 should now have both the rewards + redistributed stake from VAL_1 removal
+        uint256 val2FinalStake = coreVault.delegatedAmount(VAL_2);
+
+        // Calculate expected final stake:
+        // 1. Original total stake: 200 ether (100 each for VAL_1 and VAL_2)
+        // 2. Rewards claimed: 5 ether
+        // 3. Protocol fee on rewards: 5 ether * 10 BPS / 10000 = 0.005 ether
+        // 4. Net rewards after fees: 5 ether - 0.005 ether = 4.995 ether
+        // 5. Total after rewards distribution: 200 ether + 4.995 ether = 204.995 ether
+        // 6. All stake goes to VAL_2 after VAL_1 removal: 204.995 ether
+        uint256 expectedRewardsAfterFees = rewardsAmount - (rewardsAmount * 10) / 10000; // 4.995 ether
+        uint256 expectedFinalStake = 200 ether + expectedRewardsAfterFees; // 204.995 ether
+
+        // Allow for minimal rounding differences (1 gwei tolerance)
+        uint256 tolerance = 1 gwei;
+        assertTrue(
+            val2FinalStake >= expectedFinalStake - tolerance && val2FinalStake <= expectedFinalStake + tolerance,
+            "VAL_2 should have exactly: original total + rewards after fees"
+        );
+
+        // Verify no pending redelegations remain
+        assertEq(coreVault.totalPendingRedelegation(), 0);
+    }
+
     // ============ ERROR CONDITION TESTS ============
 
     function test_cannotRemoveLastValidator() public {

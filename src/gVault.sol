@@ -27,34 +27,43 @@ import {
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    // Track user positions: shares delegated per validator id (EIP-4626 style)
+    /// @dev EIP-4626 style share tracking: tracks user's share ownership per validator
     mapping(address => mapping(uint64 => uint256)) public delegatedSharesOf; // user => valId => shares
+    /// @dev Total shares issued for each validator (used for share-to-asset conversion)
     mapping(uint64 => uint256) public totalSharesByValidator; // valId => total shares issued for this validator
 
+    /// @dev Timestamp of the last admin rebalance operation
     uint256 public lastRebalanceTimestamp;
+    /// @dev Duration in seconds between allowed operations (currently unused but kept for consistency)
     uint256 public epochSeconds;
+    /// @dev Flag indicating if the last admin rebalance has completed both phases
     bool public finishedLastRebalance;
 
-    // pause withdrawals for a validator an epoch before removing
-    mapping(uint64 => uint256) public pausedWithdrawalsForValidator;
-
-    // Per-validator deposit caps; if zero, use defaultCapPercent of Magma.totalAssets()
+    /// @dev Per-validator absolute deposit caps in wei. If 0, uses defaultCapBps percentage instead
     mapping(uint64 => uint256) public validatorCap;
-    // Default cap percent in basis points (1% = 100 bps)
+    /// @dev Default cap as percentage of total Magma assets in basis points (25 = 0.25%)
     uint256 public defaultCapBps; // 0.25%
 
     // =========================
     // Liquity-style multiplier tracking for admin rebalances
     // =========================
-    // Use high-precision 1e27 scaling to avoid collapse to zero and preserve precision.
+    /// @dev High-precision (1e27) cumulative retention multiplier for gVault
+    /// Tracks the fraction of assets remaining after admin rebalances
+    /// P = P_prev * (1 - rebalance_bps/10000) for each rebalance
     uint256 public gvaultMultiplierP; // cumulative retention multiplier P for gVault
+
+    /// @dev Global scale factor (1e27) that increases during rescaling to maintain precision
+    /// The ratio P/S determines user entitlements: entitlement = principal_units * P / S
     uint256 public gvaultScaleS; // global scale S; rescaled with P to keep ratio stable
 
-    // User scaled principal units per validator: units = sum(assets_at_update * S / P_at_update)
+    /// @dev User's scaled principal contribution per validator
+    /// Formula: units += ceil(deposit_amount * S / P_at_deposit_time)
+    /// Withdrawal entitlement = units * current_P / current_S
     mapping(address => mapping(uint64 => uint256)) internal scaledPrincipalUnits;
 
-    // Rescale thresholds to avoid P getting too small (tunable)
+    /// @dev Threshold below which P is rescaled to prevent precision loss (1e20)
     uint256 internal constant MULTIPLIER_FLOOR = 1e20; // if P < this, rescale
+    /// @dev Rescaling factor applied to both P and S to maintain their ratio (1e9)
     uint256 internal constant MULTIPLIER_RESCALE_K = 1e9; // multiply P and S by K
 
     event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
@@ -83,24 +92,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Allows the contract to receive MON from validator delegation completions
      */
     receive() external payable {}
-
-    /**
-     * @notice Pause withdrawals for a specific validator
-     * @dev Sets a timestamp to pause withdrawals, typically before validator removal
-     * @param _valId The validator ID to pause withdrawals for
-     */
-    function pauseWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[_valId] = block.timestamp;
-    }
-
-    /**
-     * @notice Resume withdrawals for a specific validator
-     * @dev Clears the pause timestamp to allow withdrawals again
-     * @param _valId The validator ID to resume withdrawals for
-     */
-    function resumeWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[_valId] = 0;
-    }
 
     /**
      * @notice Add a new validator to the whitelist
@@ -228,8 +219,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         _trackCachedDelegation(msg.value);
 
         // Update multiplier-based scaled principal units for the user
+        // This tracks the user's "principal" contribution for withdrawal entitlement calculations
         if (msg.value > 0) {
-            // units += ceil(assets * S / P) using mulDiv to avoid overflow
+            // Calculate units = ceil(deposit_amount * S / P) to track user's contribution
+            // Using ceiling to prevent precision erosion in user's favor
             uint256 _addUnits = Math.mulDiv(msg.value, gvaultScaleS, gvaultMultiplierP, Math.Rounding.Ceil);
             scaledPrincipalUnits[_user][_valId] += _addUnits;
         }
@@ -271,9 +264,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         totalSharesByValidator[_valId] -= _sharesToBurn;
 
         if (_amount > 0) {
-            // Reduce scaled principal units by ceil(amount * S / P), bounded to current units
+            // Reduce scaled principal units proportionally to withdrawal amount
+            // Calculate units to remove = ceil(withdrawal_amount * S / P)
             uint256 _currentUnits = scaledPrincipalUnits[_user][_valId];
             uint256 _removeUnits = Math.mulDiv(_amount, gvaultScaleS, gvaultMultiplierP, Math.Rounding.Ceil);
+            // Prevent underflow: if removing more units than available, set to 0
             scaledPrincipalUnits[_user][_valId] = _removeUnits >= _currentUnits ? 0 : (_currentUnits - _removeUnits);
 
             uint8 _wid = _allocateWIDandUndelegate(_valId, _amount);
@@ -316,21 +311,25 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
 
         if (_bps > BASE_BPS) revert ErrInvalidBps();
-        // Handle 100% outflow without letting P hit zero
+
+        // Handle edge case of 100% rebalance (complete liquidation)
         if (_bps == BASE_BPS) {
-            // Bump the global scale so previous units' entitlement -> ~0, keep P finite for future math
+            // Special handling for 100% outflow: prevent P from hitting zero which would break math
+            // Scale up S massively so existing user units become worthless (entitlement ≈ 0)
             uint256 K_FULL = 1e9; // large-but-safe scale bump
             gvaultScaleS = gvaultScaleS * K_FULL;
             gvaultMultiplierP = 1e27; // reset P to nominal 1.0 in 1e27 scale
             emit GVaultRescaled(K_FULL, gvaultMultiplierP, gvaultScaleS);
         } else {
-            // Update cumulative gVault multiplier P to reflect retained fraction after moving bps to CoreVault
+            // Update cumulative multiplier P to reflect what fraction stays in gVault
+            // P_new = P_old * (1 - bps/10000) tracks cumulative retention
             uint256 _oldP = gvaultMultiplierP;
-            uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // 1e27 * (1 - bps/10000)
+            uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // Convert (1 - bps/10000) to 1e27 scale
             gvaultMultiplierP = Math.mulDiv(gvaultMultiplierP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
             emit GVaultMultiplierUpdated(_oldP, gvaultMultiplierP, _bps);
 
-            // Rescale if P drops near zero to preserve precision; ratio P/S remains unchanged
+            // Prevent precision loss: if P gets too small, rescale both P and S by same factor
+            // This maintains the ratio P/S while bringing P back to a safe range
             if (gvaultMultiplierP < MULTIPLIER_FLOOR) {
                 gvaultMultiplierP *= MULTIPLIER_RESCALE_K;
                 gvaultScaleS *= MULTIPLIER_RESCALE_K;
@@ -368,11 +367,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint64[] memory _list = validators;
         uint256 _beforeBal = address(this).balance;
         uint256 _n = _list.length;
+        // Process each validator's pending admin withdrawal
         for (uint256 i = 0; i < _n; ++i) {
             uint64 _valId = _list[i];
 
             (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-            if (!exists || amt == 0) continue;
+            if (!exists || amt == 0) continue; // Skip if no pending withdrawal
+
             _withdraw(_valId, ADMIN_WID);
             _markWithdrawalCompleted(_valId, ADMIN_WID);
             emit AdminCompletedRebalanceWithdrawal(_valId, amt);
@@ -427,12 +428,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
         uint256 _totalShares = totalSharesByValidator[_valId];
 
+        // Handle initial deposit case: no existing shares or assets
         if (_totalShares == 0 || _totalAssets == 0) {
-            // Initial deposit: 1:1 ratio
+            // Initial deposit: 1:1 ratio (1 asset = 1 share)
             return _assets;
         }
 
-        // Round down to favor the vault (EIP-4626 requirement)
+        // Calculate shares proportionally: shares = assets * total_shares / total_assets
+        // Round down to favor the vault (EIP-4626 requirement for convertToShares)
         return (_assets * _totalShares) / _totalAssets;
     }
 
@@ -460,11 +463,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
         uint256 _totalShares = totalSharesByValidator[_valId];
 
+        // Handle edge case: no shares exist (shouldn't happen in normal operation)
         if (_totalShares == 0) {
             return 0;
         }
 
-        // Round down to favor the vault
+        // Calculate assets proportionally: assets = shares * total_assets / total_shares
+        // Round down to favor the vault (conservative approach for redemptions)
         return (_shares * _totalAssets) / _totalShares;
     }
 
@@ -473,7 +478,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
-    function _authorizeUpgrade(address newImplementation) internal onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
+    /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
     uint256[50] private __gap;
 }

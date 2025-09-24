@@ -8,8 +8,6 @@ interface IGVault is IBaseVault {
     function addValidator(uint64 valId) external;
     function changeValidatorCap(uint64 valId, uint256 newCap) external;
     function setDefaultCapBps(uint256 newBps) external;
-    function pauseWithdrawalsForValidator(uint64 valId) external;
-    function resumeWithdrawalsForValidator(uint64 valId) external;
     function adminInitiateRebalanceBps(uint16 bps) external;
     function adminCompleteRebalance() external;
 
@@ -34,7 +32,6 @@ interface IGVault is IBaseVault {
     function epochSeconds() external view returns (uint256);
     function finishedLastRebalance() external view returns (bool);
 
-    function pausedWithdrawalsForValidator(uint64 valId) external view returns (uint256);
     function validatorCap(uint64 valId) external view returns (uint256);
     function defaultCapBps() external view returns (uint256);
 

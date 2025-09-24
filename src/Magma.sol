@@ -12,9 +12,11 @@ import {
     ErrRequestInexistent,
     ErrNativeTransferFailed,
     ErrNotAdmin,
-    ErrZeroAddress
+    ErrZeroAddress,
+    ErrInvalidBps
 } from "./MagmaErrorsModule.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
@@ -26,6 +28,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 contract Magma is
     Initializable,
+    UUPSUpgradeable,
     ERC4626Upgradeable,
     ERC165Upgradeable,
     ReentrancyGuardUpgradeable,
@@ -147,7 +150,7 @@ contract Magma is
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
-    function _authorizeUpgrade(address newImplementation) internal onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         // ERC-7540 Asynchronous redemption Vault Interface ID: 0x620ee8e4
@@ -386,6 +389,7 @@ contract Magma is
         nonReentrant
         returns (uint256 assets)
     {
+        _refreshCacheCheck();
         return _redeem(requestId, controller, receiver, true);
     }
 
@@ -395,6 +399,7 @@ contract Magma is
         nonReentrant
         returns (uint256 assets)
     {
+        _refreshCacheCheck();
         return _redeem(requestId, controller, receiver, false);
     }
 
@@ -405,6 +410,7 @@ contract Magma is
      * This prevents exploitation of price differences during the two-step redemption process. For example, if
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
+     * @dev Admin can redeem for any request to bypass the controller check since withdrawals ids are limited and can be used up
      */
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
@@ -412,7 +418,9 @@ contract Magma is
     {
         MagmaStorage storage $ = _getMagmaStorage();
 
-        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
+        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()] || _msgSender() == $._admin)) {
+            revert ErrNotAuthorized();
+        }
         RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert ErrRequestInexistent();
@@ -463,10 +471,12 @@ contract Magma is
     }
 
     function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
+        if (_rewardsFee > 10_000) revert ErrInvalidBps();
         _getMagmaStorage()._rewardsFee = _rewardsFee;
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external onlyAdmin {
+        if (_withdrawalFee > 10_000) revert ErrInvalidBps();
         _getMagmaStorage()._withdrawalFee = _withdrawalFee;
     }
 
