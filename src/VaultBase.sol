@@ -18,7 +18,7 @@ import {
     ErrZeroValidatorId,
     ErrAlreadyWhitelisted,
     ErrNativeTransferFailed,
-    AdminWidInUse,
+    ErrAdminWidInUse,
     ErrNotWhitelisted
 } from "./MagmaErrorsModule.sol";
 
@@ -448,7 +448,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to check
      */
     function _checkFreeAdminWid(uint64 _valId) internal view {
-        if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert AdminWidInUse();
+        if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert ErrAdminWidInUse();
     }
 
     /**
