@@ -31,10 +31,16 @@ contract Magma is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
+    // TODO: everything in this struct should be underscore
     struct MagmaStorage {
         uint256 _requestIdCount;
         mapping(address owner => bool) _ownerRequested;
+        // Mapping from controller to their pending withdrawal requests
+        mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
     }
+
+    // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
     // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
     uint256 public redeemDelay;
@@ -65,9 +71,6 @@ contract Magma is
         bool isGVault; // If redeemRequest is for gVault or not
     }
 
-    // Mapping from controller to their pending withdrawal requests
-    mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
-
     // Mapping for operator approvals (ERC-7540)
     mapping(address controller => mapping(address operator => bool)) public isOperator;
 
@@ -94,9 +97,6 @@ contract Magma is
     // TODO: does this go after events or not
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
-
-    // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
     function _getMagmaStorage() private pure returns (MagmaStorage storage $) {
         assembly {
@@ -322,7 +322,7 @@ contract Magma is
         if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
         uint256 requestId = $._requestIdCount;
-        pendingRedeemRequests[controller][requestId] = RedeemRequests({
+        $._pendingRedeemRequests[controller][requestId] = RedeemRequests({
             owner: owner,
             shares: shares,
             assets: assets,
@@ -343,11 +343,22 @@ contract Magma is
     }
 
     function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
-        return pendingRedeemRequests[controller][requestId].shares;
+        MagmaStorage storage $ = _getMagmaStorage();
+        return $._pendingRedeemRequests[controller][requestId].shares;
+    }
+
+    function pendingRedeemRequestData(uint256 requestId, address controller)
+        external
+        view
+        returns (RedeemRequests memory data)
+    {
+        MagmaStorage storage $ = _getMagmaStorage();
+        return $._pendingRedeemRequests[controller][requestId];
     }
 
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
-        RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
+        MagmaStorage storage $ = _getMagmaStorage();
+        RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
@@ -386,12 +397,12 @@ contract Magma is
         MagmaStorage storage $ = _getMagmaStorage();
 
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
-        RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
+        RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
 
-        address owner = pendingRedeemRequests[controller][requestId].owner;
-        delete pendingRedeemRequests[controller][requestId];
+        address owner = $._pendingRedeemRequests[controller][requestId].owner;
+        delete $._pendingRedeemRequests[controller][requestId];
         $._ownerRequested[owner] = false;
 
         (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) =
