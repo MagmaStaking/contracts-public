@@ -460,7 +460,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Test the insufficient amount scenario
         // Based on the pattern we've seen, active stake is typically much less than total stake
         // Let's test with a reasonable amount first to succeed, then test insufficient
-
+        magma.refreshCache();
         // First, try a small withdrawal that should succeed
         uint256 smallAmount = 5 ether;
         vm.prank(address(magma));
@@ -767,6 +767,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         vm.prank(admin);
         freshCoreVault.addValidator(singleValId);
 
+        magma.refreshCache();
         // The delegatedAmount shows total stake, but active stake available for withdrawal is much less
         // Let's use a small, realistic amount that should be available as active stake
         uint256 withdrawAmount = 3 ether; // Small amount that should be available as active stake
@@ -842,6 +843,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         console.log("Attempting to withdraw: %d", largeWithdrawAmount);
 
+        magma.refreshCache();
         vm.prank(address(magma));
         freshCoreVault.undelegate(largeWithdrawAmount, alice);
 

@@ -32,6 +32,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         wmon.approve(address(magma), shares);
         assertEq(shares, toGVault ? magma.depositGVault(assets, depositor, 3, 0) : magma.deposit(shares, depositor));
         vm.stopPrank();
+
         return shares;
     }
 
@@ -389,7 +390,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 assets = 5 ether;
         address controller = address(123);
         uint256 shares = _depositHelper(assets);
-        vm.warp(2);
+        vm.warp(2 days);
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, controller, user);
         assertEq(0, magma.claimableRedeemRequest(requestId, controller));

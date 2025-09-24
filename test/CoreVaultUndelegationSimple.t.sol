@@ -108,6 +108,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         // Test: Alice makes a withdrawal
         uint256 withdrawAmount = 50 ether;
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(withdrawAmount, alice);
 
@@ -143,6 +144,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         coreVault.addValidator(val1);
 
         // Alice makes first withdrawal (use smaller amount within available active stake)
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(3 ether, alice);
 
@@ -160,6 +162,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         coreVault.addValidator(val1);
 
         // Alice withdraws (use smaller amount within available active stake)
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(8 ether, alice);
 
@@ -218,6 +221,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         // Total stake = 600 ether, 1/20th = 30 ether
         uint256 onetwentiethAmount = 30 ether;
+        magma.refreshCache();
 
         // Should succeed
         vm.prank(address(magma));
@@ -264,7 +268,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(coreVault), 100 ether);
         vm.prank(admin);
         coreVault.addValidator(val1);
-
+        magma.refreshCache();
         // Make withdrawal (use smaller amount within available active stake)
         vm.prank(address(magma));
         coreVault.undelegate(4 ether, alice);

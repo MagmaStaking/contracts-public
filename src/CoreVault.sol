@@ -420,7 +420,7 @@ contract CoreVault is
 
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
-            DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+            DelInfo memory _coreVaultDelInfo = _getDelegatorInfoCached(_valId);
             _sortedValidators[_i] = ValidatorAmount(
                 _valId, _coreVaultDelInfo.stake + _coreVaultDelInfo.deltaStake + _coreVaultDelInfo.nextDeltaStake
             );
@@ -445,7 +445,7 @@ contract CoreVault is
 
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
-            DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
+            DelInfo memory _coreVaultDelInfo = _getDelegatorInfoCached(_valId);
             uint256 _validatorStake = _coreVaultDelInfo.stake;
             _sortedValidators[_i] = ValidatorAmount(_valId, _validatorStake);
             _activeStake += _validatorStake;
