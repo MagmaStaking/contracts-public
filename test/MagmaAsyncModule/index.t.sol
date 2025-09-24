@@ -11,7 +11,7 @@ import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {IBaseVault} from "interfaces/IBaseVault.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
-import {RequestInexistent} from "src/MagmaErrorsModule.sol";
+import {ErrRequestInexistent} from "src/MagmaErrorsModule.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public virtual override {
@@ -845,7 +845,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // Verify that the request has been properly cleaned up
         // The request should no longer exist after redemption
-        vm.expectRevert(RequestInexistent.selector);
+        vm.expectRevert(ErrRequestInexistent.selector);
         vm.prank(admin);
         magma.redeem(requestId, controller, receiver);
     }

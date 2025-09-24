@@ -19,7 +19,7 @@ import {
     ErrNoPendingWithdrawRequest,
     ErrEpochGuard,
     ErrNotEnoughValidators,
-    MaxValidators
+    ErrMaxValidators
 } from "../src/MagmaErrorsModule.sol";
 
 /**
@@ -158,7 +158,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         validators[2] = VAL_3;
 
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(MaxValidators.selector, 1));
+        vm.expectRevert(abi.encodeWithSelector(ErrMaxValidators.selector, 1));
         coreVault.addValidators(validators);
     }
 
