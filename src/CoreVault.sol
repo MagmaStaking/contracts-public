@@ -449,10 +449,36 @@ contract CoreVault is
             revert ErrZeroAmount();
         }
 
-        ValidatorAmount[] memory _sortedValidators = _getSortedValidatorsByStake();
+        // Get validators sorted by stake (highest first, then sort lowest) and total stake in one go
+        (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
+            _getSortedValidatorsByActiveStakeDescendingWithTotal();
+        _sort(_sortedValidators);
 
-        // Step 3: Distribute stake to under-target validators in ascending order of stake
-        _distributeStakeToValidatorsAscending(_sortedValidators, _amount);
+        uint256 _remainingAmount = _amount;
+        uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
+
+        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+            uint64 _valId = _sortedValidators[_i].valId;
+
+            // Check if request exceeds 1/20th of total active stake
+            uint256 _maxAllowedFromValidator =
+                _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
+
+            uint256 _amountToValidator = _remainingAmount;
+            if (_amountToValidator > _maxAllowedFromValidator) {
+                _amountToValidator = _maxAllowedFromValidator;
+            }
+
+            if (_amountToValidator > 0) {
+                _delegate(_valId, _amountToValidator);
+                _remainingAmount -= _amountToValidator;
+            }
+        }
+
+        // If we couldn't fulfill the full amount, revert
+        if (_remainingAmount > 0) {
+            revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
+        }
     }
 
     function injectRewards() public payable {
