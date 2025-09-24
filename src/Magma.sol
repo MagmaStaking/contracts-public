@@ -36,12 +36,14 @@ contract Magma is
 {
     /// @custom:storage-location erc7201:storage.Magma
     struct MagmaStorage {
+        /// @notice The address that receives the fees.
+        address _feeReceiver;
+        // Admin for Magma, CoreVault validator management, etc
+        address _admin;
+        // Vault contract references (to be set by admin)
+        address _coreVault;
+        address _gVault;
         uint256 _requestIdCount;
-        mapping(address owner => bool) _ownerRequested;
-        // Mapping from controller to their pending withdrawal requests
-        mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
-        // Mapping for operator approvals (ERC-7540)
-        mapping(address controller => mapping(address operator => bool)) _isOperator;
         // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
         uint256 _redeemDelay;
         /// @notice The fee for rewards.
@@ -50,13 +52,11 @@ contract Magma is
         /// @notice The fee for withdrawals.
         /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
         uint256 _withdrawalFee;
-        /// @notice The address that receives the fees.
-        address _feeReceiver;
-        // Admin for Magma, CoreVault validator management, etc
-        address _admin;
-        // Vault contract references (to be set by admin)
-        address _coreVault;
-        address _gVault;
+        mapping(address owner => bool) _ownerRequested;
+        // Mapping from controller to their pending withdrawal requests
+        mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
+        // Mapping for operator approvals (ERC-7540)
+        mapping(address controller => mapping(address operator => bool)) _isOperator;
     }
 
     /// @notice Struct to track pending redeem requests
