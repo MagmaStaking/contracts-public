@@ -32,6 +32,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 start;
     }
 
+    /// @dev Threshold below which P is rescaled to prevent precision loss (1e20)
+    uint256 internal constant MULTIPLIER_FLOOR = 1e20; // if P < this, rescale
+    /// @dev Rescaling factor applied to both P and S to maintain their ratio (1e9)
+    uint256 internal constant MULTIPLIER_RESCALE_K = 1e9; // multiply P and S by K
+
     // keccak256(abi.encode(uint256(keccak256("storage.GVault")) - 1)) & ~bytes32(uint256(0xff))
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _GVaultStorageLocation = 0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
@@ -69,11 +74,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /// Formula: units += ceil(deposit_amount * S / P_at_deposit_time)
     /// Withdrawal entitlement = units * current_P / current_S
     mapping(address => mapping(uint64 => uint256)) internal scaledPrincipalUnits;
-
-    /// @dev Threshold below which P is rescaled to prevent precision loss (1e20)
-    uint256 internal constant MULTIPLIER_FLOOR = 1e20; // if P < this, rescale
-    /// @dev Rescaling factor applied to both P and S to maintain their ratio (1e9)
-    uint256 internal constant MULTIPLIER_RESCALE_K = 1e9; // multiply P and S by K
 
     event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
     event GVaultRescaled(uint256 factorK, uint256 newP, uint256 newS);
