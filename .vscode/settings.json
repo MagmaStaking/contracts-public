@@ -4,5 +4,8 @@
     "solidity.compileUsingRemoteVersion": "v0.8.30",
     "solidity.defaultCompiler": "remote",
     "solidity.formatter": "forge",
-    "solidity.linter": "solhint"
+    "solidity.linter": "solhint",
+    "[solidity]": {
+        "editor.defaultFormatter": "JuanBlanco.solidity"
+    }
 }
