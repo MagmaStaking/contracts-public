@@ -25,6 +25,23 @@ import {
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
+    /// @custom:storage-location erc7201:storage.VaultBase
+    struct VaultBaseStorage {
+        uint256 start;
+    }
+
+    /// @dev Structure to track individual user withdrawal requests
+    struct WithdrawalRequestInfo {
+        uint256 amount; // Amount requested for withdrawal
+        uint64 validator; // Validator from which to withdraw
+        uint8 withdrawalId; // Unique withdrawal ID for tracking
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("storage.VaultBase")) - 1)) & ~bytes32(uint256(0xff))
+    /* solhint-disable-next-line const-name-snakecase */
+    bytes32 private constant _VaultBaseStorageLocation =
+        0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
+
     /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
     mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
@@ -65,17 +82,20 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
     int256 public cachedTotalNetPendingDelegations;
 
-    /// @dev Structure to track individual user withdrawal requests
-    struct WithdrawalRequestInfo {
-        uint256 amount; // Amount requested for withdrawal
-        uint64 validator; // Validator from which to withdraw
-        uint8 withdrawalId; // Unique withdrawal ID for tracking
-    }
-
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
     IMagma public magma;
+
+    modifier onlyAdmin() {
+        if (msg.sender != magma.admin()) revert ErrNotAdmin();
+        _;
+    }
+
+    modifier onlyMagma() {
+        if (msg.sender != address(magma)) revert ErrNotMagma();
+        _;
+    }
 
     /**
      * @notice Initialize the VaultBase contract with Magma protocol reference
@@ -88,14 +108,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         delegatorInfoUpdateInterval = 1 hours;
     }
 
-    modifier onlyAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-        _;
-    }
-
-    modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
-        _;
+    function _getVaultBaseStorage() private pure returns (VaultBaseStorage storage $) {
+        assembly {
+            $.slot := _VaultBaseStorageLocation
+        }
     }
 
     /**
