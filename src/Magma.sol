@@ -51,6 +51,9 @@ contract Magma is
         address _feeReceiver;
         // Admin for Magma, CoreVault validator management, etc
         address _admin;
+        // Vault contract references (to be set by admin)
+        address _coreVault;
+        address _gVault;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
@@ -67,10 +70,6 @@ contract Magma is
         uint256 claimableTime; // When assets become claimable
         bool isGVault; // If redeemRequest is for gVault or not
     }
-
-    // Vault contract references (to be set by admin)
-    ICoreVault public coreVault;
-    IGVault public gVault;
 
     /// @dev Emitted upon a successful deposit, will be sent on every deposit to facilitate on the indexer side
     event DepositWithReferral(
@@ -92,53 +91,40 @@ contract Magma is
     // ERC-7540 Asynchronous redemption Vault Interface ID
     bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
+    struct InitializeParams {
+        IERC20 asset;
+        string name;
+        string symbol;
+        address admin;
+        address coreVault;
+        address gVault;
+        uint256 rewardsFee;
+        uint256 withdrawalFee;
+        address feeReceiver;
+        uint256 redeemDelay;
+    }
+
     function _getMagmaStorage() private pure returns (MagmaStorage storage $) {
         assembly {
             $.slot := _MagmaStorageLocation
         }
     }
 
-    function initialize(
-        IERC20 asset_,
-        string memory name_,
-        string memory symbol_,
-        address admin_,
-        address coreVault_,
-        address gVault_,
-        uint256 rewardsFee_,
-        uint256 withdrawalFee_,
-        address feeReceiver_,
-        uint256 redeemDelay_
-    ) external initializer {
-        __MagmaBase_init(asset_, name_, symbol_, admin_, rewardsFee_, withdrawalFee_, feeReceiver_, redeemDelay_);
-
-        coreVault = ICoreVault(coreVault_);
-        gVault = IGVault(gVault_);
-    }
-
-    /* solhint-disable-next-line func-name-mixedcase */
-    function __MagmaBase_init(
-        IERC20 asset_,
-        string memory name_,
-        string memory symbol_,
-        address admin_,
-        uint256 rewardsFee_,
-        uint256 withdrawalFee_,
-        address feeReceiver_,
-        uint256 redeemDelay_
-    ) internal onlyInitializing {
+    function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
         __ReentrancyGuard_init();
         __Pausable_init();
-        __ERC20_init(name_, symbol_);
-        __ERC4626_init(IERC20(address(asset_)));
+        __ERC20_init(params.name, params.symbol);
+        __ERC4626_init(params.asset);
         __ERC165_init();
-        $._admin = admin_;
-        $._rewardsFee = rewardsFee_;
-        $._withdrawalFee = withdrawalFee_;
-        $._feeReceiver = feeReceiver_;
-        $._redeemDelay = redeemDelay_;
+        $._admin = params.admin;
+        $._coreVault = params.coreVault;
+        $._gVault = params.gVault;
+        $._rewardsFee = params.rewardsFee;
+        $._withdrawalFee = params.withdrawalFee;
+        $._feeReceiver = params.feeReceiver;
+        $._redeemDelay = params.redeemDelay;
     }
 
     /**
@@ -173,8 +159,16 @@ contract Magma is
         return _getMagmaStorage()._admin;
     }
 
+    function coreVault() public view returns (address) {
+        return _getMagmaStorage()._coreVault;
+    }
+
     function feeReceiver() public view returns (address) {
         return _getMagmaStorage()._feeReceiver;
+    }
+
+    function gVault() public view returns (address) {
+        return _getMagmaStorage()._gVault;
     }
 
     function rewardsFee() public view returns (uint256) {
@@ -186,7 +180,8 @@ contract Magma is
     }
 
     function totalAssets() public view virtual override returns (uint256) {
-        return coreVault.totalAssets() + gVault.totalAssets();
+        MagmaStorage storage $ = _getMagmaStorage();
+        return ICoreVault($._coreVault).totalAssets() + IGVault($._gVault).totalAssets();
     }
 
     function isOperator(address controller, address operator) external view returns (bool) {
@@ -212,7 +207,7 @@ contract Magma is
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
-        coreVault.delegate{value: assets}();
+        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return minted;
     }
@@ -234,7 +229,7 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets}();
+        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
         return shares;
     }
@@ -247,7 +242,7 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
-        gVault.delegate{value: assets}(receiver, valId);
+        IGVault(_getMagmaStorage()._gVault).delegate{value: assets}(receiver, valId);
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
@@ -261,7 +256,7 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
-        coreVault.delegate{value: assets}();
+        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
@@ -284,7 +279,7 @@ contract Magma is
         _mint(receiver, shares);
         emit Deposit(_msgSender(), receiver, assets, shares);
 
-        coreVault.delegate{value: assets}();
+        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
 
         return shares;
@@ -309,7 +304,7 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
-        if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
+        if (assets > IGVault(_getMagmaStorage()._gVault).maxWithdrawableFromGVault(owner, valId)) {
             revert ErrNotEnoughAssetsGVault();
         }
         return _requestRedeem(shares, assets, controller, owner, valId, true);
@@ -359,7 +354,9 @@ contract Magma is
 
         _burn(owner, shares);
 
-        isGVault ? gVault.undelegate(owner, valId, assets) : coreVault.undelegate(assets, owner);
+        isGVault
+            ? IGVault($._gVault).undelegate(owner, valId, assets)
+            : ICoreVault($._coreVault).undelegate(assets, owner);
 
         emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
         return requestId;
@@ -426,8 +423,9 @@ contract Magma is
         delete $._pendingRedeemRequests[controller][requestId];
         $._ownerRequested[owner] = false;
 
-        (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) =
-            request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
+        (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) = request.isGVault
+            ? IGVault($._gVault).completeUserWithdrawal(owner)
+            : ICoreVault($._coreVault).completeUserWithdrawal(owner);
 
         uint256 shares =
             totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
@@ -461,8 +459,9 @@ contract Magma is
 
     function setVaults(address _coreVault, address _gVault) external onlyAdmin {
         if (_coreVault == address(0)) revert ErrZeroAddress();
-        coreVault = ICoreVault(_coreVault);
-        gVault = IGVault(_gVault);
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._coreVault = _coreVault;
+        $._gVault = _gVault;
     }
 
     function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
@@ -485,16 +484,18 @@ contract Magma is
      * @notice Force refresh the cache for the CoreVault and gVault
      */
     function refreshCache() external {
-        coreVault.refreshCache();
-        gVault.refreshCache();
+        MagmaStorage storage $ = _getMagmaStorage();
+        ICoreVault($._coreVault).refreshCache();
+        IGVault($._gVault).refreshCache();
     }
 
     /**
      * @notice Check if the cache for the CoreVault and gVault needs to be refreshed and refresh if needed
      */
     function _refreshCacheCheck() internal {
-        coreVault.refreshCacheCheck();
-        gVault.refreshCacheCheck();
+        MagmaStorage storage $ = _getMagmaStorage();
+        ICoreVault($._coreVault).refreshCacheCheck();
+        IGVault($._gVault).refreshCacheCheck();
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
