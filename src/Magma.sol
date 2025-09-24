@@ -33,6 +33,7 @@ contract Magma is
 {
     struct MagmaStorage {
         uint256 _requestIdCount;
+        mapping(address owner => bool) _ownerRequested;
     }
 
     // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
@@ -66,8 +67,6 @@ contract Magma is
 
     // Mapping from controller to their pending withdrawal requests
     mapping(address controller => mapping(uint256 requestId => RedeemRequests)) public pendingRedeemRequests;
-
-    mapping(address owner => bool) internal _ownerRequested;
 
     // Mapping for operator approvals (ERC-7540)
     mapping(address controller => mapping(address operator => bool)) public isOperator;
@@ -314,13 +313,14 @@ contract Magma is
         uint64 valId,
         bool isGVault
     ) private returns (uint256) {
+        MagmaStorage storage $ = _getMagmaStorage();
+
         if (controller == address(0)) revert ErrZeroAddress();
-        if (_ownerRequested[owner]) revert ErrRequestPending();
+        if ($._ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
         if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
         if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
-        MagmaStorage storage $ = _getMagmaStorage();
         uint256 requestId = $._requestIdCount;
         pendingRedeemRequests[controller][requestId] = RedeemRequests({
             owner: owner,
@@ -332,7 +332,7 @@ contract Magma is
         unchecked {
             $._requestIdCount = requestId + 1;
         }
-        _ownerRequested[owner] = true;
+        $._ownerRequested[owner] = true;
 
         _burn(owner, shares);
 
@@ -383,6 +383,8 @@ contract Magma is
         private
         returns (uint256)
     {
+        MagmaStorage storage $ = _getMagmaStorage();
+
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
@@ -390,7 +392,7 @@ contract Magma is
 
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];
-        _ownerRequested[owner] = false;
+        $._ownerRequested[owner] = false;
 
         (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) =
             request.isGVault ? gVault.completeUserWithdrawal(owner) : coreVault.completeUserWithdrawal(owner);
