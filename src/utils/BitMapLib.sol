@@ -61,37 +61,6 @@ library BitMapLib {
         return (bitMap.bitmap & mask) != 0;
     }
 
-    /**
-     * @dev Get the current bitmap value
-     * @param bitMap The bitmap storage reference
-     * @return The 256-bit bitmap value
-     */
-    function getBitmap(WithdrawalBitMap storage bitMap) internal view returns (uint256) {
-        return bitMap.bitmap;
-    }
-
-    /**
-     * @dev Get the next withdrawal ID cursor
-     * @param bitMap The bitmap storage reference
-     * @return The next withdrawal ID cursor
-     */
-    function getNextWithdrawalId(WithdrawalBitMap storage bitMap) internal view returns (uint8) {
-        return bitMap.nextWithdrawalId;
-    }
-
-    /**
-     * @dev Count the number of withdrawal IDs currently in use
-     * @param bitMap The bitmap storage reference
-     * @return count The number of bits set in the bitmap
-     */
-    function countInUse(WithdrawalBitMap storage bitMap) internal view returns (uint256 count) {
-        uint256 bitmap = bitMap.bitmap;
-        // Brian Kernighan's algorithm to count set bits
-        while (bitmap != 0) {
-            bitmap &= bitmap - 1; // Clear the lowest set bit
-            ++count;
-        }
-    }
 
     /**
      * @dev Internal function to allocate a free withdrawal ID, skipping the specified reserved ID
