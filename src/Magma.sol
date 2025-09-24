@@ -142,8 +142,12 @@ contract Magma is
         _unpause();
     }
 
-    // TODO: see if we need UUPSUpgradeable and this and change onlyAdmin i other spots
-    // function _authorizeUpgrade(address) internal view override onlyAdmin {}
+    /**
+     * @notice Internal function to authorize contract upgrades
+     * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
+     * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
+     */
+    function _authorizeUpgrade(address newImplementation) internal onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         // ERC-7540 Asynchronous redemption Vault Interface ID: 0x620ee8e4
@@ -402,7 +406,6 @@ contract Magma is
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
      */
-    //  TODO: or admin, put in the comments @ dev if smart contract not EOA
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
         returns (uint256)

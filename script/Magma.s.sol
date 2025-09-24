@@ -76,4 +76,6 @@ contract MagmaScript is Script {
  * you can do a test script just to test
  * Important Include the --sender <ADDRESS> flag for the forge script command when performing upgrades, specifying an address that owns the proxy or proxy admin. Otherwise, OwnableUnauthorizedAccount errors will occur.
  * read https://eips.ethereum.org/EIPS/eip-7201 before PR
+ * console.log rule in cursor and test
+ *  https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
  */
