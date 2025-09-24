@@ -25,40 +25,54 @@ import {
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    // Per-validator withdrawal ID bitmap management
+    /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
     mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
+    /// @dev Reserved withdrawal ID for administrative operations (validator removal, rebalancing)
     uint8 internal constant ADMIN_WID = 255;
+    /// @dev Basis points constant for percentage calculations (10,000 = 100%)
     uint256 internal constant BASE_BPS = 10_000;
+    /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
     uint256 public minUserWithdrawAmount;
 
+    /// @dev Tracks which validators are currently whitelisted for delegation
     mapping(uint64 => bool) public override isWhitelisted;
+    /// @dev Active validator list (validators available for delegation)
     uint64[] public override validators;
 
+    /// @dev Current status of each validator in the removal process lifecycle
     mapping(uint64 => ValidatorStatus) public override validatorStatus;
 
-    // Pending redelegations totals for each validator (we can only use this once for an ADMIN_WID process)
+    /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
+    /// Only one admin redelegation can be pending per validator at a time
     mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
+    /// @dev Total pending redelegation across all validators
     uint256 public override totalPendingRedelegation;
 
-    // Pending withdrawals totals
+    /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
     mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
+    /// @dev Total pending user withdrawals across all validators
     uint256 public override totalPendingUndelegations;
 
-    // Pending delegate totals, we'll be caching _delegatorInfo here
-    mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo; // Cached delegator info for each validator
-    uint256 public lastDelegatorInfoUpdateTimestamp; // Timestamp of last delegator info update
-    uint256 public delegatorInfoUpdateInterval; // Configurable interval at which we update the cached delegator info
-    uint256 public cachedTotalAssets; // Total assets for all validators
-    int256 public cachedTotalNetPendingDelegations; // Total pending delegations for all validators
+    /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
+    mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
+    /// @dev Timestamp when cached delegator info was last updated
+    uint256 public lastDelegatorInfoUpdateTimestamp;
+    /// @dev How often cached delegator info can be refreshed (default: 1 hour)
+    uint256 public delegatorInfoUpdateInterval;
+    /// @dev Cached total assets across all validators (from last cache update)
+    uint256 public cachedTotalAssets;
+    /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
+    int256 public cachedTotalNetPendingDelegations;
 
+    /// @dev Structure to track individual user withdrawal requests
     struct WithdrawalRequestInfo {
-        uint256 amount;
-        uint64 validator;
-        uint8 withdrawalId;
+        uint256 amount;        // Amount requested for withdrawal
+        uint64 validator;      // Validator from which to withdraw
+        uint8 withdrawalId;    // Unique withdrawal ID for tracking
     }
 
-    // Storage for withdrawal requests - mapping from user to their withdrawal requests
+    /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
     IMagma public magma;
@@ -84,15 +98,24 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _;
     }
 
+    /**
+     * @dev Cache validator statistics from precompile to improve gas efficiency
+     * @notice This function fetches fresh data from the staking precompile for all validators
+     *         and stores it locally to avoid expensive precompile calls during normal operations
+     */
     function cacheValidatorStats() internal {
         uint256 _cachedTotalAssets = 0;
+        
+        // Fetch and cache delegator info for each active validator
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
-            DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
+            DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
             cachedDelegatorInfo[_valId] = _delInfo;
+            // Sum total assets: active stake + pending stake changes
             _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         }
-        // reset cached total net pending delegations
+        
+        // Reset pending delta tracking since we just refreshed from source of truth
         cachedTotalNetPendingDelegations = 0;
         cachedTotalAssets = _cachedTotalAssets;
     }
@@ -106,6 +129,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return uint256(int256(cachedTotalAssets + totalPendingRedelegation) + cachedTotalNetPendingDelegations);
     }
 
+    /**
+     * @notice Conditionally refresh cache if enough time has passed
+     * @dev Only refreshes if more than delegatorInfoUpdateInterval has passed since last update
+     */
     function refreshCacheCheck() external {
         if (
             block.timestamp - lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
@@ -115,10 +142,18 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
     }
 
+    /**
+     * @notice Force refresh the validator cache immediately
+     * @dev Bypasses time interval check and updates cache with fresh precompile data
+     */
     function refreshCache() external {
         _refreshCache();
     }
 
+    /**
+     * @dev Internal function to refresh cached validator statistics
+     * @notice Updates cached data and sets new timestamp
+     */
     function _refreshCache() internal {
         cacheValidatorStats();
         lastDelegatorInfoUpdateTimestamp = block.timestamp;
@@ -208,20 +243,21 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             revert ErrPendingStakeNotZero();
         }
 
-        // Claim rewards for this validator before undelegation
+        // Claim any accumulated rewards before removing validator
         if (_coreVaultDelInfo.rewards > 0) {
             _claimValidatorRewards(_valId);
         }
 
         uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
 
-        // Undelegate all from this validator first
+        // Initiate undelegation of all remaining stake from this validator
         if (_amountToRedelegate > 0) {
-            _checkFreeAdminWid(_valId);
+            _checkFreeAdminWid(_valId); // Ensure admin withdrawal ID is available
             _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
-            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
+            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
             emit ValidatorRemoved(_valId);
         } else {
+            // No stake to undelegate, validator removal is complete
             delete validatorStatus[_valId];
             emit ValidatorRemovalCompleted(_valId);
         }
@@ -249,12 +285,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _initiateValidatorRemoval(uint64 _valId) internal {
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        
+        // Step 1: Pause validator to prevent new delegations
         validatorStatus[_valId] = ValidatorStatus.PAUSED;
         isWhitelisted[_valId] = false;
-        _removeFromArray(validators, _valId);
+        _removeFromArray(validators, _valId); // Remove from active validators list
 
+        // Track the total stake that will need to be redelegated
         uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
         if (_totalStakedToValidator > 0) {
+            // Reserve this amount for pending redelegation tracking
             pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
             totalPendingRedelegation += _totalStakedToValidator;
         }
@@ -380,41 +420,40 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             uint64 _valId = _request.validator;
             uint8 _withdrawalId = _request.withdrawalId;
 
-            // Check if withdrawal is ready
-            (bool _exists, uint256 _availableAmount,,) = _getWithdrawalRequest(_valId, address(this), _withdrawalId);
-            if (!(_exists && _availableAmount > 0)) {
-                // Withdrawal not ready yet, skip this request
-                emit WithdrawalNotReady(_valId, _withdrawalId, _user, _availableAmount);
-                continue;
-            }
+            // Check if withdrawal has matured and is ready for completion
+            (, uint256 _availableAmount,,) = _getWithdrawalRequest(_valId, address(this), _withdrawalId);
 
-            // Attempt to withdraw from precompile
+            // Execute withdrawal from staking precompile
             _withdraw(_valId, _withdrawalId);
             _totalSuccessfulWithdrawals += _availableAmount;
             emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
 
-            // Update pending undelegation tracking
+            // Update pending undelegation tracking (handle potential underflow from slashing)
             if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
                 pendingUndelegateByValidator[_valId] -= _availableAmount;
             } else {
-                pendingUndelegateByValidator[_valId] = 0;
+                pendingUndelegateByValidator[_valId] = 0; // Prevent underflow if slashed
             }
 
+            // Update global pending undelegations (handle potential underflow)
             totalPendingUndelegations =
                 (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
 
-            // Mark withdrawal ID as completed
+            // Mark withdrawal ID as completed and available for reuse
             _markWithdrawalCompleted(_valId, _withdrawalId);
         }
 
-        // Send all accumulated ETH to user in a single transaction
+        // Send all accumulated ETH to user in a single transaction (gas efficient)
         if (_totalSuccessfulWithdrawals > 0) {
             uint256 _fee = _chargeWithdrawalFee(_totalSuccessfulWithdrawals);
             uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
+            
+            // Transfer remaining funds to Magma contract which will forward to user
             (bool success,) = address(magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
+            
             _totalWithdrawn = _totalSuccessfulWithdrawals;
             _totalWithdrawnAfterFee = _remaining;
         }
@@ -499,10 +538,18 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _fee;
     }
 
+    /**
+     * @dev Track delegation operations in cache to maintain accurate totalAssets calculation
+     * @param _amount Amount being delegated
+     */
     function _trackCachedDelegation(uint256 _amount) internal {
         cachedTotalNetPendingDelegations += int256(_amount);
     }
 
+    /**
+     * @dev Track undelegation operations in cache to maintain accurate totalAssets calculation
+     * @param _amount Amount being undelegated
+     */
     function _trackCachedUndelegation(uint256 _amount) internal {
         cachedTotalNetPendingDelegations -= int256(_amount);
     }

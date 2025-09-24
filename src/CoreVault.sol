@@ -37,19 +37,22 @@ contract CoreVault is
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
+    /// @dev Duration in seconds between allowed rebalance operations (0 = no time restriction)
     uint256 public epochSeconds;
 
-    // Limit batch of validators that can be added at once to prevent gas issues on the for loop
+    /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
     uint64 private _maxValidatorPerBatch;
 
-    // Rebalance pacing guard
+    /// @dev Timestamp of the last rebalance operation, used for epoch guard timing
     uint256 public lastRebalanceTimestamp;
 
+    /// @dev Flag indicating if the last rebalance operation has completed both phases
     bool public finishedLastRebalance;
 
+    /// @dev Struct to hold validator ID and associated amount for sorting operations
     struct ValidatorAmount {
-        uint64 valId;
-        uint256 amount;
+        uint64 valId;    // Validator identifier
+        uint256 amount;  // Stake amount associated with this validator
     }
 
     /**
@@ -118,6 +121,11 @@ contract CoreVault is
         _redelegateInitiate();
     }
 
+    /**
+     * @notice Add multiple validators and initiate rebalancing phase 1 (undelegation)
+     * @dev Batch add validators with gas limit protection, then trigger rebalancing
+     * @param validators Array of validator IDs to add (limited by _maxValidatorPerBatch)
+     */
     function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
         if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
 
@@ -127,7 +135,11 @@ contract CoreVault is
         _redelegateInitiate();
     }
 
-    // Phase 1: initiate by undelegating excess from over-target validators
+    /**
+     * @notice Phase 1: Initiate manual rebalancing by undelegating excess from over-target validators
+     * @dev Starts the two-phase rebalancing process. Must be followed by redelegateToValidators()
+     *      to complete the redistribution. Prevents concurrent rebalances.
+     */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
         finishedLastRebalance = false;
@@ -221,16 +233,17 @@ contract CoreVault is
 
             if (_availableStake == 0) continue;
 
-            // Check if request exceeds 1/20th of total active stake
+            // Check if request exceeds 1/20th of total active stake to prevent large withdrawals from single validator
             uint256 _maxAllowedFromValidator =
                 _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
 
+            // Calculate amount to withdraw from this validator (min of needed, allowed, and available)
             uint256 _amountFromValidator = _remainingAmount;
             if (_amountFromValidator > _maxAllowedFromValidator) {
-                _amountFromValidator = _maxAllowedFromValidator;
+                _amountFromValidator = _maxAllowedFromValidator;  // Respect the 5% limit per validator
             }
             if (_amountFromValidator > _availableStake) {
-                _amountFromValidator = _availableStake;
+                _amountFromValidator = _availableStake;  // Can't withdraw more than what's staked
             }
 
             if (_amountFromValidator > 0) {
@@ -499,13 +512,15 @@ contract CoreVault is
         uint256 _targetAmountPerValidator = _newTotalStake / validators.length;
         uint256 _remainingToDistribute = _totalAmountToDistribute;
 
-        // Distribute to under-target validators, starting with lowest stake
+        // Distribute to under-target validators, starting with lowest stake to achieve balance
         for (uint256 _i = 0; _i < _sortedValidators.length && _remainingToDistribute > 0; ++_i) {
             uint64 _valId = _sortedValidators[_i].valId;
             uint256 _currentAmount = _sortedValidators[_i].amount;
 
+            // Only add stake to validators below the target amount
             if (_currentAmount < _targetAmountPerValidator) {
                 uint256 _needed = _targetAmountPerValidator - _currentAmount;
+                // Give this validator either what it needs or what we have left, whichever is smaller
                 uint256 _toDelegate = _needed > _remainingToDistribute ? _remainingToDistribute : _needed;
 
                 if (_toDelegate > 0) {
@@ -517,7 +532,6 @@ contract CoreVault is
         _trackCachedDelegation(_totalAmountToDistribute);
     }
 
-    // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
     /**
      * @dev Distributes the specified amount equally among all validators
      * @param _amount The total amount to distribute
@@ -603,6 +617,11 @@ contract CoreVault is
         return userWithdrawalRequests[_user].length;
     }
 
+    /**
+     * @notice Update the maximum number of validators that can be added in a single batch
+     * @dev Admin function to adjust gas limit protection for batch validator operations
+     * @param maxValidatorPerBatch New maximum batch size for validator additions
+     */
     function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyAdmin {
         _maxValidatorPerBatch = maxValidatorPerBatch;
     }
@@ -615,5 +634,6 @@ contract CoreVault is
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }
 
+    /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
     uint256[50] private __gap;
 }
