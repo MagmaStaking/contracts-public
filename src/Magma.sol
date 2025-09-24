@@ -400,6 +400,7 @@ contract Magma is
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
      */
+    //  TODO: or admin, put in the comments @ dev if smart contract not EOA
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
         returns (uint256)
