@@ -32,18 +32,18 @@ contract MagmaScript is Script {
             "Magma.sol",
             abi.encodeCall(
                 Magma.initialize,
-                (
-                    IERC20(underlyingAssetAddress),
-                    "gMON",
-                    "gMON",
-                    msg.sender,
-                    address(0),
-                    address(0),
-                    0,
-                    0,
-                    feeReceiverAddress,
-                    delay
-                )
+                Magma.InitializeParams({
+                    asset: IERC20(underlyingAssetAddress),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: msg.sender,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 0,
+                    withdrawalFee: 0,
+                    feeReceiver: feeReceiverAddress,
+                    redeemDelay: delay
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
