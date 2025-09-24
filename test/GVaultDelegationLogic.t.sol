@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {BaseTest} from "./BaseTest.t.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -118,21 +119,13 @@ contract GVaultDelegationLogicTest is BaseTest {
     function test_DelegateBasic() public {
         uint256 delegateAmount = 5 ether;
 
-        console.log("=== Basic Delegation Test ===");
-
         // Record initial state
         uint256 initialUserShares = gvault.delegatedSharesOf(alice, VAL_1);
         uint256 initialTotalShares = gvault.totalSharesByValidator(VAL_1);
         uint256 initialUserDelegatedAmount = gvault.delegatedAmountOf(alice, VAL_1);
 
-        console.log("Initial state:");
-        console.log("  User shares:", initialUserShares);
-        console.log("  Total shares for validator:", initialTotalShares);
-        console.log("  User delegated amount:", initialUserDelegatedAmount);
-
         // Log validator's total staked amount for debugging
         uint256 validatorStake = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
-        console.log("  Validator total stake:", validatorStake);
 
         // Fund the Magma contract for delegation (it forwards ETH to gVault)
         vm.deal(address(magma), delegateAmount);
@@ -146,14 +139,8 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 finalTotalShares = gvault.totalSharesByValidator(VAL_1);
         uint256 finalUserDelegatedAmount = gvault.delegatedAmountOf(alice, VAL_1);
 
-        console.log("Final state:");
-        console.log("  User shares:", finalUserShares);
-        console.log("  Total shares for validator:", finalTotalShares);
-        console.log("  User delegated amount:", finalUserDelegatedAmount);
-
         uint256 finalValidatorStake =
             MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
-        console.log("  Final validator total stake:", finalValidatorStake);
 
         // Verify delegation results
         assertGt(finalUserShares, initialUserShares, "User shares should increase");
@@ -174,8 +161,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 delegateAmount = 10 ether;
         uint256 undelegateAmount = 4 ether;
 
-        console.log("=== Basic Undelegation Test ===");
-
         // Setup: Alice delegates first
         vm.deal(address(magma), delegateAmount);
         vm.prank(address(magma));
@@ -190,12 +175,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 afterDelegateAmount = gvault.delegatedAmountOf(alice, VAL_1);
         uint256 initialPendingUndelegations = gvault.totalPendingUndelegations();
 
-        console.log("After delegation:");
-        console.log("  User shares:", afterDelegateUserShares);
-        console.log("  Total shares:", afterDelegateTotalShares);
-        console.log("  User delegated amount:", afterDelegateAmount);
-        console.log("  Initial pending undelegations:", initialPendingUndelegations);
-
         // Alice undelegates partial amount
         vm.prank(address(magma));
         gvault.undelegate(alice, VAL_1, undelegateAmount);
@@ -206,13 +185,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 finalUserDelegatedAmount = gvault.delegatedAmountOf(alice, VAL_1);
         uint256 finalPendingUndelegations = gvault.totalPendingUndelegations();
         uint256 finalValidatorPending = gvault.pendingUndelegateByValidator(VAL_1);
-
-        console.log("After undelegation:");
-        console.log("  User shares:", finalUserShares);
-        console.log("  Total shares:", finalTotalShares);
-        console.log("  User delegated amount:", finalUserDelegatedAmount);
-        console.log("  Final pending undelegations:", finalPendingUndelegations);
-        console.log("  Validator pending:", finalValidatorPending);
 
         // Verify undelegation results
         assertLt(finalUserShares, afterDelegateUserShares, "User shares should decrease");
@@ -233,27 +205,18 @@ contract GVaultDelegationLogicTest is BaseTest {
     // ============ TEST 3: CAP ENFORCEMENT ============
 
     function test_DelegateCapEnforcement() public {
-        console.log("=== Cap Enforcement Test ===");
-
         // Calculate current cap for VAL_1 (0.25% of CoreVault total assets)
         uint256 coreVaultAssets = coreVault.totalAssets();
         uint256 defaultCapBps = gvault.defaultCapBps();
         uint256 expectedCap = (coreVaultAssets * defaultCapBps) / 10_000;
 
-        console.log("CoreVault total assets:", coreVaultAssets);
-        console.log("Default cap BPS:", defaultCapBps);
-        console.log("Expected cap for VAL_1:", expectedCap);
-
         // Get current total staked to validator from mock precompile
         uint256 currentStaked = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
-        console.log("Current staked to VAL_1:", currentStaked);
 
         // Calculate available cap space
         uint256 availableCapSpace = expectedCap > currentStaked ? expectedCap - currentStaked : 0;
-        console.log("Available cap space:", availableCapSpace);
 
         if (availableCapSpace < 2 ether) {
-            console.log("Increasing validator cap for testing");
             vm.prank(admin);
             gvault.changeValidatorCap(VAL_1, currentStaked + 10 ether);
             availableCapSpace = 10 ether;
@@ -262,7 +225,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         // Test successful delegation within cap
         uint256 withinCapAmount = availableCapSpace / 2;
         uint256 exceedingAmount = availableCapSpace; // Declare early
-        console.log("Delegating within cap:", withinCapAmount);
 
         vm.deal(address(magma), withinCapAmount + exceedingAmount + 10 ether); // Fund for all tests
         vm.prank(address(magma));
@@ -273,8 +235,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         assertEq(gvault.delegatedAmountOf(alice, VAL_1), expectedAmount, "Within-cap delegation should succeed");
 
         // Test delegation that would exceed cap
-        console.log("Attempting to delegate amount that exceeds cap:", exceedingAmount);
-
         vm.prank(address(magma));
         vm.expectRevert(abi.encodeWithSelector(ErrExceedsCap.selector));
         gvault.delegate{value: exceedingAmount}(bob, VAL_1);
@@ -284,8 +244,6 @@ contract GVaultDelegationLogicTest is BaseTest {
 
     function test_CompleteUserWithdrawal() public {
         uint256 delegateAmount = 5 ether;
-
-        console.log("=== Withdrawal Completion Test ===");
 
         // Setup: Alice delegates first
         vm.deal(address(magma), delegateAmount);
@@ -298,11 +256,9 @@ contract GVaultDelegationLogicTest is BaseTest {
 
         // Get Alice's actual delegated amount (which includes her share of the initial 0.1 ETH)
         uint256 aliceDelegated = gvault.delegatedAmountOf(alice, VAL_1);
-        console.log("Alice's total position:", aliceDelegated);
 
         // Use a smaller undelegation amount that's definitely within her position
         uint256 undelegateAmount = 2 ether; // Use a fixed amount that's less than delegation
-        console.log("Undelegating amount:", undelegateAmount);
 
         vm.prank(address(magma));
         gvault.undelegate(alice, VAL_1, undelegateAmount);
@@ -311,11 +267,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 initialPendingUndelegations = gvault.totalPendingUndelegations();
         uint256 initialValidatorPending = gvault.pendingUndelegateByValidator(VAL_1);
         uint256 initialMagmaBalance = address(magma).balance;
-
-        console.log("Before completion:");
-        console.log("  Pending undelegations:", initialPendingUndelegations);
-        console.log("  Validator pending:", initialValidatorPending);
-        console.log("  Magma balance:", initialMagmaBalance);
 
         // Advance time to make withdrawal ready
         _advanceEpochsForWithdrawal();
@@ -328,12 +279,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 finalPendingUndelegations = gvault.totalPendingUndelegations();
         uint256 finalValidatorPending = gvault.pendingUndelegateByValidator(VAL_1);
         uint256 finalMagmaBalance = address(magma).balance;
-
-        console.log("After completion:");
-        console.log("  Actual withdrawn:", actualWithdrawn);
-        console.log("  Pending undelegations:", finalPendingUndelegations);
-        console.log("  Validator pending:", finalValidatorPending);
-        console.log("  Magma balance:", finalMagmaBalance);
 
         // Verify withdrawal completion
         if (actualWithdrawn > 0) {
@@ -353,8 +298,6 @@ contract GVaultDelegationLogicTest is BaseTest {
     function test_DelegationAccessControl() public {
         uint256 delegateAmount = 5 ether;
         uint256 undelegateAmount = 2 ether;
-
-        console.log("=== Access Control Test ===");
 
         // Test that only Magma can call delegate
         vm.deal(address(magma), delegateAmount * 3); // Fund Magma for multiple attempts

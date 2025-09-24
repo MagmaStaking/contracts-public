@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Magma} from "../src/Magma.sol";
@@ -48,8 +48,9 @@ contract MagmaScript is Script {
         );
         magma = Magma(payable(magmaProxy));
 
-        address coreProxy =
-            Upgrades.deployUUPSProxy("CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), epoch)));
+        address coreProxy = Upgrades.deployUUPSProxy(
+            "CoreVault.sol", abi.encodeCall(CoreVault.initialize, (address(magma), epoch, uint64(10)))
+        );
         address gvProxy =
             Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), epoch)));
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 // Generic access/role
 error ErrNotAdmin();
@@ -57,15 +57,9 @@ error ErrMustPauseBeforeRemove();
 error ErrPendingStakeNotZero();
 error ErrInvalidStatus();
 error ErrNotEnoughValidators();
+error MaxValidators(uint64 maxValidators);
 
 // Withdrawal ordering errors
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
 error ErrExistingWithdrawalInProgress();
 error ErrWithdrawalFailed(uint64 valId, uint8 withdrawalId);
-
-// Events for user withdrawal completion
-event WithdrawalNotReady(
-    uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 requestedAmount
-);
-
-event UserWithdrawalCompleted(address indexed user, uint256 totalWithdrawn);

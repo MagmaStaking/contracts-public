@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
-import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
-import "./MagmaErrorsModule.sol";
+import {
+    NotEnoughAssetsGVault,
+    ErrZeroAddress,
+    ErrRequestPending,
+    ErrZeroShares,
+    ErrNotAuthorized,
+    ErrInsufficientShares,
+    RequestInexistent,
+    ErrNativeTransferFailed
+} from "./MagmaErrorsModule.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
@@ -171,7 +177,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
             claimableTime: block.timestamp + redeemDelay,
             isGVault: isGVault
         });
-        _requestIdCount++;
+        ++_requestIdCount;
         _ownerRequested[owner] = true;
 
         _burn(owner, shares);
@@ -262,11 +268,13 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
+        /* solhint-disable-next-line gas-custom-errors */
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
+        /* solhint-disable-next-line gas-custom-errors */
         revert();
     }
 
@@ -279,6 +287,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         override
         returns (uint256)
     {
+        /* solhint-disable-next-line gas-custom-errors */
         revert();
     }
 

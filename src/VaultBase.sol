@@ -1,14 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
-import "./MagmaErrorsModule.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {
+    ErrNotAdmin,
+    ErrNotMagma,
+    ErrInvalidAmount,
+    ErrInvalidStatus,
+    ErrNoPendingWithdrawRequest,
+    ErrPendingStakeNotZero,
+    ErrZeroValidatorId,
+    ErrAlreadyWhitelisted,
+    ErrNativeTransferFailed,
+    AdminWidInUse,
+    ErrNotWhitelisted
+} from "./MagmaErrorsModule.sol";
 
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
@@ -56,6 +68,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @dev Sets the Magma protocol contract address for vault operations
      * @param _magma The address of the Magma protocol contract
      */
+    /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
         magma = IMagma(_magma);
     }
@@ -193,7 +206,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Undelegate all from this validator first
         if (_amountToRedelegate > 0) {
             _checkFreeAdminWid(_valId);
-            _allocateADMIN_WIDandUndelegate(_valId, _amountToRedelegate);
+            _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
             validatorStatus[_valId] = ValidatorStatus.UNDELEGATING;
             emit ValidatorRemoved(_valId);
         } else {
@@ -244,7 +257,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
+        for (uint256 _i = 0; _i < validators.length; ++_i) {
             _total += _getTotalStakedToValidator(validators[_i]);
         }
         return _total;
@@ -270,8 +283,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount The amount to undelegate
      * @return _wid The admin withdrawal ID (always 255)
      */
-    function _allocateADMIN_WIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        withdrawalIdBitmaps[_valId].allocateADMIN_WID();
+    function _allocateAdminWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
+        withdrawalIdBitmaps[_valId].allocateAdminWid();
         _undelegate(_valId, _amount, ADMIN_WID);
         return _wid;
     }
@@ -322,7 +335,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param valId The validator ID to remove
      */
     function _removeFromArray(uint64[] storage array, uint64 valId) internal {
-        for (uint256 i = 0; i < array.length; i++) {
+        for (uint256 i = 0; i < array.length; ++i) {
             if (array[i] == valId) {
                 array[i] = array[array.length - 1];
                 array.pop();
@@ -350,7 +363,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _totalSuccessfulWithdrawals = 0;
 
         // Process each withdrawal request for this user
-        for (uint256 i = 0; i < _userRequests.length; i++) {
+        for (uint256 i = 0; i < _userRequests.length; ++i) {
             WithdrawalRequestInfo storage _request = _userRequests[i];
             uint64 _valId = _request.validator;
             uint8 _withdrawalId = _request.withdrawalId;

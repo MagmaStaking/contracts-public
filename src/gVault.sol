@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import "./MagmaErrorsModule.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
@@ -13,6 +12,17 @@ import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {
+    ErrNotWhitelisted,
+    ErrInvalidBps,
+    ErrZeroAddress,
+    ErrCapZero,
+    ErrExceedsCap,
+    ErrBelowMinWithdraw,
+    ErrInsufficientDelegated,
+    ErrRebalanceInProgress,
+    ErrNotAdmin
+} from "./MagmaErrorsModule.sol";
 
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
@@ -330,14 +340,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint64[] memory _list = validators;
         uint256 n = _list.length;
         finishedLastRebalance = false; // Mark rebalance as in progress
-        for (uint256 i = 0; i < n; i++) {
+        for (uint256 i = 0; i < n; ++i) {
             uint64 v = _list[i];
             // Decode vault-level delegation from precompile
             uint256 amt = _getDelegatorStake(v, address(this));
             uint256 pull = (amt * _bps) / BASE_BPS;
             if (pull > 0) {
                 _checkFreeAdminWid(v);
-                _allocateADMIN_WIDandUndelegate(v, pull);
+                _allocateAdminWidAndUndelegate(v, pull);
                 pendingRedelegateByValidator[v] = pull;
                 totalPendingRedelegation += pull;
 
@@ -358,7 +368,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint64[] memory _list = validators;
         uint256 _beforeBal = address(this).balance;
         uint256 _n = _list.length;
-        for (uint256 i = 0; i < _n; i++) {
+        for (uint256 i = 0; i < _n; ++i) {
             uint64 _valId = _list[i];
 
             (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);

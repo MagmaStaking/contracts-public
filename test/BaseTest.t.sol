@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -57,8 +58,9 @@ contract BaseTest is Test {
 
         // CoreVault
         address coreImpl = address(new CoreVault());
-        address coreProxy =
-            UnsafeUpgrades.deployUUPSProxy(coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch)));
+        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch, uint64(10)))
+        );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
