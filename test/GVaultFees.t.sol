@@ -46,6 +46,9 @@ contract GVaultRewardsTest is BaseTest {
     }
 
     function testWithdrawalsFeeIsCharged() public {
+        // Initialize cache before operations that depend on totalAssets()
+        magma.refreshCache();
+
         // Configure withdrawal fee and receiver as admin
         vm.startPrank(admin);
         magma.setWithdrawalFee(100); // 100 per 10_000 = 1%

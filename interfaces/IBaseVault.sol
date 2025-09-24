@@ -18,6 +18,8 @@ interface IBaseVault {
     function totalAssets() external view returns (uint256);
     function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
     function totalPendingUndelegations() external view returns (uint256);
+    function refreshCacheCheck() external;
+    function refreshCache() external;
 
     event ValidatorAdded(uint64 indexed valId);
     event ValidatorRemovalInitiated(uint64 indexed valId);

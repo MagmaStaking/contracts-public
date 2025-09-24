@@ -33,6 +33,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
     uint256 public override totalPendingUndelegations;
 
+    // Pending delegate totals, we'll be caching _delegatorInfo here
+    mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo; // Cached delegator info for each validator
+    uint256 public lastDelegatorInfoUpdateTimestamp; // Timestamp of last delegator info update
+    uint256 public constant DELEGATOR_INFO_UPDATE_INTERVAL = 1 hours; // Interval at which we update the cached delegator info
+    uint256 public cachedTotalAssets; // Total assets for all validators
+    int256 public cachedTotalNetPendingDelegations; // Total pending delegations for all validators
+
     struct WithdrawalRequestInfo {
         uint256 amount;
         uint64 validator;
@@ -63,13 +70,44 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _;
     }
 
+    function cacheValidatorStats() internal {
+        uint256 _cachedTotalAssets = 0;
+        for (uint256 _i = 0; _i < validators.length; _i++) {
+            uint64 _valId = validators[_i];
+            DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
+            cachedDelegatorInfo[_valId] = _delInfo;
+            _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
+        }
+        // reset cached total net pending delegations
+        cachedTotalNetPendingDelegations = 0;
+        cachedTotalAssets = _cachedTotalAssets;
+    }
+
     /**
      * @notice Get total assets under management including pending operations
      * @dev Calculates total stake across all validators plus pending redelegations
      * @return Total assets in wei (active stake + pending redelegation amounts)
      */
     function totalAssets() external view returns (uint256) {
-        return _getTotalStakedToAllValidators() + totalPendingRedelegation;
+        return uint256(int256(cachedTotalAssets + totalPendingRedelegation) + cachedTotalNetPendingDelegations);
+    }
+
+    function refreshCacheCheck() external {
+        if (
+            block.timestamp - lastDelegatorInfoUpdateTimestamp > DELEGATOR_INFO_UPDATE_INTERVAL
+                || lastDelegatorInfoUpdateTimestamp == 0
+        ) {
+            _refreshCache();
+        }
+    }
+
+    function refreshCache() external {
+        _refreshCache();
+    }
+
+    function _refreshCache() internal {
+        cacheValidatorStats();
+        lastDelegatorInfoUpdateTimestamp = block.timestamp;
     }
 
     /**
@@ -251,6 +289,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         );
     }
 
+    function _getDelegatorInfoCached(uint64 _valId) internal view returns (DelInfo memory) {
+        return cachedDelegatorInfo[_valId];
+    }
+
     /**
      * @notice Get total stake for validator including pending operations
      * @dev Returns active stake plus pending stakes plus pending redelegation amounts
@@ -358,12 +400,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
 
-    /**
-     * @notice Complete a redelegation withdrawal process
-     * @dev Withdraws funds and marks the withdrawal as completed
-     * @param _valId The validator ID
-     * @param _withdrawalId The withdrawal ID to complete
-     */
     function _completeRedelegationWithdrawal(uint64 _valId, uint8 _withdrawalId) internal {
         _withdraw(_valId, _withdrawalId);
         // Mark the withdrawal as completed in the bitmap
@@ -436,5 +472,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             }
         }
         return _fee;
+    }
+
+    function _trackCachedDelegation(uint256 _amount) internal {
+        cachedTotalNetPendingDelegations += int256(_amount);
+    }
+
+    function _trackCachedUndelegation(uint256 _amount) internal {
+        cachedTotalNetPendingDelegations -= int256(_amount);
     }
 }

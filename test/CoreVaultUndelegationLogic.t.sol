@@ -82,11 +82,16 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             }
             vm.stopPrank();
         }
+
+        coreVault.refreshCache();
     }
 
     // Test basic undelegation functionality
     function test_UndelegateBasic() public {
         uint256 withdrawAmount = 50 ether;
+
+        // Initialize cache before first totalAssets() call
+        coreVault.refreshCacheCheck();
 
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
@@ -501,6 +506,9 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 withdrawAmount = 30 ether;
 
         console.log("=== Asset Tracking Test ===");
+
+        // Initialize cache before first totalAssets() call
+        coreVault.refreshCacheCheck();
 
         // Record comprehensive initial state
         uint256 initialTotalAssets = coreVault.totalAssets();

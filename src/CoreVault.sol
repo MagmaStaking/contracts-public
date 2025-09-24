@@ -218,10 +218,12 @@ contract CoreVault is
 
                 // Track pending; do not lower local delegated until completion
                 pendingUndelegateByValidator[_valId] += _amountFromValidator;
-                totalPendingUndelegations += _amountFromValidator;
                 _remainingAmount -= _amountFromValidator;
             }
         }
+
+        totalPendingUndelegations += _amount;
+        _trackCachedUndelegation(_amount);
 
         // If we couldn't fulfill the full amount, revert
         if (_remainingAmount > 0) {
@@ -329,6 +331,7 @@ contract CoreVault is
         if (_totalDelegated == 0) return;
 
         uint256 _targetPerValidator = _totalDelegated / validators.length;
+        uint256 _totalToUndelegate = 0;
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _v = validators[_i];
             if (_getTotalStakedToValidator(_v) > _targetPerValidator) {
@@ -347,10 +350,12 @@ contract CoreVault is
                     _allocateADMIN_WIDandUndelegate(_v, _toUndelegate);
                     // Track pending excess; keep local delegated until completion
                     pendingRedelegateByValidator[_v] = _toUndelegate;
-                    totalPendingRedelegation += _toUndelegate;
+                    _totalToUndelegate += _toUndelegate;
                 }
             }
         }
+        totalPendingRedelegation += _totalToUndelegate;
+        _trackCachedUndelegation(_totalToUndelegate);
         emit RebalanceInitiated();
     }
 
@@ -486,6 +491,7 @@ contract CoreVault is
                 }
             }
         }
+        _trackCachedDelegation(_totalAmountToDistribute);
     }
 
     // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
@@ -505,6 +511,8 @@ contract CoreVault is
         for (uint256 _i = 0; _i < validators.length; _i++) {
             _delegate(validators[_i], _amountPerValidator);
         }
+
+        _trackCachedDelegation(_amount);
     }
 
     /**

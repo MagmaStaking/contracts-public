@@ -215,6 +215,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Execute delegation to validator
         _delegate(_valId, msg.value);
 
+        _trackCachedDelegation(msg.value);
+
         // Update multiplier-based scaled principal units for the user
         if (msg.value > 0) {
             // units += ceil(assets * S / P) using mulDiv to avoid overflow
@@ -272,6 +274,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             // Track pending; do not lower local delegated until completion
             pendingUndelegateByValidator[_valId] += _amount;
             totalPendingUndelegations += _amount;
+
+            // Track undelegation for caching
+            _trackCachedUndelegation(_amount);
         }
     }
 
@@ -335,6 +340,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
                 _allocateADMIN_WIDandUndelegate(v, pull);
                 pendingRedelegateByValidator[v] = pull;
                 totalPendingRedelegation += pull;
+
+                // Track undelegation for caching
+                _trackCachedUndelegation(pull);
             }
         }
         emit AdminInitiatedRebalance(_bps);

@@ -91,6 +91,8 @@ contract GVaultDelegationLogicTest is BaseTest {
         // Fund CoreVault with ETH to increase totalAssets
         vm.deal(address(coreVault), 3000 ether);
 
+        coreVault.refreshCache();
+
         console.log("CoreVault total assets:", coreVault.totalAssets());
         console.log("gVault default cap (0.25%):", (coreVault.totalAssets() * 25) / 10_000);
     }

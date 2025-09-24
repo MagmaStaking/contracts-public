@@ -328,6 +328,9 @@ contract GVaultValidatorOperations is BaseTest {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_2, address(coreVault), 50 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_3, address(coreVault), 50 ether);
 
+        coreVault.refreshCache();
+        gvault.refreshCache();
+
         // Verify initial state
         uint256 gvaultTotalInitial =
             _getGVaultValidatorStake(VAL_1) + _getGVaultValidatorStake(VAL_2) + _getGVaultValidatorStake(VAL_3);

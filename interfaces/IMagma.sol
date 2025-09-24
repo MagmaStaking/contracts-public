@@ -20,4 +20,5 @@ interface IMagma {
 
     // Total assets functions
     function totalAssets() external view returns (uint256);
+    function refreshCache() external;
 }
