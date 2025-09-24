@@ -11,6 +11,7 @@ import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {IBaseVault} from "interfaces/IBaseVault.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
+import {ErrRequestInexistent} from "src/MagmaErrorsModule.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public virtual override {
@@ -798,6 +799,55 @@ contract MagmaAsyncModuleTest is BaseTest {
         );
         assertEq(magma.balanceOf(receiver), 0);
         assertEq(receiver.balance, 0);
+    }
+
+    function test_AdminCanRedeemOnBehalfOfUser() public {
+        // Test that admin can redeem on behalf of users to prevent stuck WIDs
+        // This is important when there are limited withdrawal IDs and users may abandon requests
+
+        address controller = address(25);
+        address receiver = address(45);
+        uint256 assets = 5 ether;
+        uint256 receiverWMONBefore = wmon.balanceOf(receiver);
+        uint256 shares = _depositHelper(assets);
+
+        // User requests redemption with specific controller
+        vm.prank(user);
+        uint256 requestId = magma.requestRedeem(shares, controller, user);
+        uint256 assetsBefore = magma.totalAssets();
+
+        // Wait for redemption delay
+        vm.warp(block.timestamp + magma.redeemDelay());
+        _advanceEpochsForWithdrawal();
+
+        // Admin can redeem on behalf of any controller to prevent stuck WIDs
+        // This is crucial when withdrawal IDs are limited and users may not complete their redemptions
+        vm.prank(admin);
+        uint256 redeemedAssets = magma.redeem(requestId, controller, receiver);
+
+        // Verify the redemption worked correctly
+        assertEq(redeemedAssets, assets, "Redeemed assets should equal requested assets");
+
+        // 7540 vault assertions
+        assertEq(magma.balanceOf(address(magma)), 0, "Magma should have no shares");
+        assertEq(assetsBefore, magma.totalAssets(), "Magma total assets should not have changed");
+        assertEq(address(magma).balance, 0, "MON balance of Magma should be 0");
+        assertEq(wmon.balanceOf(address(magma)), 0, "WMON balance of Magma should be 0");
+
+        // Receiver assertions - should receive the WMON tokens
+        assertEq(
+            wmon.balanceOf(receiver),
+            receiverWMONBefore + assets,
+            "Receiver should have received the redeemed WMON tokens"
+        );
+        assertEq(magma.balanceOf(receiver), 0, "Receiver should have no magma shares");
+        assertEq(receiver.balance, 0, "Receiver should have no native MON");
+
+        // Verify that the request has been properly cleaned up
+        // The request should no longer exist after redemption
+        vm.expectRevert(ErrRequestInexistent.selector);
+        vm.prank(admin);
+        magma.redeem(requestId, controller, receiver);
     }
 
     function test_DepositGVaultRedeemFromCoreVault() public {

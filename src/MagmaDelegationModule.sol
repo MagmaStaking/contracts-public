@@ -50,11 +50,6 @@ abstract contract MagmaDelegationModule {
         if (!success) revert ErrWithdrawalFailed(valId, withdrawalId);
     }
 
-    function _compound(uint64 valId) internal {
-        bool success = STAKING.compound(valId);
-        if (!success) revert ErrDelegateFailed();
-    }
-
     function _claim(uint64 valId) internal {
         bool success = STAKING.claimRewards(valId);
         if (!success) revert ErrDelegateFailed();
