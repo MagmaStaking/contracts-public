@@ -84,9 +84,6 @@ contract Magma is
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
-    // ERC-7540 Asynchronous redemption Vault Interface ID
-    bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
-
     /// @dev Emitted upon a successful deposit, will be sent on every deposit to facilitate on the indexer side
     event DepositWithReferral(
         address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 indexed referralId
@@ -148,7 +145,8 @@ contract Magma is
     // function _authorizeUpgrade(address) internal view override onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
-        return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
+        // ERC-7540 Asynchronous redemption Vault Interface ID: 0x620ee8e4
+        return interfaceId == 0x620ee8e4 || super.supportsInterface(interfaceId);
     }
 
     function admin() public view returns (address) {
