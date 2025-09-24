@@ -191,9 +191,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
         vm.prank(admin);
         freshCoreVault.addValidator(val1);
 
-        // Check what the actual available stake is after rebalancing
-        uint256 actualStake = freshCoreVault.delegatedAmount(val1);
-
         // Try to withdraw more than available - expect revert with actual available amount
         vm.prank(address(magma));
         vm.expectRevert(); // Just expect insufficient delegated error, don't check exact amounts due to rebalancing
