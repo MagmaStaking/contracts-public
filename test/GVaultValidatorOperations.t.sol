@@ -451,95 +451,95 @@ contract GVaultValidatorOperations is BaseTest {
     function test_gVaultValidatorRemovalWithPendingRewards() public {
         // Test removing a validator from gVault that has accumulated rewards
         // This tests the default VaultBase implementation behavior for rewards claiming
-        
+
         // Setup: Add 2 validators to gVault (need at least 2 to remove one)
         _setupValidatorInStakingPrecompile(VAL_1);
         _setupValidatorInStakingPrecompile(VAL_2);
-        
+
         vm.startPrank(admin);
         gvault.addValidator(VAL_1);
         gvault.addValidator(VAL_2);
         vm.stopPrank();
-        
+
         // Set up initial stakes for gVault validators
         _setupGVaultValidatorStake(VAL_1, 100 ether);
         _setupGVaultValidatorStake(VAL_2, 100 ether);
-        
+
         // Set up rewards for VAL_1 using MockStakingPrecompile
         uint256 rewardsAmount = 3 ether;
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorRewards(VAL_1, address(gvault), rewardsAmount);
-        
+
         // Fund the staking precompile with ETH to pay out rewards
         vm.deal(STAKING_PRECOMPILE, 100 ether);
-        
+
         // Also ensure CoreVault has validators to receive forwarded rewards
         vm.prank(admin);
         coreVault.addValidator(VAL_3);
-        
+
         // Set up stakes for CoreVault validators to ensure they can receive delegations
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_1, address(coreVault), 50 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_2, address(coreVault), 50 ether);
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(VAL_3, address(coreVault), 50 ether);
-        
+
         // Record initial states
         uint256 val1InitialStake = _getGVaultValidatorStake(VAL_1);
         uint256 val2InitialStake = _getGVaultValidatorStake(VAL_2);
         uint256 initialCoreVaultAssets = coreVault.totalAssets();
-        
+
         assertEq(val1InitialStake, 100 ether);
         assertEq(val2InitialStake, 100 ether);
-        
+
         // Step 1: Initiate removal of VAL_1 (which has pending rewards)
         vm.prank(admin);
         gvault.initiateValidatorRemoval(VAL_1);
-        
+
         // Verify VAL_1 is paused
         assertFalse(gvault.isWhitelisted(VAL_1));
         assertEq(uint256(gvault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.PAUSED));
-        
+
         // Step 2: Execute undelegation - this should claim the rewards automatically
         // In gVault, this uses the default VaultBase._claimValidatorRewards() implementation
         // which forwards rewards to CoreVault via external delegate() call
         vm.prank(admin);
         gvault.executeValidatorUndelegation(VAL_1);
-        
+
         // Verify rewards were claimed and validator moved to UNDELEGATING status
         assertEq(uint256(gvault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.UNDELEGATING));
-        
+
         // The rewards should have been claimed and forwarded to CoreVault
         // CoreVault should have received the rewards (minus fees) for distribution
         uint256 finalCoreVaultAssets = coreVault.totalAssets();
-        
+
         // CoreVault should have received the rewards minus protocol fees
         // Expected: 3 ether rewards - (3 ether * 10 BPS / 10000) = 3 ether - 0.003 ether = 2.997 ether
         uint256 expectedRewardsAfterFees = rewardsAmount - (rewardsAmount * 10) / 10000;
         uint256 actualIncrease = finalCoreVaultAssets - initialCoreVaultAssets;
-        
+
         // Allow for small rounding differences
         assertTrue(
             actualIncrease >= expectedRewardsAfterFees - 1 gwei && actualIncrease <= expectedRewardsAfterFees + 1 gwei,
             "CoreVault should have received rewards from gVault validator removal"
         );
-        
+
         // Step 3: Complete the withdrawal process
         _advanceEpochsForWithdrawal();
-        
+
         // Ensure the staking precompile has enough ETH for the withdrawal
         vm.deal(STAKING_PRECOMPILE, 500 ether);
-        
+
         vm.prank(admin);
         gvault.completeValidatorRemovalWithdrawal(VAL_1);
-        
+
         // Verify final state
         assertEq(uint256(gvault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.NONE));
         assertFalse(gvault.isWhitelisted(VAL_1));
         assertTrue(gvault.isWhitelisted(VAL_2));
-        
+
         // gVault should have the original 100 ether stake from VAL_1 forwarded to CoreVault
         // in addition to the rewards that were already forwarded
         uint256 finalCoreVaultAssetsAfterRemoval = coreVault.totalAssets();
         uint256 totalIncrease = finalCoreVaultAssetsAfterRemoval - initialCoreVaultAssets;
-        
+
         // Should be approximately rewards + original stake = 3 ether + 100 ether = 103 ether (minus fees)
         uint256 expectedTotalIncrease = rewardsAmount + val1InitialStake - (rewardsAmount * 10) / 10000;
         assertTrue(

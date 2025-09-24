@@ -804,7 +804,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_AdminCanRedeemOnBehalfOfUser() public {
         // Test that admin can redeem on behalf of users to prevent stuck WIDs
         // This is important when there are limited withdrawal IDs and users may abandon requests
-        
+
         address controller = address(25);
         address receiver = address(45);
         uint256 assets = 5 ether;
@@ -824,7 +824,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         // This is crucial when withdrawal IDs are limited and users may not complete their redemptions
         vm.prank(admin);
         uint256 redeemedAssets = magma.redeem(requestId, controller, receiver);
-        
+
         // Verify the redemption worked correctly
         assertEq(redeemedAssets, assets, "Redeemed assets should equal requested assets");
 

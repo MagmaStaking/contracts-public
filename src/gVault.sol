@@ -39,7 +39,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /// @dev Flag indicating if the last admin rebalance has completed both phases
     bool public finishedLastRebalance;
 
-
     /// @dev Per-validator absolute deposit caps in wei. If 0, uses defaultCapBps percentage instead
     mapping(uint64 => uint256) public validatorCap;
     /// @dev Default cap as percentage of total Magma assets in basis points (25 = 0.25%)
@@ -52,7 +51,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /// Tracks the fraction of assets remaining after admin rebalances
     /// P = P_prev * (1 - rebalance_bps/10000) for each rebalance
     uint256 public gvaultMultiplierP; // cumulative retention multiplier P for gVault
-    
+
     /// @dev Global scale factor (1e27) that increases during rescaling to maintain precision
     /// The ratio P/S determines user entitlements: entitlement = principal_units * P / S
     uint256 public gvaultScaleS; // global scale S; rescaled with P to keep ratio stable
@@ -312,7 +311,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
 
         if (_bps > BASE_BPS) revert ErrInvalidBps();
-        
+
         // Handle edge case of 100% rebalance (complete liquidation)
         if (_bps == BASE_BPS) {
             // Special handling for 100% outflow: prevent P from hitting zero which would break math
@@ -374,7 +373,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
             (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
             if (!exists || amt == 0) continue; // Skip if no pending withdrawal
-            
+
             _withdraw(_valId, ADMIN_WID);
             _markWithdrawalCompleted(_valId, ADMIN_WID);
             emit AdminCompletedRebalanceWithdrawal(_valId, amt);

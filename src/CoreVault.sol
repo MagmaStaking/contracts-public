@@ -51,8 +51,8 @@ contract CoreVault is
 
     /// @dev Struct to hold validator ID and associated amount for sorting operations
     struct ValidatorAmount {
-        uint64 valId;    // Validator identifier
-        uint256 amount;  // Stake amount associated with this validator
+        uint64 valId; // Validator identifier
+        uint256 amount; // Stake amount associated with this validator
     }
 
     /**
@@ -240,10 +240,10 @@ contract CoreVault is
             // Calculate amount to withdraw from this validator (min of needed, allowed, and available)
             uint256 _amountFromValidator = _remainingAmount;
             if (_amountFromValidator > _maxAllowedFromValidator) {
-                _amountFromValidator = _maxAllowedFromValidator;  // Respect the 5% limit per validator
+                _amountFromValidator = _maxAllowedFromValidator; // Respect the 5% limit per validator
             }
             if (_amountFromValidator > _availableStake) {
-                _amountFromValidator = _availableStake;  // Can't withdraw more than what's staked
+                _amountFromValidator = _availableStake; // Can't withdraw more than what's staked
             }
 
             if (_amountFromValidator > 0) {

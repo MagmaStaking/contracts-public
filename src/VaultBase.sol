@@ -67,9 +67,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Structure to track individual user withdrawal requests
     struct WithdrawalRequestInfo {
-        uint256 amount;        // Amount requested for withdrawal
-        uint64 validator;      // Validator from which to withdraw
-        uint8 withdrawalId;    // Unique withdrawal ID for tracking
+        uint256 amount; // Amount requested for withdrawal
+        uint64 validator; // Validator from which to withdraw
+        uint8 withdrawalId; // Unique withdrawal ID for tracking
     }
 
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
@@ -105,7 +105,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function cacheValidatorStats() internal {
         uint256 _cachedTotalAssets = 0;
-        
+
         // Fetch and cache delegator info for each active validator
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
@@ -114,7 +114,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             // Sum total assets: active stake + pending stake changes
             _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         }
-        
+
         // Reset pending delta tracking since we just refreshed from source of truth
         cachedTotalNetPendingDelegations = 0;
         cachedTotalAssets = _cachedTotalAssets;
@@ -285,7 +285,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _initiateValidatorRemoval(uint64 _valId) internal {
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
-        
+
         // Step 1: Pause validator to prevent new delegations
         validatorStatus[_valId] = ValidatorStatus.PAUSED;
         isWhitelisted[_valId] = false;
@@ -447,13 +447,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_totalSuccessfulWithdrawals > 0) {
             uint256 _fee = _chargeWithdrawalFee(_totalSuccessfulWithdrawals);
             uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
-            
+
             // Transfer remaining funds to Magma contract which will forward to user
             (bool success,) = address(magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
-            
+
             _totalWithdrawn = _totalSuccessfulWithdrawals;
             _totalWithdrawnAfterFee = _remaining;
         }

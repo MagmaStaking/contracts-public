@@ -232,7 +232,9 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         private
         returns (uint256)
     {
-        if (!(controller == _msgSender() || isOperator[controller][_msgSender()] || _msgSender() == admin)) revert ErrNotAuthorized();
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()] || _msgSender() == admin)) {
+            revert ErrNotAuthorized();
+        }
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();

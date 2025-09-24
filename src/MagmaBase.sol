@@ -26,7 +26,6 @@ abstract contract MagmaBase is
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
 
-
     uint256 public constant BASE_BPS = 10_000;
 
     // Tracks principal assets for each user for rewards calculation

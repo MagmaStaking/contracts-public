@@ -61,7 +61,6 @@ library BitMapLib {
         return (bitMap.bitmap & mask) != 0;
     }
 
-
     /**
      * @dev Internal function to allocate a free withdrawal ID, skipping the specified reserved ID
      * @param bitMap The bitmap storage reference
