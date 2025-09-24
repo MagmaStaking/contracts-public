@@ -226,12 +226,13 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
      * This prevents exploitation of price differences during the two-step redemption process. For example, if
      * slashing occurs between request and claim, the user receives the lower post-slashing amount rather than
      * the higher pre-slashing amount.
+     * @dev Admin can redeem for any request to bypass the controller check since withdrawals ids are limited and can be used up
      */
     function _redeem(uint256 requestId, address controller, address receiver, bool receiveWMON)
         private
         returns (uint256)
     {
-        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
+        if (!(controller == _msgSender() || isOperator[controller][_msgSender()] || _msgSender() == admin)) revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
