@@ -37,6 +37,8 @@ contract Magma is
         mapping(address owner => bool) _ownerRequested;
         // Mapping from controller to their pending withdrawal requests
         mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
+        // Mapping for operator approvals (ERC-7540)
+        mapping(address controller => mapping(address operator => bool)) _isOperator;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
@@ -70,9 +72,6 @@ contract Magma is
         uint256 claimableTime; // When assets become claimable
         bool isGVault; // If redeemRequest is for gVault or not
     }
-
-    // Mapping for operator approvals (ERC-7540)
-    mapping(address controller => mapping(address operator => bool)) public isOperator;
 
     // Vault contract references (to be set by admin)
     ICoreVault public coreVault;
@@ -177,8 +176,14 @@ contract Magma is
         return coreVault.totalAssets() + gVault.totalAssets();
     }
 
+    function isOperator(address controller, address operator) external view returns (bool) {
+        MagmaStorage storage $ = _getMagmaStorage();
+        return $._isOperator[controller][operator];
+    }
+
     function setOperator(address operator, bool approved) external returns (bool) {
-        isOperator[_msgSender()][operator] = approved;
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._isOperator[_msgSender()][operator] = approved;
         emit OperatorSet(_msgSender(), operator, approved);
         return true;
     }
@@ -235,7 +240,7 @@ contract Magma is
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
     function depositWMON(uint256 assets, address receiver, uint256 referralId)
-        public
+        external
         whenNotPaused
         nonReentrant
         returns (uint256)
@@ -318,7 +323,7 @@ contract Magma is
         if (controller == address(0)) revert ErrZeroAddress();
         if ($._ownerRequested[owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == _msgSender() || isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
+        if (!(owner == _msgSender() || $._isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
         if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
 
         uint256 requestId = $._requestIdCount;
@@ -396,7 +401,7 @@ contract Magma is
     {
         MagmaStorage storage $ = _getMagmaStorage();
 
-        if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
+        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert RequestInexistent();
