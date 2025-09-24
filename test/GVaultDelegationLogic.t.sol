@@ -117,10 +117,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         // Record initial state
         uint256 initialUserShares = gvault.delegatedSharesOf(alice, VAL_1);
         uint256 initialTotalShares = gvault.totalSharesByValidator(VAL_1);
-        uint256 initialUserDelegatedAmount = gvault.delegatedAmountOf(alice, VAL_1);
-
-        // Log validator's total staked amount for debugging
-        uint256 validatorStake = MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
 
         // Fund the Magma contract for delegation (it forwards ETH to gVault)
         vm.deal(address(magma), delegateAmount);
@@ -133,9 +129,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         uint256 finalUserShares = gvault.delegatedSharesOf(alice, VAL_1);
         uint256 finalTotalShares = gvault.totalSharesByValidator(VAL_1);
         uint256 finalUserDelegatedAmount = gvault.delegatedAmountOf(alice, VAL_1);
-
-        uint256 finalValidatorStake =
-            MockStakingPrecompile(STAKING_PRECOMPILE).debugDelegatorStake(VAL_1, address(gvault));
 
         // Verify delegation results
         assertGt(finalUserShares, initialUserShares, "User shares should increase");
@@ -167,7 +160,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         // Record state after delegation
         uint256 afterDelegateUserShares = gvault.delegatedSharesOf(alice, VAL_1);
         uint256 afterDelegateTotalShares = gvault.totalSharesByValidator(VAL_1);
-        uint256 afterDelegateAmount = gvault.delegatedAmountOf(alice, VAL_1);
         uint256 initialPendingUndelegations = gvault.totalPendingUndelegations();
 
         // Alice undelegates partial amount
@@ -249,9 +241,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         // Without this, the stake remains in "delta_stake" and undelegation will fail with "Insufficient stake"
         _activatePendingDelegations();
 
-        // Get Alice's actual delegated amount (which includes her share of the initial 0.1 ETH)
-        uint256 aliceDelegated = gvault.delegatedAmountOf(alice, VAL_1);
-
         // Use a smaller undelegation amount that's definitely within her position
         uint256 undelegateAmount = 2 ether; // Use a fixed amount that's less than delegation
 
@@ -260,7 +249,6 @@ contract GVaultDelegationLogicTest is BaseTest {
 
         // Record state before completion
         uint256 initialPendingUndelegations = gvault.totalPendingUndelegations();
-        uint256 initialValidatorPending = gvault.pendingUndelegateByValidator(VAL_1);
         uint256 initialMagmaBalance = address(magma).balance;
 
         // Advance time to make withdrawal ready
@@ -272,7 +260,6 @@ contract GVaultDelegationLogicTest is BaseTest {
 
         // Record final state
         uint256 finalPendingUndelegations = gvault.totalPendingUndelegations();
-        uint256 finalValidatorPending = gvault.pendingUndelegateByValidator(VAL_1);
         uint256 finalMagmaBalance = address(magma).balance;
 
         // Verify withdrawal completion
