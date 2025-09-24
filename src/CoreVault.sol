@@ -148,7 +148,7 @@ contract CoreVault is
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
         if (_withdrawalAmount > 0) {
-            _distributeAmountEquallyToValidators(_withdrawalAmount);
+            _distributeToNextValidator(_withdrawalAmount);
         }
     }
 
@@ -160,7 +160,7 @@ contract CoreVault is
         if (msg.sender != address(magma) && msg.sender != magma.gVault()) {
             revert ErrNotMagma();
         }
-        _distributeAmountEquallyToValidators(msg.value);
+        _distributeToNextValidator(msg.value);
     }
 
     function undelegate(uint256 _amount, address _user) external onlyMagma whenNotPaused {
@@ -272,7 +272,7 @@ contract CoreVault is
         uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
         uint256 _remaining = _rewards - _fee;
-        _distributeAmountEquallyToValidators(_remaining);
+        _distributeToNextValidator(_remaining);
     }
 
     function _redelegateInitiate() internal {
@@ -437,12 +437,11 @@ contract CoreVault is
         }
     }
 
-    // Allocate a free withdrawal id in range 0..255 for given validator id (skips admin wid)
     /**
-     * @dev Distributes the specified amount equally among all validators
+     * @dev Distributes the specified amount to the validator with the lowest stake
      * @param _amount The total amount to distribute
      */
-    function _distributeAmountEquallyToValidators(uint256 _amount) internal {
+    function _distributeToNextValidator(uint256 _amount) internal {
         if (validators.length == 0) {
             revert ErrNoValidators();
         }
@@ -450,16 +449,16 @@ contract CoreVault is
             revert ErrZeroAmount();
         }
 
-        uint256 _amountPerValidator = _amount / validators.length;
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            _delegate(validators[_i], _amountPerValidator);
-        }
+        ValidatorAmount[] memory _sortedValidators = _getSortedValidatorsByStake();
+
+        // Step 3: Distribute stake to under-target validators in ascending order of stake
+        _distributeStakeToValidatorsAscending(_sortedValidators, _amount);
     }
 
     function injectRewards() public payable {
         if (msg.sender != magma.feeReceiver() && msg.sender != magma.admin()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
-        _distributeAmountEquallyToValidators(msg.value);
+        _distributeToNextValidator(msg.value);
         emit RewardsInjected(msg.value);
     }
 
