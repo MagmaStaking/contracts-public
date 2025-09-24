@@ -31,6 +31,7 @@ contract Magma is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
+    /// @custom:storage-location erc7201:storage.Magma
     struct MagmaStorage {
         uint256 _requestIdCount;
         mapping(address owner => bool) _ownerRequested;
