@@ -205,6 +205,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 assets)
     {
+        _refreshCacheCheck();
         return _redeem(requestId, controller, receiver, true);
     }
 
@@ -214,6 +215,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 assets)
     {
+        _refreshCacheCheck();
         return _redeem(requestId, controller, receiver, false);
     }
 
