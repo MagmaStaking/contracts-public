@@ -35,10 +35,8 @@ contract CoreVaultRewardsTest is BaseTest {
 
         uint256 feeReceiverBefore = admin.balance; // BaseTest initializes rewardsFeeReceiver = admin
         uint256 coreBefore = address(coreVault).balance;
-
         // Call
         coreVault.claimAndCompoundRewards();
-
         // Rewards total = 10 ether; fee uses magma.rewardsFee() per 1000
         uint256 feeReceiverAfter = admin.balance;
         uint256 expectedFee = _mulDivCeil1000(10 ether, magma.rewardsFee());

@@ -12,6 +12,7 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {VaultBase} from "./VaultBase.sol";
+import {console} from "forge-std/console.sol";
 
 contract CoreVault is
     Initializable,
@@ -179,39 +180,46 @@ contract CoreVault is
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
 
-        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
-            uint64 _valId = _sortedValidators[_i].valId;
-            uint256 _availableStake = _sortedValidators[_i].amount; // Use stake from sorted array
+        if (_onetwentiethThreshold == 0) {
+            revert ErrBelowMinWithdraw(_amount);
+        } else {
+            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+                uint64 _valId = _sortedValidators[_i].valId;
+                uint256 _availableStake = _sortedValidators[_i].amount; // Use stake from sorted array
 
-            if (_availableStake == 0) continue;
+                if (_availableStake == 0) continue;
 
-            // Check if request exceeds 1/20th of total active stake
-            uint256 _maxAllowedFromValidator =
-                _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
+                // Check if request exceeds 1/20th of total active stake
+                uint256 _maxAllowedFromValidator =
+                    _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
 
-            uint256 _amountFromValidator = _remainingAmount;
-            if (_amountFromValidator > _maxAllowedFromValidator) {
-                _amountFromValidator = _maxAllowedFromValidator;
-            }
-            if (_amountFromValidator > _availableStake) {
-                _amountFromValidator = _availableStake;
-            }
+                uint256 _amountFromValidator = _remainingAmount;
 
-            if (_amountFromValidator > 0) {
-                uint8 _wid = _allocateWIDandUndelegate(_valId, _amountFromValidator);
+                // if we have iterated to the last validator, try to undelegate total remaining not max allowed per 1/20th threshold
+                if (_amountFromValidator > _maxAllowedFromValidator && _i < _sortedValidators.length - 1) {
+                    _amountFromValidator = _maxAllowedFromValidator;
+                }
+                if (_amountFromValidator > _availableStake) {
+                    _amountFromValidator = _availableStake;
+                }
 
-                // Store withdrawal request information
-                _storeWithdrawalRequest(_user, _amountFromValidator, _valId, _wid);
+                if (_amountFromValidator > 0) {
+                    uint8 _wid = _allocateWIDandUndelegate(_valId, _amountFromValidator);
 
-                // Track pending; do not lower local delegated until completion
-                pendingUndelegateByValidator[_valId] += _amountFromValidator;
-                totalPendingUndelegations += _amountFromValidator;
-                _remainingAmount -= _amountFromValidator;
+                    // Store withdrawal request information
+                    _storeWithdrawalRequest(_user, _amountFromValidator, _valId, _wid);
+
+                    // Track pending; do not lower local delegated until completion
+                    pendingUndelegateByValidator[_valId] += _amountFromValidator;
+                    totalPendingUndelegations += _amountFromValidator;
+                    _remainingAmount -= _amountFromValidator;
+                }
             }
         }
 
         // If we couldn't fulfill the full amount, revert
         if (_remainingAmount > 0) {
+            console.log("undelegate - remaining amount undelegated", _remainingAmount);
             revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
         }
     }
@@ -456,27 +464,35 @@ contract CoreVault is
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
+        if (_onetwentiethThreshold == 0) {
+            // Send everything to the first (lowest-stake) validator
+            uint64 _firstValId = _sortedValidators[0].valId;
+            _delegate(_firstValId, _remainingAmount);
+            _remainingAmount = 0;
+        } else {
+            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+                uint64 _valId = _sortedValidators[_i].valId;
 
-        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
-            uint64 _valId = _sortedValidators[_i].valId;
+                // Check if request exceeds 1/20th of total active stake
+                uint256 _maxAllowedFromValidator =
+                    _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
 
-            // Check if request exceeds 1/20th of total active stake
-            uint256 _maxAllowedFromValidator =
-                _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
+                uint256 _amountToValidator = _remainingAmount;
 
-            uint256 _amountToValidator = _remainingAmount;
-            if (_amountToValidator > _maxAllowedFromValidator) {
-                _amountToValidator = _maxAllowedFromValidator;
-            }
+                if (_amountToValidator > _maxAllowedFromValidator && _i < _sortedValidators.length - 1) {
+                    _amountToValidator = _maxAllowedFromValidator;
+                }
 
-            if (_amountToValidator > 0) {
-                _delegate(_valId, _amountToValidator);
-                _remainingAmount -= _amountToValidator;
+                if (_amountToValidator > 0) {
+                    _delegate(_valId, _amountToValidator);
+                    _remainingAmount -= _amountToValidator;
+                }
             }
         }
 
         // If we couldn't fulfill the full amount, revert
         if (_remainingAmount > 0) {
+            console.log("delegate - remaining amount undelegated", _remainingAmount);
             revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
         }
     }
