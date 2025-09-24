@@ -905,7 +905,6 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 initialValidator1Stake = coreVault.delegatedAmount(VAL_1);
         uint256 initialValidator2Stake = coreVault.delegatedAmount(VAL_2);
         uint256 initialValidator3Stake = coreVault.delegatedAmount(VAL_3);
-        uint256 initialTotal = coreVault.getTotalDelegated();
 
         // Verify initial distribution (should be equal since delegate() distributes equally)
         assertTrue(initialValidator1Stake > 0);
