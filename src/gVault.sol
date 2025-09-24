@@ -39,9 +39,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /// @dev Flag indicating if the last admin rebalance has completed both phases
     bool public finishedLastRebalance;
 
-    /// @dev Timestamp when withdrawals were paused for each validator (0 = not paused)
-    /// Used to prevent withdrawals before validator removal
-    mapping(uint64 => uint256) public pausedWithdrawalsForValidator;
 
     /// @dev Per-validator absolute deposit caps in wei. If 0, uses defaultCapBps percentage instead
     mapping(uint64 => uint256) public validatorCap;
@@ -96,24 +93,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Allows the contract to receive MON from validator delegation completions
      */
     receive() external payable {}
-
-    /**
-     * @notice Pause withdrawals for a specific validator
-     * @dev Sets a timestamp to pause withdrawals, typically before validator removal
-     * @param _valId The validator ID to pause withdrawals for
-     */
-    function pauseWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[_valId] = block.timestamp;
-    }
-
-    /**
-     * @notice Resume withdrawals for a specific validator
-     * @dev Clears the pause timestamp to allow withdrawals again
-     * @param _valId The validator ID to resume withdrawals for
-     */
-    function resumeWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
-        pausedWithdrawalsForValidator[_valId] = 0;
-    }
 
     /**
      * @notice Add a new validator to the whitelist
