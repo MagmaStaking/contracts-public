@@ -50,7 +50,7 @@ error ErrRebalanceCompleteFailed();
 // Queues / IDs
 error ErrQueueFull();
 error ErrNoFreeWithdrawalId();
-error AdminWidInUse();
+error ErrAdminWidInUse();
 
 // Validator admin ops
 error ErrMustPauseBeforeRemove();
