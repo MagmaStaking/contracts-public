@@ -10,7 +10,6 @@ import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {IBaseVault} from "interfaces/IBaseVault.sol";
-
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
