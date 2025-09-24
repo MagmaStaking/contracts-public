@@ -51,7 +51,18 @@ contract BaseTest is Test {
             magmaImpl,
             abi.encodeCall(
                 Magma.initialize,
-                (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, DELAY)
+                Magma.InitializeParams({
+                    asset: IERC20(address(wmon)),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: admin,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 10,
+                    withdrawalFee: 0,
+                    feeReceiver: admin,
+                    redeemDelay: DELAY
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
