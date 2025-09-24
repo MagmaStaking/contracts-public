@@ -6,7 +6,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
-import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
