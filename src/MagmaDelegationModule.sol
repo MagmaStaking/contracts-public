@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {ErrZeroAssets, ErrDelegateFailed, ErrUndelegateFailed, ErrWithdrawalFailed} from "./MagmaErrorsModule.sol";
 import {IMonadStaking} from "../interfaces/IMonadStaking.sol";

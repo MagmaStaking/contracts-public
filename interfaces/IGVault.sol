@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
-import {IMagma} from "./IMagma.sol";
 import {IBaseVault} from "./IBaseVault.sol";
 
 interface IGVault is IBaseVault {
@@ -39,15 +38,15 @@ interface IGVault is IBaseVault {
     function validatorCap(uint64 valId) external view returns (uint256);
     function defaultCapBps() external view returns (uint256);
 
-    event PositionUpdated(address indexed user, uint64 indexed valId, uint256 amount, bool isDelegate);
-    event CapChanged(uint64 indexed valId, uint256 newCap);
-    event DefaultCapUpdated(uint256 newDefaultBps);
+    event PositionUpdated(address indexed user, uint64 indexed valId, uint256 indexed amount, bool isDelegate);
+    event CapChanged(uint64 indexed valId, uint256 indexed newCap);
+    event DefaultCapUpdated(uint256 indexed newDefaultBps);
     // Rebalance admin events
-    event AdminInitiatedRebalance(uint16 bps);
-    event AdminCompletedRebalance(uint256 amountForwarded);
-    event AdminCompletedRebalanceWithdrawal(uint64 indexed valId, uint256 amount);
+    event AdminInitiatedRebalance(uint16 indexed bps);
+    event AdminCompletedRebalance(uint256 indexed amountForwarded);
+    event AdminCompletedRebalanceWithdrawal(uint64 indexed valId, uint256 indexed amount);
 
-    event ProcessedBatch(uint64 indexed valId, uint8 withdrawalId, uint256 amount);
+    event ProcessedBatch(uint64 indexed valId, uint8 indexed withdrawalId, uint256 indexed amount);
 
     // User withdrawal distribution events
     event WithdrawalAmountMismatch(

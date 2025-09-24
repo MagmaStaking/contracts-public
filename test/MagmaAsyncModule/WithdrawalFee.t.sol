@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {MagmaAsyncModuleTest} from "./index.t.sol";
@@ -12,6 +13,8 @@ import {Magma} from "src/Magma.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
+
+import {IBaseVault} from "interfaces/IBaseVault.sol";
 
 contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     function setUp() public override {
@@ -35,7 +38,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(false, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assetsAfterFee);
         vm.expectEmit(true, true, true, true);
@@ -82,7 +85,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(true, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assetsAfterFee);
         vm.expectEmit(true, true, true, true);
@@ -134,7 +137,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(false, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(user, user, address(magma), assetsAfterFee, shares);
 
@@ -179,7 +182,7 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         MockStakingPrecompile(STAKING_PRECOMPILE).setSlashDivider(2);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, expectedAssets);
+        emit IBaseVault.UserWithdrawalCompleted(user, expectedAssets);
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(address(0), user, shares - sharesAfterSlash);
         vm.expectEmit(true, true, true, true);

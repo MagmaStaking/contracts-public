@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 interface IMagma {
-    function admin() external view returns (address);
-    function coreVault() external view returns (address);
-    function gVault() external view returns (address);
-    function paused() external view returns (bool);
-
     // Admin functions
     function setAdmin(address newAdmin) external;
     function setVaults(address _coreVault, address _gVault) external;
@@ -20,4 +15,9 @@ interface IMagma {
 
     // Total assets functions
     function totalAssets() external view returns (uint256);
+
+    function admin() external view returns (address);
+    function coreVault() external view returns (address);
+    function gVault() external view returns (address);
+    function paused() external view returns (bool);
 }
