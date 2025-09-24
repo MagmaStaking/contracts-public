@@ -217,6 +217,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _completeUserWithdrawal(_user);
     }
 
+    function injectRewards(uint64 _valId) public payable {
+        if (msg.sender != magma.feeReceiver() && msg.sender != magma.admin()) revert ErrNotAuthorized();
+        if (msg.value == 0) revert ErrZeroAmount();
+        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        _delegate(msg.value, _valId);
+        emit RewardsInjected(msg.value, _valId);
+    }
+
     // Admin: initiate undelegation across all validators by basis points
     // This function is used when liquidity for CoreVault is depleted. Similar functionality exists in Lido v3.
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {

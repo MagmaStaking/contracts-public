@@ -456,6 +456,13 @@ contract CoreVault is
         }
     }
 
+    function injectRewards() public payable {
+        if (msg.sender != magma.feeReceiver() && msg.sender != magma.admin()) revert ErrNotAuthorized();
+        if (msg.value == 0) revert ErrZeroAmount();
+        _distributeAmountEquallyToValidators(msg.value);
+        emit RewardsInjected(msg.value);
+    }
+
     /**
      * @dev Simple insertion sort for ValidatorAmount array (ascending by amount)
      */
