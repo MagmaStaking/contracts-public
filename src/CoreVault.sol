@@ -36,6 +36,22 @@ contract CoreVault is
 {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
+    /// @custom:storage-location erc7201:storage.CoreVault
+    struct CoreVaultStorage {
+        uint256 start;
+    }
+
+    /// @dev Struct to hold validator ID and associated amount for sorting operations
+    struct ValidatorAmount {
+        uint64 valId; // Validator identifier
+        uint256 amount; // Stake amount associated with this validator
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("storage.CoreVault")) - 1)) & ~bytes32(uint256(0xff))
+    /* solhint-disable-next-line const-name-snakecase */
+    bytes32 private constant _CoreVaultStorageLocation =
+        0x52cc5b10e48806cc3038884ee015a89dc6583650d30099489137fff04e064c00;
+
     /// @dev Duration in seconds between allowed rebalance operations (0 = no time restriction)
     uint256 public epochSeconds;
 
@@ -48,17 +64,14 @@ contract CoreVault is
     /// @dev Flag indicating if the last rebalance operation has completed both phases
     bool public finishedLastRebalance;
 
-    /// @dev Struct to hold validator ID and associated amount for sorting operations
-    struct ValidatorAmount {
-        uint64 valId; // Validator identifier
-        uint256 amount; // Stake amount associated with this validator
-    }
-
-    /**
-     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
-     */
-    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
-        return super.paused();
+    // whenNotPaused modifier is now inherited from PausableUpgradeable
+    modifier onlyAfterEpoch() {
+        if (epochSeconds != 0) {
+            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
+                revert ErrEpochGuard();
+            }
+        }
+        _;
     }
 
     /**
@@ -80,14 +93,17 @@ contract CoreVault is
     // Accept native funds returned from precompile withdrawals
     receive() external payable {}
 
-    // whenNotPaused modifier is now inherited from PausableUpgradeable
-    modifier onlyAfterEpoch() {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
-                revert ErrEpochGuard();
-            }
+    function _getCoreVaultStorage() private pure returns (CoreVaultStorage storage $) {
+        assembly {
+            $.slot := _CoreVaultStorageLocation
         }
-        _;
+    }
+
+    /**
+     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
+     */
+    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
+        return super.paused();
     }
 
     /**
@@ -640,7 +656,4 @@ contract CoreVault is
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
-
-    /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
-    uint256[50] private __gap;
 }
