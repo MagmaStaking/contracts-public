@@ -128,10 +128,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             assertGe(validatorPending, amount, "Validator should have at least the requested amount pending");
             totalValidatorPending += validatorPending;
         }
-
-        console.log("Total assets after undelegation:", finalTotalAssets);
-        console.log("Total pending undelegations:", finalTotalPendingUndelegations);
-        console.log("Sum of validator pending undelegations:", totalValidatorPending);
     }
 
     // Test validator ordering (highest stake first)
@@ -143,12 +139,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 val20InitialStake = coreVault.delegatedAmount(20);
         uint256 val30InitialStake = coreVault.delegatedAmount(30);
         uint256 val40InitialStake = coreVault.delegatedAmount(40);
-
-        console.log("Initial stakes:");
-        console.log("Val 10:", val10InitialStake);
-        console.log("Val 20:", val20InitialStake);
-        console.log("Val 30:", val30InitialStake);
-        console.log("Val 40:", val40InitialStake);
 
         // Alice makes a withdrawal request
         vm.prank(address(magma));
@@ -180,8 +170,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         }
 
         uint256 onetwentiethThreshold = totalStake / 20;
-        console.log("Total stake:", totalStake);
-        console.log("1/20th threshold:", onetwentiethThreshold);
 
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
@@ -224,15 +212,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         for (uint256 i = 0; i < validators.length; i++) {
             currentDelegatedStake += coreVault.delegatedAmount(validators[i]);
         }
-
-        console.log("1/20th test - Initial total assets:", initialTotalAssets);
-        console.log("1/20th test - Final total assets:", finalTotalAssets);
-        console.log("1/20th test - Threshold amount:", onetwentiethThreshold);
-        console.log(
-            "1/20th test - Pending undelegations increase:",
-            finalTotalPendingUndelegations - initialTotalPendingUndelegations
-        );
-        console.log("1/20th test - Current delegated stake:", currentDelegatedStake);
     }
 
     // Test multiple validators used when amount exceeds single validator capacity
@@ -289,11 +268,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             uint256 finalPending = coreVault.pendingUndelegateByValidator(validators[i]);
             uint256 increase = finalPending - initialPending[i];
             totalValidatorPendingIncrease += increase;
-
-            if (increase > 0) {
-                console.log("Validator pending increase:", validators[i]);
-                console.log("  amount:", increase);
-            }
         }
 
         // Total validator pending increases should equal the withdrawal amount
@@ -302,10 +276,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             largeWithdrawAmount,
             "Sum of validator pending increases should match withdrawal amount"
         );
-
-        console.log("Multiple validators withdrawal - Total assets:", finalTotalAssets);
-        console.log("Total pending undelegations:", finalTotalPendingUndelegations);
-        console.log("Total validator pending increase:", totalValidatorPendingIncrease);
     }
 
     // Test one withdrawal per user restriction
@@ -376,12 +346,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             initialTotalPendingUndelegations + (withdrawAmount * 3),
             "Total pending should reflect all three withdrawals"
         );
-
-        console.log("Multiple users - Initial total assets:", initialTotalAssets);
-        console.log("Multiple users - Final total assets:", finalTotalAssets);
-        console.log("Multiple users - Initial pending undelegations:", initialTotalPendingUndelegations);
-        console.log("Multiple users - Final pending undelegations:", finalTotalPendingUndelegations);
-        console.log("Multiple users - Expected pending increase:", withdrawAmount * 3);
     }
 
     // Test minimum withdrawal amount validation
@@ -499,17 +463,10 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_AssetTrackingDuringUndelegation() public {
         uint256 withdrawAmount = 30 ether;
 
-        console.log("=== Asset Tracking Test ===");
-
         // Record comprehensive initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
         uint256 initialTotalDelegated = coreVault.getTotalDelegated();
         uint256 initialTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-
-        console.log("Initial state:");
-        console.log("  Total assets:", initialTotalAssets);
-        console.log("  Total delegated:", initialTotalDelegated);
-        console.log("  Total pending undelegations:", initialTotalPendingUndelegations);
 
         // Record per-validator initial state
         uint64[4] memory validators = [uint64(10), uint64(20), uint64(30), uint64(40)];
@@ -519,25 +476,16 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         for (uint256 i = 0; i < validators.length; i++) {
             initialValidatorDelegated[i] = coreVault.delegatedAmount(validators[i]);
             initialValidatorPending[i] = coreVault.pendingUndelegateByValidator(validators[i]);
-            console.log("  Validator %d delegated:", validators[i]);
-            console.log("    delegated amount:", initialValidatorDelegated[i]);
-            console.log("    pending amount:", initialValidatorPending[i]);
         }
 
         // Perform undelegation
         vm.prank(address(magma));
         coreVault.undelegate(withdrawAmount, alice);
 
-        console.log("\nAfter undelegation request:");
-
         // Record post-undelegation state
         uint256 postTotalAssets = coreVault.totalAssets();
         uint256 postTotalDelegated = coreVault.getTotalDelegated();
         uint256 postTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-
-        console.log("  Total assets:", postTotalAssets);
-        console.log("  Total delegated:", postTotalDelegated);
-        console.log("  Total pending undelegations:", postTotalPendingUndelegations);
 
         // Key assertions for undelegation request phase
         // IMPORTANT: Undelegation immediately reduces delegated stake and total assets
@@ -568,11 +516,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             totalValidatorDelegatedDecrease += delegatedDecrease;
 
             totalValidatorPendingIncrease += pendingIncrease;
-
-            if (pendingIncrease > 0) {
-                console.log("  Validator pending increase:", validators[i]);
-                console.log("    increase amount:", pendingIncrease);
-            }
         }
 
         // Total validator pending increases should equal withdrawal amount
@@ -596,38 +539,18 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 totalRequestedAmount = 0;
         for (uint256 i = 0; i < requests.length; i++) {
             totalRequestedAmount += requests[i].amount;
-            console.log("  Request %d:", i);
-            console.log("    validator:", requests[i].validator);
-            console.log("    amount:", requests[i].amount);
-            console.log("    withdrawalId:", requests[i].withdrawalId);
         }
         assertEq(totalRequestedAmount, withdrawAmount, "Total requested amount should match withdrawal amount");
-
-        console.log("\nAsset tracking validation:");
-        console.log("  Key insight: Undelegation immediately reduces delegated stake and total assets");
-        console.log("  totalAssets formula: delegated + pending_redelegations");
-        console.log("  Actual total assets:", postTotalAssets);
-        console.log("  Calculated (delegated + pending_redelegations):", postTotalDelegated + 0); // No pending redelegations in this test
-        console.log("  Pending undelegations track amounts waiting for user distribution");
-        console.log("  Asset decrease:", initialTotalAssets - postTotalAssets);
-        console.log("  Pending increase:", postTotalPendingUndelegations - initialTotalPendingUndelegations);
     }
 
     // Test user withdrawal completion lifecycle
     function test_CompleteUserWithdrawal() public {
         uint256 withdrawAmount = 20 ether; // Use smaller amount that should work
 
-        console.log("=== User Withdrawal Completion Test ===");
-
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
         uint256 initialTotalPendingUndelegations = coreVault.totalPendingUndelegations();
         uint256 initialMagmaBalance = address(magma).balance;
-
-        console.log("Initial state:");
-        console.log("  Total assets:", initialTotalAssets);
-        console.log("  Pending undelegations:", initialTotalPendingUndelegations);
-        console.log("  Magma balance:", initialMagmaBalance);
 
         // Step 1: Alice makes undelegation request
         vm.prank(address(magma));
@@ -649,22 +572,14 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             "Pending undelegations should increase"
         );
 
-        console.log("After undelegation request:");
-        console.log("  Total assets:", afterRequestTotalAssets);
-        console.log("  Pending undelegations:", afterRequestPendingUndelegations);
-
         // Verify request was created
         CoreVault.WithdrawalRequestInfo[] memory requests = coreVault.getUserWithdrawalRequests(alice);
         assertTrue(requests.length > 0, "Should have withdrawal requests");
-        console.log("Created %d withdrawal requests", requests.length);
 
         // Step 2: Advance epochs to make withdrawals ready
-        console.log("Advancing epochs for withdrawal readiness...");
         _advanceEpochsForWithdrawal();
 
         // Step 3: Complete the withdrawal
-        console.log("Attempting withdrawal completion...");
-
         vm.prank(address(magma));
         (uint256 actualWithdrawn,) = coreVault.completeUserWithdrawal(alice);
 
@@ -672,12 +587,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 finalTotalAssets = coreVault.totalAssets();
         uint256 finalTotalPendingUndelegations = coreVault.totalPendingUndelegations();
         uint256 finalMagmaBalance = address(magma).balance;
-
-        console.log("After completion:");
-        console.log("  Total assets:", finalTotalAssets);
-        console.log("  Pending undelegations:", finalTotalPendingUndelegations);
-        console.log("  Magma balance:", finalMagmaBalance);
-        console.log("  Actual withdrawn:", actualWithdrawn);
 
         // If withdrawal was successful
         assertEq(
@@ -697,8 +606,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Requests should be cleared regardless
         CoreVault.WithdrawalRequestInfo[] memory finalRequests = coreVault.getUserWithdrawalRequests(alice);
         assertEq(finalRequests.length, 0, "Alice should have no remaining withdrawal requests after completion attempt");
-
-        console.log("Asset tracking verified successfully");
     }
 
     // Test getter functions
@@ -824,16 +731,12 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         for (uint256 i = 0; i < validators.length; i++) {
             uint256 validatorStake = freshCoreVault.delegatedAmount(validators[i]);
             totalActiveStake += validatorStake;
-            console.log("Validator %d stake: %d", validators[i], validatorStake);
         }
-        console.log("Total active stake: %d", totalActiveStake);
 
         // Use a withdrawal amount that will require multiple validators but is realistic
         // Start with something that should work - about 1/20th of total (which is the threshold)
         uint256 largeWithdrawAmount = totalActiveStake / 20; // 1/20th threshold
         if (largeWithdrawAmount < 5 ether) largeWithdrawAmount = 5 ether; // Ensure minimum reasonable amount
-
-        console.log("Attempting to withdraw: %d", largeWithdrawAmount);
 
         vm.prank(address(magma));
         freshCoreVault.undelegate(largeWithdrawAmount, alice);
@@ -860,14 +763,12 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             }
         }
 
-        console.log("Unique validators used: %d", uniqueValidators);
         assertGe(uniqueValidators, 1, "Should use at least 1 validator for withdrawal");
 
         // Verify total amount
         uint256 totalWithdrawn = 0;
         for (uint256 i = 0; i < requests.length; i++) {
             totalWithdrawn += requests[i].amount;
-            console.log("Request %d: Validator %d, Amount %d", i, requests[i].validator, requests[i].amount);
         }
         assertEq(totalWithdrawn, largeWithdrawAmount, "Total withdrawn should match requested amount");
     }
@@ -876,16 +777,10 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_CompleteMultipleUserWithdrawals() public {
         uint256 withdrawAmount = 30 ether;
 
-        console.log("=== Multiple User Completion Test ===");
-
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
         uint256 initialTotalPendingUndelegations = coreVault.totalPendingUndelegations();
         uint256 initialMagmaBalance = address(magma).balance;
-
-        console.log("Initial state:");
-        console.log("  Total assets:", initialTotalAssets);
-        console.log("  Pending undelegations:", initialTotalPendingUndelegations);
 
         // All users make withdrawal requests
         vm.prank(address(magma));
@@ -912,10 +807,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             "Pending should increase by all three withdrawals"
         );
 
-        console.log("After all undelegation requests:");
-        console.log("  Total assets:", afterAllRequestsTotalAssets);
-        console.log("  Pending undelegations:", afterAllRequestsPendingUndelegations);
-
         // Advance epochs to make withdrawals ready
         _advanceEpochsForWithdrawal();
 
@@ -931,15 +822,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         uint256 finalTotalAssets = coreVault.totalAssets();
         uint256 finalTotalPendingUndelegations = coreVault.totalPendingUndelegations();
-
-        console.log("Withdrawal amounts:");
-        console.log("  Alice withdrawn:", aliceWithdrawn);
-        console.log("  Bob withdrawn:", bobWithdrawn);
-        console.log("  Charlie withdrawn:", charlieWithdrawn);
-
-        console.log("Final state:");
-        console.log("  Total assets:", finalTotalAssets);
-        console.log("  Pending undelegations:", finalTotalPendingUndelegations);
 
         // Asset integrity checks
         uint256 totalWithdrawn = aliceWithdrawn + bobWithdrawn + charlieWithdrawn;
@@ -960,16 +842,10 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         assertEq(coreVault.getUserWithdrawalRequests(charlie).length, 0, "Charlie requests cleared");
 
         assertEq(address(magma).balance, initialMagmaBalance + totalWithdrawn, "Magma balance should increase");
-
-        console.log("Balance changes verified");
-
-        console.log("Multi-user asset tracking verified successfully");
     }
 
     // Test edge case: withdrawal completion with no pending requests
     function test_CompleteUserWithdrawalNoPendingRequests() public {
-        console.log("=== No Pending Requests Test ===");
-
         // Try to complete withdrawal for user with no requests
         vm.prank(address(magma));
         vm.expectRevert(abi.encodeWithSelector(ErrNoPendingWithdrawRequest.selector));
@@ -999,8 +875,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_WithdrawalRequestDataPersistence() public {
         uint256 withdrawAmount = 45 ether;
 
-        console.log("=== Data Persistence Test ===");
-
         // Record initial state
         uint256 initialRequestCount = coreVault.getUserWithdrawalRequestCount(alice);
         assertEq(initialRequestCount, 0, "Should start with no requests");
@@ -1029,11 +903,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             assertGt(individualRequest.amount, 0, "Amount should be positive");
             assertTrue(individualRequest.validator > 0, "Validator ID should be valid");
             assertLt(individualRequest.withdrawalId, 255, "Withdrawal ID should be under admin threshold");
-
-            console.log("Request %d verified:", i);
-            console.log("  Amount:", individualRequest.amount);
-            console.log("  Validator:", individualRequest.validator);
-            console.log("  Withdrawal ID:", individualRequest.withdrawalId);
         }
     }
 
@@ -1041,14 +910,11 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_ValidatorDistributionFairness() public {
         uint256 largeWithdrawAmount = 60 ether; // Reduced to fit within available stake
 
-        console.log("=== Validator Distribution Fairness Test ===");
-
         // Record initial stakes
         uint64[4] memory validators = [uint64(10), uint64(20), uint64(30), uint64(40)];
         uint256[4] memory initialStakes;
         for (uint256 i = 0; i < validators.length; i++) {
             initialStakes[i] = coreVault.delegatedAmount(validators[i]);
-            console.log("Validator %d initial stake:", validators[i], initialStakes[i]);
         }
 
         // Make large withdrawal that should span multiple validators
@@ -1077,10 +943,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         }
 
         // Verify distribution follows expected patterns
-        console.log("Withdrawal distribution:");
         uint256 totalDistributed = 0;
         for (uint256 i = 0; i < validators.length; i++) {
-            console.log("  Validator %d: %d ETH (%d requests)", validators[i], validatorAmounts[i], validatorCounts[i]);
             totalDistributed += validatorAmounts[i];
         }
 
@@ -1096,13 +960,10 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         }
 
         assertGe(validatorsUsed, 1, "At least one validator should be used");
-        console.log("Number of validators used:", validatorsUsed);
     }
 
     // Test boundary conditions for validator selection
     function test_ValidatorSelectionBoundaryConditions() public {
-        console.log("=== Validator Selection Boundary Test ===");
-
         // Test very small withdrawal (should use only highest-staked validator)
         uint256 tinyAmount = 1 ether;
 
@@ -1129,7 +990,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         );
 
         CoreVault.WithdrawalRequestInfo[] memory tinyRequests = coreVault.getUserWithdrawalRequests(alice);
-        console.log("Tiny withdrawal (%d ETH) used %d requests", tinyAmount, tinyRequests.length);
 
         // Advance epochs to make withdrawals ready
         _advanceEpochsForWithdrawal();
@@ -1184,7 +1044,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         );
 
         CoreVault.WithdrawalRequestInfo[] memory thresholdRequests = coreVault.getUserWithdrawalRequests(bob);
-        console.log("Threshold withdrawal (%d ETH) used %d requests", exactThreshold, thresholdRequests.length);
 
         // Verify threshold amount is properly distributed
         uint256 totalThresholdAmount = 0;
@@ -1192,8 +1051,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             totalThresholdAmount += thresholdRequests[i].amount;
         }
         assertEq(totalThresholdAmount, exactThreshold, "Threshold amount should be exact");
-
-        console.log("Boundary conditions asset tracking verified successfully");
     }
 }
 

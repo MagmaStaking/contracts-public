@@ -336,12 +336,6 @@ contract GVaultValidatorOperations is BaseTest {
             coreVault.delegatedAmount(VAL_1) + coreVault.delegatedAmount(VAL_2) + coreVault.delegatedAmount(VAL_3);
         uint256 totalAssetsInitial = gvaultTotalInitial + coreVaultTotalInitial;
 
-        console.log("=== INITIAL STATE ===");
-        console.log("gVault total:", gvaultTotalInitial);
-        console.log("CoreVault total:", coreVaultTotalInitial);
-        console.log("Total assets:", totalAssetsInitial);
-        console.log("finishedLastRebalance:", gvault.finishedLastRebalance());
-
         assertEq(gvaultTotalInitial, 300 ether, "gVault should have 300 ether initially");
         assertEq(coreVaultTotalInitial, 150 ether, "CoreVault should have 150 ether initially");
         assertEq(totalAssetsInitial, 450 ether, "Total should be 450 ether");
@@ -363,10 +357,6 @@ contract GVaultValidatorOperations is BaseTest {
         assertEq(actualPendingRedelegation, expectedUndelegation, "Should have exactly 150 ether pending redelegation");
         assertFalse(gvault.finishedLastRebalance(), "Should be in rebalance progress");
 
-        console.log("=== AFTER INITIATE REBALANCE ===");
-        console.log("Expected undelegation:", expectedUndelegation);
-        console.log("Actual pending redelegation:", actualPendingRedelegation);
-
         // CRITICAL TEST: gVault.totalAssets() should maintain the same total during pending state
         // It should include both staked amounts AND pending redelegations
         uint256 gvaultTotalDuringPending = gvault.totalAssets();
@@ -375,10 +365,6 @@ contract GVaultValidatorOperations is BaseTest {
             gvaultTotalInitial,
             "gVault.totalAssets() should remain 300 ether during pending state (staked + pending redelegations)"
         );
-
-        console.log("gVault.totalAssets() during pending:", gvaultTotalDuringPending);
-        console.log("Breakdown - Active stakes:", gvaultTotalDuringPending - actualPendingRedelegation);
-        console.log("Breakdown - Pending redelegations:", actualPendingRedelegation);
 
         // Step 2: Wait for withdrawal delay (simulate time passing)
         _advanceEpochsForWithdrawal();
@@ -394,12 +380,6 @@ contract GVaultValidatorOperations is BaseTest {
             _getGVaultValidatorStake(VAL_1) + _getGVaultValidatorStake(VAL_2) + _getGVaultValidatorStake(VAL_3);
         uint256 coreVaultTotalFinal = coreVault.totalAssets();
         uint256 totalAssetsFinal = gvaultTotalFinal + coreVaultTotalFinal;
-
-        console.log("=== FINAL STATE ===");
-        console.log("gVault final total:", gvaultTotalFinal);
-        console.log("CoreVault final total:", coreVaultTotalFinal);
-        console.log("Total assets final:", totalAssetsFinal);
-        console.log("CoreVault increase:", coreVaultTotalFinal - coreVaultBalanceBefore);
 
         // gVault should have ~150 ether (50% reduction from 300)
         uint256 expectedGVaultFinal = 150 ether;
@@ -437,17 +417,10 @@ contract GVaultValidatorOperations is BaseTest {
             "gVault.totalAssets() should be 150 ether after 50% rebalancing"
         );
 
-        console.log("gVault.totalAssets() after rebalancing:", gvaultTotalAfterRebalance);
-
         // Verify CoreVault distributed funds equally among its 3 validators
         uint256 val1CoreFinal = coreVault.delegatedAmount(VAL_1);
         uint256 val2CoreFinal = coreVault.delegatedAmount(VAL_2);
         uint256 val3CoreFinal = coreVault.delegatedAmount(VAL_3);
-
-        console.log("=== COREVAULT FINAL DISTRIBUTION ===");
-        console.log("CoreVault VAL_1:", val1CoreFinal);
-        console.log("CoreVault VAL_2:", val2CoreFinal);
-        console.log("CoreVault VAL_3:", val3CoreFinal);
 
         // Each CoreVault validator should have approximately 100 ether (50 initial + 50 from redistribution)
         uint256 expectedPerCoreValidator = 100 ether;

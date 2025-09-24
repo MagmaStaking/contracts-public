@@ -103,11 +103,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val2, address(coreVault), 300 ether); // High stake
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val3, address(coreVault), 200 ether); // Medium stake
 
-        // Verify stakes are set correctly
-        console.log("Val 1 stake:", coreVault.delegatedAmount(val1));
-        console.log("Val 2 stake:", coreVault.delegatedAmount(val2));
-        console.log("Val 3 stake:", coreVault.delegatedAmount(val3));
-
         // Test: Alice makes a withdrawal
         uint256 withdrawAmount = 50 ether;
         vm.prank(address(magma));
@@ -121,7 +116,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
         uint256 totalWithdrawn = 0;
         for (uint256 i = 0; i < requests.length; i++) {
             totalWithdrawn += requests[i].amount;
-            console.log("Request %d - Validator: %d Amount: %d", i, requests[i].validator, requests[i].amount);
         }
         assertEq(totalWithdrawn, withdrawAmount, "Total withdrawn should match requested");
 
@@ -199,7 +193,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         // Check what the actual available stake is after rebalancing
         uint256 actualStake = freshCoreVault.delegatedAmount(val1);
-        console.log("Actual stake after rebalancing: %d", actualStake);
 
         // Try to withdraw more than available - expect revert with actual available amount
         vm.prank(address(magma));
