@@ -357,6 +357,15 @@ contract CoreVault is
     }
 
     /**
+     * @dev Override VaultBase._distributeClaimedRewardsFromRemoval to use internal distribution
+     * @param _amount The amount of rewards to distribute
+     */
+    function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal override {
+        // Use internal distribution instead of external delegate call
+        _distributeAmountEquallyToValidators(_amount);
+    }
+
+    /**
      * @notice Internal function to initiate rebalancing by undelegating excess stakes
      * @dev Calculates target delegation per validator and undelegates excess from over-target validators
      */

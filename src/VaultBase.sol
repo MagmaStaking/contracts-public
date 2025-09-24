@@ -491,10 +491,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     /**
-     * @dev Claim rewards for a specific validator and send to CoreVault for distribution
+     * @dev Claim rewards for a specific validator and distribute them
      * @param _valId The validator ID to claim rewards for
      */
-    function _claimValidatorRewards(uint64 _valId) internal {
+    function _claimValidatorRewards(uint64 _valId) internal virtual {
         uint256 _balanceBefore = address(this).balance;
 
         // Try to claim rewards from the validator - if there are no rewards, this will fail gracefully
@@ -509,13 +509,21 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
             uint256 _remaining = _rewardsClaimed - _fee;
 
-            // Send remaining rewards to CoreVault for distribution
+            // Distribute remaining rewards using vault-specific strategy
             if (_remaining > 0) {
-                ICoreVault _coreVault = ICoreVault(magma.coreVault());
-                // Call delegate function on CoreVault to distribute to remaining validators
-                _coreVault.delegate{value: _remaining}();
+                _distributeClaimedRewardsFromRemoval(_remaining);
             }
         }
+    }
+
+    /**
+     * @dev Distribute claimed rewards - default implementation forwards to CoreVault
+     * @param _amount The amount of rewards to distribute
+     */
+    function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal virtual {
+        ICoreVault _coreVault = ICoreVault(magma.coreVault());
+        // Call delegate function on CoreVault to distribute to remaining validators
+        _coreVault.delegate{value: _amount}();
     }
 
     /**
