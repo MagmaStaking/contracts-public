@@ -27,6 +27,15 @@ import {
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
+    /// @custom:storage-location erc7201:storage.GVault
+    struct GVaultStorage {
+        uint256 start;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("storage.GVault")) - 1)) & ~bytes32(uint256(0xff))
+    /* solhint-disable-next-line const-name-snakecase */
+    bytes32 private constant _GVaultStorageLocation = 0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
+
     /// @dev EIP-4626 style share tracking: tracks user's share ownership per validator
     mapping(address => mapping(uint64 => uint256)) public delegatedSharesOf; // user => valId => shares
     /// @dev Total shares issued for each validator (used for share-to-asset conversion)
@@ -92,6 +101,12 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Allows the contract to receive MON from validator delegation completions
      */
     receive() external payable {}
+
+    function _getGVaultStorage() private pure returns (GVaultStorage storage $) {
+        assembly {
+            $.slot := _GVaultStorageLocation
+        }
+    }
 
     /**
      * @notice Add a new validator to the whitelist
@@ -479,7 +494,4 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
-
-    /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
-    uint256[50] private __gap;
 }
