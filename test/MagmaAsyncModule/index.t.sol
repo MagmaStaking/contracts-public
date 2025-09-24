@@ -7,7 +7,7 @@ import {BaseTest} from "../BaseTest.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
-import {MagmaBase} from "src/MagmaBase.sol";
+import {Magma} from "src/Magma.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {IBaseVault} from "interfaces/IBaseVault.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
@@ -145,7 +145,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 0);
+        emit Magma.DepositWithReferral(user, user, assets, shares, 0);
 
         // 7540 vault assertions
         assertEq(assets, magma.mint(shares, user));
@@ -181,7 +181,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 0);
+        emit Magma.DepositWithReferral(user, user, assets, shares, 0);
 
         // 7540 vault assertions
         assertEq(shares, magma.deposit(assets, user));
@@ -218,7 +218,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
+        emit Magma.DepositWithReferral(user, user, assets, shares, 3);
 
         // 7540 vault assertions
         assertEq(shares, magma.depositWMON(assets, user, 3));
@@ -249,7 +249,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Deposit(user, user, assets, shares);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
+        emit Magma.DepositWithReferral(user, user, assets, shares, 3);
 
         // 7540 vault assertions
         assertEq(shares, magma.depositMON{value: assets}(user, 3));
@@ -289,7 +289,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, user, assets, shares, 3);
+        emit Magma.DepositWithReferral(user, user, assets, shares, 3);
 
         // 7540 vault assertions
         assertEq(shares, magma.depositGVault(assets, user, 3, 3));
@@ -332,7 +332,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Withdrawal(address(magma), assets);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.DepositWithReferral(user, receiver, assets, shares, 0);
+        emit Magma.DepositWithReferral(user, receiver, assets, shares, 0);
 
         // 7540 vault assertions
         assertEq(shares, magma.deposit(assets, receiver));
@@ -418,7 +418,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(user, address(0), shares);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
+        emit Magma.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
         vm.prank(user);
         uint256 requestId = magma.requestRedeem(shares, user, user);
@@ -488,7 +488,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(user, address(0), shares);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(user, user, requestIdCountBefore, user, shares);
+        emit Magma.RedeemRequest(user, user, requestIdCountBefore, user, shares);
 
         vm.prank(user);
         uint256 requestId = magma.requestRedeemGVault(shares, user, user, 3);
@@ -702,10 +702,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         // Test operator of users requests redemptions that will be handled by a different controller
         vm.startPrank(operator);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(operator, user, requestId1, operator, shares);
+        emit Magma.RedeemRequest(operator, user, requestId1, operator, shares);
         assertEq(requestId1, magma.requestRedeem(shares, operator, user));
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.RedeemRequest(operator, user2, requestId2, operator, shares);
+        emit Magma.RedeemRequest(operator, user2, requestId2, operator, shares);
         assertEq(requestId2, magma.requestRedeem(shares, operator, user2));
 
         uint256 assetsBefore = magma.totalAssets();
@@ -753,7 +753,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     function test_SetOperator() public {
         vm.prank(user);
         vm.expectEmit(true, true, true, true);
-        emit MagmaBase.OperatorSet(user, address(15), true);
+        emit Magma.OperatorSet(user, address(15), true);
         magma.setOperator(address(15), true);
     }
 
