@@ -49,13 +49,12 @@ contract Magma is
         uint256 _withdrawalFee;
         /// @notice The address that receives the fees.
         address _feeReceiver;
+        // Admin for Magma, CoreVault validator management, etc
+        address _admin;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
-
-    // Admin for Magma, CoreVault validator management, etc
-    address public admin;
 
     /// @notice Struct to track pending redeem requests
     /// @dev Claimable state may transition automatically after a timestamp has passed.
@@ -135,7 +134,7 @@ contract Magma is
         __ERC20_init(name_, symbol_);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
-        admin = admin_;
+        $._admin = admin_;
         $._rewardsFee = rewardsFee_;
         $._withdrawalFee = withdrawalFee_;
         $._feeReceiver = feeReceiver_;
@@ -155,11 +154,11 @@ contract Magma is
         _unpause();
     }
 
-    // TODO: see if we need UUPSUpgradeable and this
+    // TODO: see if we need UUPSUpgradeable and this and change onlyAdmin i other spots
     // function _authorizeUpgrade(address) internal view override onlyAdmin {}
 
     modifier onlyAdmin() {
-        if (msg.sender != admin) revert ErrNotAdmin();
+        if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
         _;
     }
 
@@ -168,6 +167,10 @@ contract Magma is
     //////////////////////////////////////////////////////////////*/
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
+    }
+
+    function admin() public view returns (address) {
+        return _getMagmaStorage()._admin;
     }
 
     function feeReceiver() public view returns (address) {
@@ -453,7 +456,7 @@ contract Magma is
 
     function setAdmin(address newAdmin) external onlyAdmin {
         if (newAdmin == address(0)) revert ErrZeroAddress();
-        admin = newAdmin;
+        _getMagmaStorage()._admin = newAdmin;
     }
 
     function setVaults(address _coreVault, address _gVault) external onlyAdmin {
