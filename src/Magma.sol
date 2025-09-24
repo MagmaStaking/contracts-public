@@ -171,18 +171,15 @@ contract Magma is
     }
 
     function feeReceiver() public view returns (address) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._feeReceiver;
+        return _getMagmaStorage()._feeReceiver;
     }
 
     function rewardsFee() public view returns (uint256) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._rewardsFee;
+        return _getMagmaStorage()._rewardsFee;
     }
 
     function withdrawalFee() public view returns (uint256) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._withdrawalFee;
+        return _getMagmaStorage()._withdrawalFee;
     }
 
     function totalAssets() public view virtual override returns (uint256) {
@@ -190,13 +187,11 @@ contract Magma is
     }
 
     function isOperator(address controller, address operator) external view returns (bool) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._isOperator[controller][operator];
+        return _getMagmaStorage()._isOperator[controller][operator];
     }
 
     function setOperator(address operator, bool approved) external returns (bool) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._isOperator[_msgSender()][operator] = approved;
+        _getMagmaStorage()._isOperator[_msgSender()][operator] = approved;
         emit OperatorSet(_msgSender(), operator, approved);
         return true;
     }
@@ -361,8 +356,7 @@ contract Magma is
     }
 
     function pendingRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._pendingRedeemRequests[controller][requestId].shares;
+        return _getMagmaStorage()._pendingRedeemRequests[controller][requestId].shares;
     }
 
     function pendingRedeemRequestData(uint256 requestId, address controller)
@@ -370,13 +364,11 @@ contract Magma is
         view
         returns (RedeemRequests memory data)
     {
-        MagmaStorage storage $ = _getMagmaStorage();
-        return $._pendingRedeemRequests[controller][requestId];
+        return _getMagmaStorage()._pendingRedeemRequests[controller][requestId];
     }
 
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
-        MagmaStorage storage $ = _getMagmaStorage();
-        RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
+        RedeemRequests memory request = _getMagmaStorage()._pendingRedeemRequests[controller][requestId];
         return request.claimableTime <= block.timestamp ? request.shares : 0;
     }
 
@@ -466,26 +458,22 @@ contract Magma is
 
     function setRewardsFee(uint256 _rewardsFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._rewardsFee = _rewardsFee;
+        _getMagmaStorage()._rewardsFee = _rewardsFee;
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._withdrawalFee = _withdrawalFee;
+        _getMagmaStorage()._withdrawalFee = _withdrawalFee;
     }
 
     function setFeeReceiver(address _feeReceiver) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._feeReceiver = _feeReceiver;
+        _getMagmaStorage()._feeReceiver = _feeReceiver;
     }
 
     function setRedeemDelay(uint256 _redeemDelay) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._redeemDelay = _redeemDelay;
+        _getMagmaStorage()._redeemDelay = _redeemDelay;
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
