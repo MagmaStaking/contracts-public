@@ -39,13 +39,12 @@ contract Magma is
         mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
         // Mapping for operator approvals (ERC-7540)
         mapping(address controller => mapping(address operator => bool)) _isOperator;
+        // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
+        uint256 _redeemDelay;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
-
-    // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
-    uint256 public redeemDelay;
 
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
@@ -132,6 +131,8 @@ contract Magma is
         address feeReceiver_,
         uint256 redeemDelay_
     ) internal onlyInitializing {
+        MagmaStorage storage $ = _getMagmaStorage();
+
         __ReentrancyGuard_init();
         __Pausable_init();
         __ERC20_init(name_, symbol_);
@@ -141,7 +142,7 @@ contract Magma is
         rewardsFee = rewardsFee_;
         withdrawalFee = withdrawalFee_;
         feeReceiver = feeReceiver_;
-        redeemDelay = redeemDelay_;
+        $._redeemDelay = redeemDelay_;
     }
 
     /**
@@ -331,7 +332,7 @@ contract Magma is
             owner: owner,
             shares: shares,
             assets: assets,
-            claimableTime: block.timestamp + redeemDelay,
+            claimableTime: block.timestamp + $._redeemDelay,
             isGVault: isGVault
         });
         unchecked {
@@ -468,7 +469,8 @@ contract Magma is
 
     function setRedeemDelay(uint256 _redeemDelay) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        redeemDelay = _redeemDelay;
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._redeemDelay = _redeemDelay;
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
