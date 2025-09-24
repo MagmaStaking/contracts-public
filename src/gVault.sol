@@ -221,7 +221,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (msg.sender != magma.feeReceiver() && msg.sender != magma.admin()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
-        _delegate(msg.value, _valId);
+        _delegate(_valId, msg.value);
         emit RewardsInjected(msg.value, _valId);
     }
 
