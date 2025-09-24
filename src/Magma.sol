@@ -93,7 +93,7 @@ contract Magma is
 
     // TODO: does this go after events or not
     // ERC-7540 Asynchronous redemption Vault Interface ID
-    bytes4 internal constant _INTERFACE_ID_ERC7540 = 0x620ee8e4;
+    bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
@@ -170,7 +170,7 @@ contract Magma is
                             ERC-165 SUPPORT
     //////////////////////////////////////////////////////////////*/
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
-        return interfaceId == _INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
+        return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }
 
     function totalAssets() public view virtual override returns (uint256) {
