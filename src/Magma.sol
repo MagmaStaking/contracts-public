@@ -3,13 +3,13 @@ pragma solidity 0.8.30;
 
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {
-    NotEnoughAssetsGVault,
+    ErrNotEnoughAssetsGVault,
     ErrZeroAddress,
     ErrRequestPending,
     ErrZeroShares,
     ErrNotAuthorized,
     ErrInsufficientShares,
-    RequestInexistent,
+    ErrRequestInexistent,
     ErrNativeTransferFailed,
     ErrNotAdmin,
     ErrZeroAddress
@@ -205,6 +205,7 @@ contract Magma is
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -228,6 +229,7 @@ contract Magma is
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
@@ -240,6 +242,7 @@ contract Magma is
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -253,6 +256,7 @@ contract Magma is
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -267,6 +271,7 @@ contract Magma is
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 assets = msg.value;
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -288,6 +293,7 @@ contract Magma is
         nonReentrant
         returns (uint256 requestId)
     {
+        _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
         return _requestRedeem(shares, assets, controller, owner, 0, false);
     }
@@ -298,9 +304,10 @@ contract Magma is
         nonReentrant
         returns (uint256 requestId)
     {
+        _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
         if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
-            revert NotEnoughAssetsGVault();
+            revert ErrNotEnoughAssetsGVault();
         }
         return _requestRedeem(shares, assets, controller, owner, valId, true);
     }
@@ -410,7 +417,7 @@ contract Magma is
         if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
-        if (request.claimableTime == 0) revert RequestInexistent();
+        if (request.claimableTime == 0) revert ErrRequestInexistent();
 
         address owner = $._pendingRedeemRequests[controller][requestId].owner;
         delete $._pendingRedeemRequests[controller][requestId];
@@ -475,6 +482,22 @@ contract Magma is
     function setRedeemDelay(uint256 _redeemDelay) external {
         if (msg.sender != admin) revert ErrNotAdmin();
         _getMagmaStorage()._redeemDelay = _redeemDelay;
+    }
+
+    /**
+     * @notice Force refresh the cache for the CoreVault and gVault
+     */
+    function refreshCache() external {
+        coreVault.refreshCache();
+        gVault.refreshCache();
+    }
+
+    /**
+     * @notice Check if the cache for the CoreVault and gVault needs to be refreshed and refresh if needed
+     */
+    function _refreshCacheCheck() internal {
+        coreVault.refreshCacheCheck();
+        gVault.refreshCacheCheck();
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows

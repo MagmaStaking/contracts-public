@@ -16,6 +16,7 @@ interface IMagma {
 
     // Total assets functions
     function totalAssets() external view returns (uint256);
+    function refreshCache() external;
 
     function admin() external view returns (address);
     function coreVault() external view returns (address);

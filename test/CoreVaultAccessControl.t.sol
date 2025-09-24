@@ -249,6 +249,7 @@ contract CoreVaultAccessControl is BaseTest {
         // Activate the stakes
         _activatePendingDelegations();
         _activateAllStakes();
+        coreVault.refreshCache();
 
         // Set minimum withdraw amount to allow the test
         vm.prank(admin);
@@ -383,6 +384,7 @@ contract CoreVaultAccessControl is BaseTest {
         vm.stopPrank();
         _activatePendingDelegations();
         _activateAllStakes();
+        coreVault.refreshCache();
         vm.startPrank(address(magma));
 
         // Undelegate should succeed

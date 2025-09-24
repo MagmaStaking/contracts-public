@@ -129,7 +129,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
 
     function test_RevertWhen_RedeemNoRequest() public {
         vm.prank(user);
-        vm.expectRevert(RequestInexistent.selector);
+        vm.expectRevert(ErrRequestInexistent.selector);
         magma.redeem(0, user, user);
     }
 
@@ -170,7 +170,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         _activateAllStakes();
         _activateGVaultStakes();
         vm.prank(user);
-        vm.expectRevert(NotEnoughAssetsGVault.selector);
+        vm.expectRevert(ErrNotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
@@ -178,7 +178,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 assets = 5 ether;
         uint256 shares = _depositHelper(assets);
         vm.prank(user);
-        vm.expectRevert(NotEnoughAssetsGVault.selector);
+        vm.expectRevert(ErrNotEnoughAssetsGVault.selector);
         magma.requestRedeemGVault(shares, user, user, 3);
     }
 
@@ -198,7 +198,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         gvault.adminInitiateRebalanceBps(5_000);
 
         vm.prank(user);
-        vm.expectRevert(NotEnoughAssetsGVault.selector);
+        vm.expectRevert(ErrNotEnoughAssetsGVault.selector);
         assertEq(0, magma.requestRedeemGVault(shares, user, user, 3));
     }
 

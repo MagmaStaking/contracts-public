@@ -34,8 +34,8 @@ error ErrEpochGuard();
 error ErrRebalanceInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
-error RequestInexistent();
-error NotEnoughAssetsGVault();
+error ErrRequestInexistent();
+error ErrNotEnoughAssetsGVault();
 
 // External call failures
 error ErrDelegateFailed();
@@ -50,14 +50,14 @@ error ErrRebalanceCompleteFailed();
 // Queues / IDs
 error ErrQueueFull();
 error ErrNoFreeWithdrawalId();
-error AdminWidInUse();
+error ErrAdminWidInUse();
 
 // Validator admin ops
 error ErrMustPauseBeforeRemove();
 error ErrPendingStakeNotZero();
 error ErrInvalidStatus();
 error ErrNotEnoughValidators();
-error MaxValidators(uint64 maxValidators);
+error ErrMaxValidators(uint64 maxValidators);
 
 // Withdrawal ordering errors
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
