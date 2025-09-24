@@ -451,36 +451,30 @@ contract Magma is
         return totalWithdrawnAfterFee;
     }
 
-    function setAdmin(address newAdmin) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setAdmin(address newAdmin) external onlyAdmin {
         if (newAdmin == address(0)) revert ErrZeroAddress();
         admin = newAdmin;
     }
 
-    function setVaults(address _coreVault, address _gVault) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setVaults(address _coreVault, address _gVault) external onlyAdmin {
         if (_coreVault == address(0)) revert ErrZeroAddress();
         coreVault = ICoreVault(_coreVault);
         gVault = IGVault(_gVault);
     }
 
-    function setRewardsFee(uint256 _rewardsFee) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
         _getMagmaStorage()._rewardsFee = _rewardsFee;
     }
 
-    function setWithdrawalFee(uint256 _withdrawalFee) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setWithdrawalFee(uint256 _withdrawalFee) external onlyAdmin {
         _getMagmaStorage()._withdrawalFee = _withdrawalFee;
     }
 
-    function setFeeReceiver(address _feeReceiver) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setFeeReceiver(address _feeReceiver) external onlyAdmin {
         _getMagmaStorage()._feeReceiver = _feeReceiver;
     }
 
-    function setRedeemDelay(uint256 _redeemDelay) external {
-        if (msg.sender != admin) revert ErrNotAdmin();
+    function setRedeemDelay(uint256 _redeemDelay) external onlyAdmin {
         _getMagmaStorage()._redeemDelay = _redeemDelay;
     }
 

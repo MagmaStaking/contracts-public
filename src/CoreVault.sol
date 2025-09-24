@@ -607,6 +607,7 @@ contract CoreVault is
     }
 
     /**
+     * TODO: check is this needed anymore
      * @notice Internal function to authorize contract upgrades
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      */
