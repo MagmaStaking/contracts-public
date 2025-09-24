@@ -29,6 +29,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     struct VaultBaseStorage {
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
+        /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
+        uint256 _minUserWithdrawAmount;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -47,9 +49,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _VaultBaseStorageLocation =
         0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
-
-    /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
-    uint256 public minUserWithdrawAmount;
 
     /// @dev Tracks which validators are currently whitelisted for delegation
     mapping(uint64 => bool) public override isWhitelisted;
@@ -111,6 +110,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         assembly {
             $.slot := _VaultBaseStorageLocation
         }
+    }
+
+    function minUserWithdrawAmount() public view returns (uint256) {
+        return _getVaultBaseStorage()._minUserWithdrawAmount;
     }
 
     /**
@@ -181,7 +184,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
-        minUserWithdrawAmount = _amount;
+        _getVaultBaseStorage()._minUserWithdrawAmount = _amount;
     }
 
     /**

@@ -227,8 +227,8 @@ contract CoreVault is
      * @param _user The user address requesting the withdrawal
      */
     function undelegate(uint256 _amount, address _user) external onlyMagma whenNotPaused {
-        if (_amount < minUserWithdrawAmount) {
-            revert ErrBelowMinWithdraw(minUserWithdrawAmount);
+        if (_amount < minUserWithdrawAmount()) {
+            revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         if (validators.length == 0) revert ErrNoValidators();
 

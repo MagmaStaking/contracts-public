@@ -258,8 +258,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _amount The amount to undelegate
      */
     function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
-        if (_amount < minUserWithdrawAmount) {
-            revert ErrBelowMinWithdraw(minUserWithdrawAmount);
+        if (_amount < minUserWithdrawAmount()) {
+            revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         //undelegate just adds to the queue
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
