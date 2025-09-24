@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
-
-import {ErrNoFreeWithdrawalId} from "../MagmaErrorsModule.sol";
+pragma solidity 0.8.30;
 
 /**
  * @title BitMapLib
@@ -28,8 +26,8 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
-        _allocateADMIN_WID(bitMap);
+    function allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
+        _allocateAdminWid(bitMap);
     }
 
     /**
@@ -91,7 +89,7 @@ library BitMapLib {
         // Brian Kernighan's algorithm to count set bits
         while (bitmap != 0) {
             bitmap &= bitmap - 1; // Clear the lowest set bit
-            count++;
+            ++count;
         }
     }
 
@@ -107,7 +105,7 @@ library BitMapLib {
         uint8 start = bitMap.nextWithdrawalId;
 
         // Find first free slot starting from cursor
-        for (uint16 i = 0; i < 256; i++) {
+        for (uint16 i = 0; i < 256; ++i) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == reservedId) continue;
 
@@ -127,7 +125,7 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function _allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
+    function _allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
         uint256 adminMask = 1 << ADMIN_WID;
         bitMap.bitmap |= adminMask;
     }

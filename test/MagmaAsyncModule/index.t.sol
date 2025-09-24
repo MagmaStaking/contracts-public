@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {BaseTest} from "../BaseTest.t.sol";
@@ -8,7 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
 import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
-import {UserWithdrawalCompleted} from "src/MagmaErrorsModule.sol";
+import {IBaseVault} from "interfaces/IBaseVault.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
 
 contract MagmaAsyncModuleTest is BaseTest {
@@ -511,7 +512,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(false, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assets);
+        emit IBaseVault.UserWithdrawalCompleted(user, assets);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assets);
         vm.expectEmit(true, true, true, true);
@@ -556,7 +557,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(true, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assets);
+        emit IBaseVault.UserWithdrawalCompleted(user, assets);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assets);
         vm.expectEmit(true, true, true, true);
@@ -606,7 +607,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(false, isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assets);
+        emit IBaseVault.UserWithdrawalCompleted(user, assets);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(user, user, address(magma), assets, shares);
 
@@ -649,7 +650,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         MockStakingPrecompile(STAKING_PRECOMPILE).setSlashDivider(2);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, expectedAssets);
+        emit IBaseVault.UserWithdrawalCompleted(user, expectedAssets);
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(address(0), user, shares - sharesAfterSlash);
         vm.expectEmit(true, true, true, true);

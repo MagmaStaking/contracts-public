@@ -1,10 +1,29 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
-import {IMagma} from "./IMagma.sol";
 import {IBaseVault} from "./IBaseVault.sol";
 
 interface ICoreVault is IBaseVault {
+    // Events
+    event RebalanceInitiated();
+    event RebalanceCompleted();
+    event SubmittedUndelegate(
+        uint8 indexed withdrawalId, uint256 indexed perValidatorAmount, uint256 indexed validatorCount
+    );
+
+    // User withdrawal distribution events (mirrors gVault for consistency)
+    event WithdrawalAmountMismatch(
+        uint64 indexed valId,
+        uint8 indexed withdrawalId,
+        uint256 totalDue,
+        uint256 totalDistributed,
+        uint256 expectedDueForUser,
+        address indexed user
+    );
+    event WithdrawalPaymentFailed(
+        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
+    );
+
     // Admin functions
     function addValidator(uint64 valId) external;
     function addValidators(uint64[] memory validators) external;
@@ -37,22 +56,4 @@ interface ICoreVault is IBaseVault {
     function getValidators() external view returns (uint64[] memory);
     function getValidatorCount() external view returns (uint256);
     function getTotalDelegated() external view returns (uint256);
-
-    // Events
-
-    event RebalanceInitiated();
-    event RebalanceCompleted();
-    event SubmittedUndelegate(uint8 withdrawalId, uint256 perValidatorAmount, uint256 validatorCount);
-    // User withdrawal distribution events (mirrors gVault for consistency)
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
 }
