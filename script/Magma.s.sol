@@ -32,18 +32,18 @@ contract MagmaScript is Script {
             "Magma.sol",
             abi.encodeCall(
                 Magma.initialize,
-                (
-                    IERC20(underlyingAssetAddress),
-                    "gMON",
-                    "gMON",
-                    msg.sender,
-                    address(0),
-                    address(0),
-                    0,
-                    0,
-                    feeReceiverAddress,
-                    delay
-                )
+                Magma.InitializeParams({
+                    asset: IERC20(underlyingAssetAddress),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: msg.sender,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 0,
+                    withdrawalFee: 0,
+                    feeReceiver: feeReceiverAddress,
+                    redeemDelay: delay
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -66,3 +66,16 @@ contract MagmaScript is Script {
         vm.stopBroadcast();
     }
 }
+
+/**
+ * TODO:
+ * @custom:oz-upgrades-from Magma review https://docs.openzeppelin.com/upgrades-plugins/api-foundry-upgrades https://docs.openzeppelin.com/upgrades-plugins/api-core#define-reference-contracts
+ * @custom:storage-location erc7201:openzeppelin.storage.ERC4626,
+ * MakeFile with ----force or forge clean before running forge script https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades?tab=readme-ov-file
+ * fix openzeppelin lib here
+ * you can do a test script just to test
+ * Important Include the --sender <ADDRESS> flag for the forge script command when performing upgrades, specifying an address that owns the proxy or proxy admin. Otherwise, OwnableUnauthorizedAccount errors will occur.
+ * read https://eips.ethereum.org/EIPS/eip-7201 before PR
+ * console.log rule in cursor and test
+ *  https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
+ */

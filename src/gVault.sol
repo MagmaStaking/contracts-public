@@ -476,10 +476,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /**
      * @notice Internal function to authorize contract upgrades
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
+     * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
-    function _authorizeUpgrade(address) internal view override {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-    }
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
     uint256[50] private __gap;

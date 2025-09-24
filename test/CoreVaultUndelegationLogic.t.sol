@@ -139,12 +139,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     function test_UndelegateValidatorOrdering() public {
         uint256 withdrawAmount = 25 ether; // Small amount to test ordering
 
-        // Record initial stakes
-        uint256 val10InitialStake = coreVault.delegatedAmount(10);
-        uint256 val20InitialStake = coreVault.delegatedAmount(20);
-        uint256 val30InitialStake = coreVault.delegatedAmount(30);
-        uint256 val40InitialStake = coreVault.delegatedAmount(40);
-
         // Alice makes a withdrawal request
         vm.prank(address(magma));
         coreVault.undelegate(withdrawAmount, alice);
@@ -1002,8 +996,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             beforeTinyPendingUndelegations + tinyAmount,
             "Pending should increase by tiny amount"
         );
-
-        CoreVault.WithdrawalRequestInfo[] memory tinyRequests = coreVault.getUserWithdrawalRequests(alice);
 
         // Advance epochs to make withdrawals ready
         _advanceEpochsForWithdrawal();

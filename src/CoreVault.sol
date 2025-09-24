@@ -6,7 +6,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
-import {IMagma} from "../interfaces/IMagma.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -638,10 +637,9 @@ contract CoreVault is
     /**
      * @notice Internal function to authorize contract upgrades
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
+     * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
-    function _authorizeUpgrade(address) internal view override {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-    }
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     /// @dev Reserved storage slots for future contract upgrades. Prevents storage collisions.
     uint256[50] private __gap;

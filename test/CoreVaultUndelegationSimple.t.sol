@@ -54,7 +54,18 @@ contract CoreVaultUndelegationSimpleTest is Test {
             magmaImpl,
             abi.encodeCall(
                 Magma.initialize,
-                (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, uint256(0))
+                Magma.InitializeParams({
+                    asset: IERC20(address(wmon)),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: admin,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 10,
+                    withdrawalFee: 0,
+                    feeReceiver: admin,
+                    redeemDelay: uint256(0)
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -193,9 +204,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         vm.prank(admin);
         freshCoreVault.addValidator(val1);
-
-        // Check what the actual available stake is after rebalancing
-        uint256 actualStake = freshCoreVault.delegatedAmount(val1);
 
         // Try to withdraw more than available - expect revert with actual available amount
         vm.prank(address(magma));

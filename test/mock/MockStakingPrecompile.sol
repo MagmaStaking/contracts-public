@@ -181,12 +181,11 @@ contract MockStakingPrecompile is IMonadStaking {
         return activationEpoch + WITHDRAWAL_DELAY;
     }
 
-    function addValidator(bytes calldata payload, bytes calldata signedSecpMessage, bytes calldata signedBlsMessage)
-        external
-        payable
-        override
-        returns (uint64 validatorId)
-    {
+    function addValidator(
+        bytes calldata payload,
+        bytes calldata, /* signedSecpMessage */
+        bytes calldata /* signedBlsMessage */
+    ) external payable override returns (uint64 validatorId) {
         // Unpack the payload according to the official specification
         (bytes memory secp_pubkey, bytes memory bls_pubkey, address auth_address, uint256 amount, uint256 commission) =
             _unpackAddValidatorPayload(payload);
@@ -519,7 +518,7 @@ contract MockStakingPrecompile is IMonadStaking {
         return (end >= len, uint32(end), result);
     }
 
-    function getDelegations(address delegatorAddr, uint64 startValId)
+    function getDelegations(address, /* delegatorAddr */ uint64 startValId)
         external
         override
         returns (bool isDone, uint64 nextValId, uint64[] memory valIds)
