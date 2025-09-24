@@ -118,7 +118,6 @@ contract CoreVault is
         _redelegateInitiate();
     }
 
-
     function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
         if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
 
