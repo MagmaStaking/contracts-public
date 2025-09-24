@@ -168,7 +168,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _newCap The new cap amount (0 to use default percentage cap, non-zero for absolute cap)
      */
     function changeValidatorCap(uint64 _valId, uint256 _newCap) external onlyAdmin {
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         validatorCap[_valId] = _newCap;
         emit CapChanged(_valId, _newCap);
     }
@@ -217,7 +217,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to delegate to
      */
     function delegate(address _user, uint64 _valId) external payable onlyMagma {
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
         // Cap check
         uint256 _cap = _maxCapFor(_valId);
@@ -262,7 +262,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         //undelegate just adds to the queue
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
 
         // Convert amount to shares to determine how many shares to burn

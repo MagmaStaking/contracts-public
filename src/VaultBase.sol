@@ -31,6 +31,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
         uint256 _minUserWithdrawAmount;
+        /// @dev Tracks which validators are currently whitelisted for delegation
+        mapping(uint64 valId => bool) _isWhitelisted;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -50,8 +52,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     bytes32 private constant _VaultBaseStorageLocation =
         0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
 
-    /// @dev Tracks which validators are currently whitelisted for delegation
-    mapping(uint64 => bool) public override isWhitelisted;
     /// @dev Active validator list (validators available for delegation)
     uint64[] public override validators;
 
@@ -110,6 +110,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         assembly {
             $.slot := _VaultBaseStorageLocation
         }
+    }
+
+    function isWhitelisted(uint64 valId) public view returns (bool) {
+        return _getVaultBaseStorage()._isWhitelisted[valId];
     }
 
     function minUserWithdrawAmount() public view returns (uint256) {
@@ -290,10 +294,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _registerValidator(uint64 _valId) internal {
         if (_valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if ($._isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
 
         validators.push(_valId);
-        isWhitelisted[_valId] = true;
+        $._isWhitelisted[_valId] = true;
 
         emit ValidatorAdded(_valId);
     }
@@ -304,11 +309,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to remove
      */
     function _initiateValidatorRemoval(uint64 _valId) internal {
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if (!$._isWhitelisted[_valId]) revert ErrNotWhitelisted();
 
         // Step 1: Pause validator to prevent new delegations
         validatorStatus[_valId] = ValidatorStatus.PAUSED;
-        isWhitelisted[_valId] = false;
+        $._isWhitelisted[_valId] = false;
         _removeFromArray(validators, _valId); // Remove from active validators list
 
         // Track the total stake that will need to be redelegated
