@@ -4,13 +4,13 @@ pragma solidity 0.8.30;
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {MagmaRoleManagementModule} from "./MagmaRoleManagementModule.sol";
 import {
-    NotEnoughAssetsGVault,
+    ErrNotEnoughAssetsGVault,
     ErrZeroAddress,
     ErrRequestPending,
     ErrZeroShares,
     ErrNotAuthorized,
     ErrInsufficientShares,
-    RequestInexistent,
+    ErrRequestInexistent,
     ErrNativeTransferFailed
 } from "./MagmaErrorsModule.sol";
 
@@ -137,7 +137,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
         if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
-            revert NotEnoughAssetsGVault();
+            revert ErrNotEnoughAssetsGVault();
         }
         return _requestRedeem(shares, assets, controller, owner, valId, true);
     }
@@ -232,7 +232,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         if (!(controller == _msgSender() || isOperator[controller][_msgSender()])) revert ErrNotAuthorized();
         RedeemRequests memory request = pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
-        if (request.claimableTime == 0) revert RequestInexistent();
+        if (request.claimableTime == 0) revert ErrRequestInexistent();
 
         address owner = pendingRedeemRequests[controller][requestId].owner;
         delete pendingRedeemRequests[controller][requestId];

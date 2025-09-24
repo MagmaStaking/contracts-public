@@ -721,7 +721,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             );
         }
 
-        // Add validators one by one, completing rebalancing between each to avoid AdminWidInUse
+        // Add validators one by one, completing rebalancing between each to avoid ErrAdminWidInUse
         vm.startPrank(admin);
         for (uint256 i = 0; i < validators.length; i++) {
             freshCoreVault.addValidator(validators[i]);

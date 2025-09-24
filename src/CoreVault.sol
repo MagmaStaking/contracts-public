@@ -14,7 +14,7 @@ import {VaultBase} from "./VaultBase.sol";
 
 import {
     ErrEpochGuard,
-    MaxValidators,
+    ErrMaxValidators,
     ErrRebalanceInProgress,
     ErrNotEnoughValidators,
     ErrNotMagma,
@@ -119,7 +119,7 @@ contract CoreVault is
     }
 
     function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
-        if (validators.length > _maxValidatorPerBatch) revert MaxValidators(_maxValidatorPerBatch);
+        if (validators.length > _maxValidatorPerBatch) revert ErrMaxValidators(_maxValidatorPerBatch);
 
         for (uint256 i = 0; i < validators.length; ++i) {
             _registerValidator(validators[i]);
