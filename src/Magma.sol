@@ -47,6 +47,8 @@ contract Magma is
         /// @notice The fee for withdrawals.
         /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
         uint256 _withdrawalFee;
+        /// @notice The address that receives the fees.
+        address _feeReceiver;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
@@ -54,9 +56,6 @@ contract Magma is
 
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
-
-    /// @notice The address that receives the fees.
-    address public feeReceiver;
 
     /// @notice Struct to track pending redeem requests
     /// @dev Claimable state may transition automatically after a timestamp has passed.
@@ -139,7 +138,7 @@ contract Magma is
         admin = admin_;
         $._rewardsFee = rewardsFee_;
         $._withdrawalFee = withdrawalFee_;
-        feeReceiver = feeReceiver_;
+        $._feeReceiver = feeReceiver_;
         $._redeemDelay = redeemDelay_;
     }
 
@@ -169,6 +168,11 @@ contract Magma is
     //////////////////////////////////////////////////////////////*/
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
+    }
+
+    function feeReceiver() public view returns (address) {
+        MagmaStorage storage $ = _getMagmaStorage();
+        return $._feeReceiver;
     }
 
     function rewardsFee() public view returns (uint256) {
@@ -474,7 +478,8 @@ contract Magma is
 
     function setFeeReceiver(address _feeReceiver) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        feeReceiver = _feeReceiver;
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._feeReceiver = _feeReceiver;
     }
 
     function setRedeemDelay(uint256 _redeemDelay) external {
