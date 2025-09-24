@@ -29,9 +29,11 @@ interface IBaseVault {
     event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
     event RewardsFeeTransferFailed(uint256 indexed amount);
     event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
+    event DelegatorInfoUpdateIntervalChanged(uint256 indexed newInterval);
 
     function initiateValidatorRemoval(uint64 valId) external;
     function setMinUserWithdrawAmount(uint256 amount) external;
+    function setDelegatorInfoUpdateInterval(uint256 interval) external;
 
     function isWhitelisted(uint64 valId) external view returns (bool);
     function pendingRedelegateByValidator(uint64 valId) external view returns (uint256);
@@ -41,6 +43,8 @@ interface IBaseVault {
     function totalPendingUndelegations() external view returns (uint256);
     function validators(uint256 index) external view returns (uint64);
     function validatorStatus(uint64 valId) external view returns (ValidatorStatus);
+    function lastDelegatorInfoUpdateTimestamp() external view returns (uint256);
+    function delegatorInfoUpdateInterval() external view returns (uint256);
     function refreshCacheCheck() external;
     function refreshCache() external;
 }

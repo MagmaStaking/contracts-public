@@ -48,7 +48,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     // Pending delegate totals, we'll be caching _delegatorInfo here
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo; // Cached delegator info for each validator
     uint256 public lastDelegatorInfoUpdateTimestamp; // Timestamp of last delegator info update
-    uint256 public constant DELEGATOR_INFO_UPDATE_INTERVAL = 1 hours; // Interval at which we update the cached delegator info
+    uint256 public delegatorInfoUpdateInterval; // Configurable interval at which we update the cached delegator info
     uint256 public cachedTotalAssets; // Total assets for all validators
     int256 public cachedTotalNetPendingDelegations; // Total pending delegations for all validators
 
@@ -71,6 +71,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
         magma = IMagma(_magma);
+        delegatorInfoUpdateInterval = 1 hours;
     }
 
     modifier onlyAdmin() {
@@ -107,7 +108,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function refreshCacheCheck() external {
         if (
-            block.timestamp - lastDelegatorInfoUpdateTimestamp > DELEGATOR_INFO_UPDATE_INTERVAL
+            block.timestamp - lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
                 || lastDelegatorInfoUpdateTimestamp == 0
         ) {
             _refreshCache();
@@ -131,6 +132,17 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
         minUserWithdrawAmount = _amount;
+    }
+
+    /**
+     * @notice Set the delegator info cache update interval
+     * @dev Updates how often the cached delegator info can be refreshed
+     * @param _interval The cache update interval in seconds (must be between 1 minute and 24 hours)
+     */
+    function setDelegatorInfoUpdateInterval(uint256 _interval) external onlyAdmin {
+        if (_interval > 24 hours) revert ErrInvalidAmount(_interval);
+        delegatorInfoUpdateInterval = _interval;
+        emit DelegatorInfoUpdateIntervalChanged(_interval);
     }
 
     /**
