@@ -134,6 +134,7 @@ contract CoreVaultValidatorOperations is BaseTest {
                 vm.startPrank(admin);
                 coreVault.addValidators(validators);
                 _advanceEpochsForWithdrawal();
+                magma.refreshCache();
                 coreVault.redelegateToValidators();
                 vm.stopPrank();
             }
@@ -230,6 +231,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Step 2: Wait for withdrawal delay (simulate time passing)
         _advanceEpochsForWithdrawal();
+        magma.refreshCache();
 
         // Step 3: Complete the rebalancing by redistributing funds
         vm.prank(admin);
@@ -317,7 +319,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Step 3: Complete the withdrawals and redistribute
         // Advance epochs to make withdrawals ready
         _advanceEpochsForWithdrawal();
-
+        magma.refreshCache();
         // Redistribute the withdrawn funds
         vm.prank(admin);
         coreVault.redelegateToValidators();
@@ -532,6 +534,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // Complete the withdrawal process
         _advanceEpochsForWithdrawal();
+        magma.refreshCache();
 
         // Manual redistribution should complete the rebalancing
         vm.prank(admin);

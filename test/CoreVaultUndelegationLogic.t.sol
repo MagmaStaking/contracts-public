@@ -79,11 +79,16 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             coreVault.redelegateToValidators();
             vm.stopPrank();
         }
+
+        coreVault.refreshCache();
     }
 
     // Test basic undelegation functionality
     function test_UndelegateBasic() public {
         uint256 withdrawAmount = 50 ether;
+
+        // Initialize cache before first totalAssets() call
+        coreVault.refreshCacheCheck();
 
         // Record initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
@@ -418,7 +423,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // Test the insufficient amount scenario
         // Based on the pattern we've seen, active stake is typically much less than total stake
         // Let's test with a reasonable amount first to succeed, then test insufficient
-
+        magma.refreshCache();
         // First, try a small withdrawal that should succeed
         uint256 smallAmount = 5 ether;
         vm.prank(address(magma));
@@ -462,6 +467,11 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
     // Test comprehensive asset tracking during undelegation lifecycle
     function test_AssetTrackingDuringUndelegation() public {
         uint256 withdrawAmount = 30 ether;
+
+        console.log("=== Asset Tracking Test ===");
+
+        // Initialize cache before first totalAssets() call
+        coreVault.refreshCacheCheck();
 
         // Record comprehensive initial state
         uint256 initialTotalAssets = coreVault.totalAssets();
@@ -666,6 +676,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         vm.prank(admin);
         freshCoreVault.addValidator(singleValId);
 
+        magma.refreshCache();
         // The delegatedAmount shows total stake, but active stake available for withdrawal is much less
         // Let's use a small, realistic amount that should be available as active stake
         uint256 withdrawAmount = 3 ether; // Small amount that should be available as active stake
@@ -738,6 +749,9 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 largeWithdrawAmount = totalActiveStake / 20; // 1/20th threshold
         if (largeWithdrawAmount < 5 ether) largeWithdrawAmount = 5 ether; // Ensure minimum reasonable amount
 
+        console.log("Attempting to withdraw: %d", largeWithdrawAmount);
+
+        magma.refreshCache();
         vm.prank(address(magma));
         freshCoreVault.undelegate(largeWithdrawAmount, alice);
 

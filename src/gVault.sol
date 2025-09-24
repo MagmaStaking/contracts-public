@@ -60,6 +60,12 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
     event GVaultRescaled(uint256 factorK, uint256 newP, uint256 newS);
 
+    /**
+     * @notice Initialize the gVault contract with configuration parameters
+     * @dev Sets up the vault with Magma protocol address, epoch timing, and multiplier system
+     * @param _magma The address of the Magma protocol contract
+     * @param _epochSeconds The duration of each epoch in seconds
+     */
     function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __VaultBase_init(_magma);
@@ -72,22 +78,44 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         gvaultScaleS = 1e27;
     }
 
-    // Accept native funds returned from delegation completion
+    /**
+     * @notice Accept native MON funds returned from delegation operations
+     * @dev Allows the contract to receive MON from validator delegation completions
+     */
     receive() external payable {}
 
+    /**
+     * @notice Pause withdrawals for a specific validator
+     * @dev Sets a timestamp to pause withdrawals, typically before validator removal
+     * @param _valId The validator ID to pause withdrawals for
+     */
     function pauseWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
         pausedWithdrawalsForValidator[_valId] = block.timestamp;
     }
 
+    /**
+     * @notice Resume withdrawals for a specific validator
+     * @dev Clears the pause timestamp to allow withdrawals again
+     * @param _valId The validator ID to resume withdrawals for
+     */
     function resumeWithdrawalsForValidator(uint64 _valId) external onlyAdmin {
         pausedWithdrawalsForValidator[_valId] = 0;
     }
 
-    // Admin: manage whitelist
+    /**
+     * @notice Add a new validator to the whitelist
+     * @dev Registers a validator as eligible for delegation in the gVault
+     * @param _valId The validator ID to add
+     */
     function addValidator(uint64 _valId) external onlyAdmin {
         _registerValidator(_valId);
     }
 
+    /**
+     * @notice Initiate the removal process for a validator
+     * @dev Starts the validator removal process by pausing and removing from active list
+     * @param _valId The validator ID to remove
+     */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
         _initiateValidatorRemoval(_valId);
     }
@@ -116,24 +144,47 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
     }
 
+    /**
+     * @notice Get all registered validator IDs
+     * @dev Returns array of validator IDs currently registered in the gVault
+     * @return Array of validator IDs
+     */
     function getvalidators() external view returns (uint64[] memory) {
         return validators;
     }
 
-    // Admin: set per-validator explicit cap (can increase or decrease)
+    /**
+     * @notice Set a specific deposit cap for a validator
+     * @dev Updates the maximum amount that can be delegated to a specific validator.
+     *      If set to 0, the validator will use the default cap (percentage of total assets).
+     *      If non-zero, the validator uses this absolute cap amount.
+     * @param _valId The validator ID to set cap for
+     * @param _newCap The new cap amount (0 to use default percentage cap, non-zero for absolute cap)
+     */
     function changeValidatorCap(uint64 _valId, uint256 _newCap) external onlyAdmin {
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
         validatorCap[_valId] = _newCap;
         emit CapChanged(_valId, _newCap);
     }
 
-    // Admin: update default cap percent (bps)
+    /**
+     * @notice Set the default deposit cap percentage
+     * @dev Updates the default cap as a percentage of total Magma assets
+     * @param _newBps The new cap percentage in basis points (e.g., 25 = 0.25%)
+     */
     function setDefaultCapBps(uint256 _newBps) external onlyAdmin {
         if (_newBps > BASE_BPS) revert ErrInvalidBps();
         defaultCapBps = _newBps;
         emit DefaultCapUpdated(_newBps);
     }
 
+    /**
+     * @notice Calculate the maximum deposit cap for a validator
+     * @dev Returns validator-specific cap (absolute amount) if set, otherwise calculates
+     *      default cap as a percentage of total Magma assets using defaultCapBps
+     * @param _valId The validator ID to check cap for
+     * @return The maximum deposit cap amount
+     */
     function _maxCapFor(uint64 _valId) internal view returns (uint256) {
         uint256 cap = validatorCap[_valId];
         if (cap != 0) return cap;
@@ -152,6 +203,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _convertToAssets(_valId, delegatedSharesOf[_user][_valId]);
     }
 
+    /**
+     * @notice Delegate MON to a specific validator on behalf of a user
+     * @dev Converts MON to shares, tracks user position, and delegates to validator.
+     *      Enforces validator caps and updates multiplier-based tracking.
+     * @param _user The user address receiving the shares
+     * @param _valId The validator ID to delegate to
+     */
     function delegate(address _user, uint64 _valId) external payable onlyMagma {
         if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
@@ -167,6 +225,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Execute delegation to validator
         _delegate(_valId, msg.value);
 
+        _trackCachedDelegation(msg.value);
+
         // Update multiplier-based scaled principal units for the user
         if (msg.value > 0) {
             // units += ceil(assets * S / P) using mulDiv to avoid overflow
@@ -181,6 +241,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         emit PositionUpdated(_user, _valId, msg.value, true);
     }
 
+    /**
+     * @notice Initiate undelegation of a specific amount from a validator for a user
+     * @dev Burns user shares, creates withdrawal request, and tracks pending undelegation.
+     *      Updates multiplier-based principal tracking.
+     * @param _user The user address requesting withdrawal
+     * @param _valId The validator ID to undelegate from
+     * @param _amount The amount to undelegate
+     */
     function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
         if (_amount < minUserWithdrawAmount) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount);
@@ -216,9 +284,19 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             // Track pending; do not lower local delegated until completion
             pendingUndelegateByValidator[_valId] += _amount;
             totalPendingUndelegations += _amount;
+
+            // Track undelegation for caching
+            _trackCachedUndelegation(_amount);
         }
     }
 
+    /**
+     * @notice Complete all pending withdrawal requests for a user
+     * @dev Processes all user withdrawal requests and transfers funds after fees
+     * @param _user The user address whose withdrawals to complete
+     * @return _totalWithdrawn The total amount withdrawn before fees
+     * @return _totalWithdrawnAfterFee The amount transferred to user after fees
+     */
     function completeUserWithdrawal(address _user)
         external
         nonReentrant
@@ -227,8 +305,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _completeUserWithdrawal(_user);
     }
 
-    // Admin: initiate undelegation across all validators by basis points
-    // This function is used when liquidity for CoreVault is depleted. Similar functionality exists in Lido v3.
+    /**
+     * @notice Initiate admin rebalance by undelegating a percentage from all validators
+     * @dev Undelegates specified basis points from all validators to provide liquidity to CoreVault.
+     *      Updates the gVault multiplier system to track user entitlements properly.
+     *      Similar functionality exists in Lido v3 for liquidity management.
+     * @param _bps The basis points to undelegate (e.g., 1000 = 10%)
+     */
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
         if (!finishedLastRebalance) revert ErrRebalanceInProgress();
 
@@ -267,13 +350,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
                 _allocateAdminWidAndUndelegate(v, pull);
                 pendingRedelegateByValidator[v] = pull;
                 totalPendingRedelegation += pull;
+
+                // Track undelegation for caching
+                _trackCachedUndelegation(pull);
             }
         }
         emit AdminInitiatedRebalance(_bps);
         lastRebalanceTimestamp = block.timestamp;
     }
 
-    // Admin: complete matured rebalancewithdrawals and forward to Magma
+    /**
+     * @notice Complete admin rebalance by withdrawing matured undelegations
+     * @dev Completes all pending admin withdrawals and forwards funds to CoreVault
+     *      through Magma protocol. Marks the rebalance process as finished.
+     */
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
         uint64[] memory _list = validators;
         uint256 _beforeBal = address(this).balance;
@@ -298,10 +388,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         emit AdminCompletedRebalance(_delta);
     }
 
+    /**
+     * @notice Claim and compound staking rewards for a specific validator
+     * @dev Claims rewards from the validator, deducts fees, and re-delegates remaining rewards
+     * @param _valId The validator ID to claim rewards from
+     */
     function claimAndCompoundRewards(uint64 _valId) external {
         _claimAndCompoundRewards(_valId);
     }
 
+    /**
+     * @notice Internal function to claim and compound staking rewards
+     * @dev Claims validator rewards, calculates fees, and re-delegates to the same validator
+     * @param _valId The validator ID to claim rewards from
+     */
     function _claimAndCompoundRewards(uint64 _valId) internal {
         uint256 _startingBalance = address(this).balance;
 
@@ -336,9 +436,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return (_assets * _totalShares) / _totalAssets;
     }
 
-    // =========================
-    // Views for entitlement limiting from gVault only
-    // =========================
+    /**
+     * @notice Calculate maximum withdrawable amount for a user from gVault only
+     * @dev Returns user's entitlement based on multiplier system: units * P / S
+     *      This limits withdrawals based on actual contributions vs. rewards earned.
+     * @param _user The user address
+     * @param _valId The validator ID
+     * @return Maximum withdrawable amount from gVault tracking
+     */
     function maxWithdrawableFromGVault(address _user, uint64 _valId) public view returns (uint256) {
         // entitlement = units * P / S
         uint256 _units = scaledPrincipalUnits[_user][_valId];
@@ -363,6 +468,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return (_shares * _totalAssets) / _totalShares;
     }
 
+    /**
+     * @notice Internal function to authorize contract upgrades
+     * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
+     */
     function _authorizeUpgrade(address) internal view override {
         if (msg.sender != magma.admin()) revert ErrNotAdmin();
     }

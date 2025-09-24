@@ -35,6 +35,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 assets = previewMint(shares);
         uint256 minted = super.mint(shares, receiver);
         WrappedMonad(payable(address(asset()))).withdraw(assets);
@@ -58,6 +59,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, 0);
@@ -70,6 +72,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         gVault.delegate{value: assets}(receiver, valId);
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -83,6 +86,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
         coreVault.delegate{value: assets}();
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
@@ -97,6 +101,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256)
     {
+        _refreshCacheCheck();
         uint256 assets = msg.value;
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
@@ -118,6 +123,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
+        _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
         return _requestRedeem(shares, assets, controller, owner, 0, false);
     }
@@ -128,6 +134,7 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
         nonReentrant
         returns (uint256 requestId)
     {
+        _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
         if (assets > gVault.maxWithdrawableFromGVault(owner, valId)) {
             revert NotEnoughAssetsGVault();
@@ -282,5 +289,21 @@ abstract contract MagmaAsyncModule is MagmaRoleManagementModule {
     {
         /* solhint-disable-next-line gas-custom-errors */
         revert();
+    }
+
+    /**
+     * @notice Force refresh the cache for the CoreVault and gVault
+     */
+    function refreshCache() external {
+        coreVault.refreshCache();
+        gVault.refreshCache();
+    }
+
+    /**
+     * @notice Check if the cache for the CoreVault and gVault needs to be refreshed and refresh if needed
+     */
+    function _refreshCacheCheck() internal {
+        coreVault.refreshCacheCheck();
+        gVault.refreshCacheCheck();
     }
 }
