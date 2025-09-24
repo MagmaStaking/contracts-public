@@ -27,7 +27,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @custom:storage-location erc7201:storage.VaultBase
     struct VaultBaseStorage {
-        uint256 start;
+        /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
+        mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -46,9 +47,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _VaultBaseStorageLocation =
         0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
-
-    /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
-    mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
     /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
     uint256 public minUserWithdrawAmount;
@@ -225,10 +223,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return The amount withdrawn from the validator
      */
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+
         if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
-        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+        if (!$._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
             revert ErrNoPendingWithdrawRequest();
         }
 
@@ -340,7 +340,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _wid The allocated withdrawal ID
      */
     function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        _wid = withdrawalIdBitmaps[_valId].allocateWithdrawalId();
+        _wid = _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
         return _wid;
     }
@@ -353,7 +353,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _wid The admin withdrawal ID (always 255)
      */
     function _allocateAdminWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        withdrawalIdBitmaps[_valId].allocateAdminWid();
+        _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].allocateAdminWid();
         _undelegate(_valId, _amount, ADMIN_WID);
         return _wid;
     }
@@ -495,7 +495,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 _valId, uint8 _withdrawalId) internal {
-        withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
+        _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
     }
 
     /**
@@ -504,7 +504,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to check
      */
     function _checkFreeAdminWid(uint64 _valId) internal view {
-        if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert ErrAdminWidInUse();
+        if (_getVaultBaseStorage()._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            revert ErrAdminWidInUse();
+        }
     }
 
     /**
@@ -577,5 +579,15 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _trackCachedUndelegation(uint256 _amount) internal {
         cachedTotalNetPendingDelegations -= int256(_amount);
+    }
+
+    /**
+     * @dev Check if a withdrawal ID is in use for a validator
+     * @param _valId The validator ID
+     * @param _withdrawalId The withdrawal ID to check
+     * @return true if the withdrawal ID is in use, false otherwise
+     */
+    function _isWithdrawalIdInUse(uint64 _valId, uint8 _withdrawalId) internal view returns (bool) {
+        return _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(_withdrawalId);
     }
 }
