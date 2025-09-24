@@ -449,7 +449,7 @@ contract CoreVault is
             uint64 _valId = validators[_i];
 
             // Check bitmap first - if ADMIN_WID is not in use, skip expensive precompile call
-            if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            if (!_isWithdrawalIdInUse(_valId, ADMIN_WID)) {
                 continue;
             }
 
