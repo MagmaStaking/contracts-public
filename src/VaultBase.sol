@@ -27,10 +27,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @custom:storage-location erc7201:storage.VaultBase
     struct VaultBaseStorage {
-        /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
-        mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
         uint256 _minUserWithdrawAmount;
+        /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
+        mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
         mapping(uint64 valId => bool) _isWhitelisted;
     }
