@@ -37,6 +37,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint8 withdrawalId; // Unique withdrawal ID for tracking
     }
 
+    /// @dev Reserved withdrawal ID for administrative operations (validator removal, rebalancing)
+    uint8 internal constant ADMIN_WID = 255;
+    /// @dev Basis points constant for percentage calculations (10,000 = 100%)
+    uint256 internal constant BASE_BPS = 10_000;
+
     // keccak256(abi.encode(uint256(keccak256("storage.VaultBase")) - 1)) & ~bytes32(uint256(0xff))
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _VaultBaseStorageLocation =
@@ -45,10 +50,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
     mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
 
-    /// @dev Reserved withdrawal ID for administrative operations (validator removal, rebalancing)
-    uint8 internal constant ADMIN_WID = 255;
-    /// @dev Basis points constant for percentage calculations (10,000 = 100%)
-    uint256 internal constant BASE_BPS = 10_000;
     /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
     uint256 public minUserWithdrawAmount;
 
