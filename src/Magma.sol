@@ -41,6 +41,9 @@ contract Magma is
         mapping(address controller => mapping(address operator => bool)) _isOperator;
         // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
         uint256 _redeemDelay;
+        /// @notice The fee for rewards.
+        /// @dev The fee is expressed as a bps percentage of the reward amount.
+        uint256 _rewardsFee;
     }
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
@@ -48,10 +51,6 @@ contract Magma is
 
     // Admin for Magma, CoreVault validator management, etc
     address public admin;
-
-    /// @notice The fee for rewards.
-    /// @dev The fee is expressed as a bps percentage of the reward amount.
-    uint256 public rewardsFee;
 
     /// @notice The fee for withdrawals.
     /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
@@ -139,7 +138,7 @@ contract Magma is
         __ERC4626_init(IERC20(address(asset_)));
         __ERC165_init();
         admin = admin_;
-        rewardsFee = rewardsFee_;
+        $._rewardsFee = rewardsFee_;
         withdrawalFee = withdrawalFee_;
         feeReceiver = feeReceiver_;
         $._redeemDelay = redeemDelay_;
@@ -171,6 +170,11 @@ contract Magma is
     //////////////////////////////////////////////////////////////*/
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
+    }
+
+    function rewardsFee() public view returns (uint256) {
+        MagmaStorage storage $ = _getMagmaStorage();
+        return $._rewardsFee;
     }
 
     function totalAssets() public view virtual override returns (uint256) {
@@ -454,7 +458,8 @@ contract Magma is
 
     function setRewardsFee(uint256 _rewardsFee) external {
         if (msg.sender != admin) revert ErrNotAdmin();
-        rewardsFee = _rewardsFee;
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._rewardsFee = _rewardsFee;
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external {

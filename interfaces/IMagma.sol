@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
+// TODO: thoughts on this interface? complete, expand? should have all methods?
 interface IMagma {
     // Admin functions
     function setAdmin(address newAdmin) external;
