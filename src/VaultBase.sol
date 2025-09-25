@@ -37,6 +37,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _totalPendingUndelegations;
         /// @dev Timestamp when cached delegator info was last updated
         uint256 _lastDelegatorInfoUpdateTimestamp;
+        /// @dev How often cached delegator info can be refreshed (default: 1 hour)
+        uint256 _delegatorInfoUpdateInterval;
+        /// @dev Cached total assets across all validators (from last cache update)
+        uint256 _cachedTotalAssets;
+        /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
+        int256 _cachedTotalNetPendingDelegations;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
@@ -75,12 +81,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
-    /// @dev How often cached delegator info can be refreshed (default: 1 hour)
-    uint256 public delegatorInfoUpdateInterval;
-    /// @dev Cached total assets across all validators (from last cache update)
-    uint256 public cachedTotalAssets;
-    /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
-    int256 public cachedTotalNetPendingDelegations;
 
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
@@ -102,8 +102,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
-        _getVaultBaseStorage()._magma = IMagma(_magma);
-        delegatorInfoUpdateInterval = 1 hours;
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        $._magma = IMagma(_magma);
+        $._delegatorInfoUpdateInterval = 1 hours;
     }
 
     function _getVaultBaseStorage() private pure returns (VaultBaseStorage storage $) {
@@ -144,6 +145,18 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _getVaultBaseStorage()._lastDelegatorInfoUpdateTimestamp;
     }
 
+    function delegatorInfoUpdateInterval() external view returns (uint256) {
+        return _getVaultBaseStorage()._delegatorInfoUpdateInterval;
+    }
+
+    function cachedTotalAssets() external view returns (uint256) {
+        return _getVaultBaseStorage()._cachedTotalAssets;
+    }
+
+    function cachedTotalNetPendingDelegations() external view returns (int256) {
+        return _getVaultBaseStorage()._cachedTotalNetPendingDelegations;
+    }
+
     /**
      * @dev Cache validator statistics from precompile to improve gas efficiency
      * @notice This function fetches fresh data from the staking precompile for all validators
@@ -162,8 +175,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
 
         // Reset pending delta tracking since we just refreshed from source of truth
-        cachedTotalNetPendingDelegations = 0;
-        cachedTotalAssets = _cachedTotalAssets;
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        $._cachedTotalNetPendingDelegations = 0;
+        $._cachedTotalAssets = _cachedTotalAssets;
     }
 
     /**
@@ -173,7 +187,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function totalAssets() external view returns (uint256) {
         VaultBaseStorage storage $ = _getVaultBaseStorage();
-        return uint256(int256(cachedTotalAssets + $._totalPendingRedelegation) + cachedTotalNetPendingDelegations);
+        return uint256(int256($._cachedTotalAssets + $._totalPendingRedelegation) + $._cachedTotalNetPendingDelegations);
     }
 
     /**
@@ -183,7 +197,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function refreshCacheCheck() external {
         VaultBaseStorage storage $ = _getVaultBaseStorage();
         if (
-            block.timestamp - $._lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
+            block.timestamp - $._lastDelegatorInfoUpdateTimestamp > $._delegatorInfoUpdateInterval
                 || $._lastDelegatorInfoUpdateTimestamp == 0
         ) {
             _refreshCache();
@@ -224,7 +238,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function setDelegatorInfoUpdateInterval(uint256 _interval) external onlyAdmin {
         if (_interval > 24 hours) revert ErrInvalidAmount(_interval);
-        delegatorInfoUpdateInterval = _interval;
+        _getVaultBaseStorage()._delegatorInfoUpdateInterval = _interval;
         emit DelegatorInfoUpdateIntervalChanged(_interval);
     }
 
@@ -610,7 +624,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount Amount being delegated
      */
     function _trackCachedDelegation(uint256 _amount) internal {
-        cachedTotalNetPendingDelegations += int256(_amount);
+        _getVaultBaseStorage()._cachedTotalNetPendingDelegations += int256(_amount);
     }
 
     /**
@@ -618,7 +632,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount Amount being undelegated
      */
     function _trackCachedUndelegation(uint256 _amount) internal {
-        cachedTotalNetPendingDelegations -= int256(_amount);
+        _getVaultBaseStorage()._cachedTotalNetPendingDelegations -= int256(_amount);
     }
 
     /**
