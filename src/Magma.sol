@@ -10,6 +10,7 @@ import {
     ErrInsufficientShares,
     ErrRequestInexistent,
     ErrNativeTransferFailed,
+    ErrTokenTransferFailed,
     ErrNotAdmin,
     ErrZeroAddress,
     ErrInvalidBps
@@ -465,7 +466,10 @@ contract Magma is
 
         if (receiveWMON) {
             WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawnAfterFee}();
-            WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawnAfterFee);
+            bool success = WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawnAfterFee);
+            if (!success) {
+                revert ErrTokenTransferFailed();
+            }
         } else {
             (bool sent,) = payable(receiver).call{value: totalWithdrawnAfterFee}("");
             if (!sent) {
