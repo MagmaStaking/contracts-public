@@ -170,7 +170,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _getVaultBaseStorage()._pendingUndelegateByValidator[valId] = amount;
     }
 
-    function cachedDelegatorInfo(uint64 valId) external view returns (DelInfo memory) {
+    function cachedDelegatorInfo(uint64 valId) public view returns (DelInfo memory) {
         return _getVaultBaseStorage()._cachedDelegatorInfo[valId];
     }
 
@@ -436,10 +436,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         userWithdrawalRequests[_user].push(
             WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
-    }
-
-    function _getDelegatorInfoCached(uint64 _valId) internal view returns (DelInfo memory) {
-        return _getVaultBaseStorage()._cachedDelegatorInfo[_valId];
     }
 
     /**

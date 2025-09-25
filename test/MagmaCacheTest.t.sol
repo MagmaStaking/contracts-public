@@ -105,7 +105,7 @@ contract MagmaCacheTest is BaseTest {
         uint256 initialCachedAssets = coreVault.cachedTotalAssets();
         assertEq(initialCachedAssets, 100 ether, "Should have cached 100 ether");
 
-        // Test undelegation - this uses _getDelegatorInfoCached internally
+        // Test undelegation - this uses cachedDelegatorInfo internally
         uint256 undelegateAmount = 10 ether;
         vm.prank(address(magma));
         coreVault.undelegate(undelegateAmount, user);
