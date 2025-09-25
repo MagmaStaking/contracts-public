@@ -22,6 +22,7 @@ import {
     ErrZeroAmount
 } from "./MagmaErrorsModule.sol";
 
+/* solhint-disable-next-line contract-name-capwords */
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
