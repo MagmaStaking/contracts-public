@@ -54,6 +54,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 valId => uint256 amount) _pendingUndelegateByValidator;
         /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
         mapping(uint64 valId => DelInfo delInfo) _cachedDelegatorInfo;
+        /// @dev Current status of each validator in the removal process lifecycle
+        mapping(uint64 => ValidatorStatus) _validatorStatus;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -75,9 +77,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Active validator list (validators available for delegation)
     uint64[] public validators;
-
-    /// @dev Current status of each validator in the removal process lifecycle
-    mapping(uint64 => ValidatorStatus) public validatorStatus;
 
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
@@ -172,6 +171,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function cachedDelegatorInfo(uint64 valId) public view returns (DelInfo memory) {
         return _getVaultBaseStorage()._cachedDelegatorInfo[valId];
+    }
+
+    function validatorStatus(uint64 valId) external view returns (ValidatorStatus) {
+        return _getVaultBaseStorage()._validatorStatus[valId];
     }
 
     /**
@@ -290,7 +293,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
         VaultBaseStorage storage $ = _getVaultBaseStorage();
 
-        if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
+        if ($._validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
         if (!$._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
@@ -305,7 +308,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         $._totalPendingRedelegation -= $._pendingRedelegateByValidator[_valId];
         _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
-        delete validatorStatus[_valId];
+        delete $._validatorStatus[_valId];
         emit ValidatorRemovalCompleted(_valId);
 
         return _withdrawalAmount;
@@ -317,7 +320,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to remove
      */
     function _executeValidatorUndelegation(uint64 _valId) internal {
-        if (validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
+        if (_getVaultBaseStorage()._validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
 
         DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
 
@@ -336,11 +339,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_amountToRedelegate > 0) {
             _checkFreeAdminWid(_valId); // Ensure admin withdrawal ID is available
             _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
-            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
+            VaultBaseStorage storage $ = _getVaultBaseStorage();
+            $._validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
             emit ValidatorRemoved(_valId);
         } else {
             // No stake to undelegate, validator removal is complete
-            delete validatorStatus[_valId];
+            VaultBaseStorage storage $ = _getVaultBaseStorage();
+            delete $._validatorStatus[_valId];
             emit ValidatorRemovalCompleted(_valId);
         }
     }
@@ -371,7 +376,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!$._isWhitelisted[_valId]) revert ErrNotWhitelisted();
 
         // Step 1: Pause validator to prevent new delegations
-        validatorStatus[_valId] = ValidatorStatus.PAUSED;
+        $._validatorStatus[_valId] = ValidatorStatus.PAUSED;
         $._isWhitelisted[_valId] = false;
         _removeFromArray(validators, _valId); // Remove from active validators list
 
