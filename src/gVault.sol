@@ -186,7 +186,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @return Array of validator IDs
      */
     function getValidators() public view override returns (uint64[] memory) {
-        return getValidators();
+        return super.getValidators();
     }
 
     /**

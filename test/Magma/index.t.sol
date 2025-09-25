@@ -60,7 +60,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     // Helper to activate gVault validator stakes
     function _activateGVaultStakes() internal {
         // Get all validators from gVault
-        uint64[] memory validators = gvault.getvalidators();
+        uint64[] memory validators = gvault.getValidators();
 
         for (uint256 i = 0; i < validators.length; i++) {
             uint64 valId = validators[i];

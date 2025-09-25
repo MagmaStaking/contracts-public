@@ -162,7 +162,7 @@ contract BaseTest is Test {
     function _activateAllStakes() internal {
         // Get all validators from CoreVault
         uint64[] memory coreValidators = coreVault.getValidators();
-        uint64[] memory gvaultValidators = gvault.getvalidators();
+        uint64[] memory gvaultValidators = gvault.getValidators();
 
         for (uint256 i = 0; i < coreValidators.length; i++) {
             uint64 valId = coreValidators[i];
