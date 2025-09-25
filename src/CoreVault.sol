@@ -693,5 +693,6 @@ contract CoreVault is
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
+    /* solhint-disable-next-line no-empty-blocks */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 }

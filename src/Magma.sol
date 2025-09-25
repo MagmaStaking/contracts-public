@@ -167,6 +167,7 @@ contract Magma is
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
+    /* solhint-disable-next-line no-empty-blocks */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
