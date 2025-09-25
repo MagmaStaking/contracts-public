@@ -463,7 +463,7 @@ contract CoreVault is
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
-        if (_onetwentiethThreshold == 0 && _totalActiveStake > 0) {
+        if (_onetwentiethThreshold == 0) {
             // Send everything to the first (lowest-stake) validator
             uint64 _firstValId = _sortedValidators[0].valId;
             _delegate(_firstValId, _remainingAmount);
