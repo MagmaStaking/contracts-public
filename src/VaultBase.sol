@@ -42,6 +42,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _cachedTotalAssets;
         /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
         int256 _cachedTotalNetPendingDelegations;
+        /// @dev Duration in seconds between allowed rebalance operations (0 = no time restriction)
+        uint256 _epochSeconds;
+        /// @dev Timestamp of the last rebalance operation, used for epoch guard timing
+        uint256 _lastRebalanceTimestamp;
+        /// @dev Flag indicating if the last rebalance operation has completed both phases
+        bool _finishedLastRebalance;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
@@ -92,12 +98,15 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @notice Initialize the VaultBase contract with Magma protocol reference
      * @dev Sets the Magma protocol contract address for vault operations
      * @param _magma The address of the Magma protocol contract
+     * @param _epochSeconds The duration of each epoch in seconds (0 disables epoch guard)
      */
     /* solhint-disable-next-line func-name-mixedcase */
-    function __VaultBase_init(address _magma) internal {
+    function __VaultBase_init(address _magma, uint256 _epochSeconds) internal {
         VaultBaseStorage storage $ = _getVaultBaseStorage();
         $._magma = IMagma(_magma);
         $._delegatorInfoUpdateInterval = 1 hours;
+        $._epochSeconds = _epochSeconds;
+        $._finishedLastRebalance = true;
     }
 
     function _getVaultBaseStorage() private pure returns (VaultBaseStorage storage $) {
@@ -148,6 +157,26 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function cachedTotalNetPendingDelegations() external view returns (int256) {
         return _getVaultBaseStorage()._cachedTotalNetPendingDelegations;
+    }
+
+    function epochSeconds() public view override returns (uint256) {
+        return _getVaultBaseStorage()._epochSeconds;
+    }
+
+    function lastRebalanceTimestamp() public view override returns (uint256) {
+        return _getVaultBaseStorage()._lastRebalanceTimestamp;
+    }
+
+    function finishedLastRebalance() public view override returns (bool) {
+        return _getVaultBaseStorage()._finishedLastRebalance;
+    }
+
+    function setLastRebalanceTimestamp(uint256 _lastRebalanceTimestamp) internal {
+        _getVaultBaseStorage()._lastRebalanceTimestamp = _lastRebalanceTimestamp;
+    }
+
+    function setFinishedLastRebalance(bool _finishedLastRebalance) internal {
+        _getVaultBaseStorage()._finishedLastRebalance = _finishedLastRebalance;
     }
 
     function pendingRedelegateByValidator(uint64 valId) public view returns (uint256) {
@@ -291,6 +320,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_interval > 24 hours) revert ErrInvalidAmount(_interval);
         _getVaultBaseStorage()._delegatorInfoUpdateInterval = _interval;
         emit DelegatorInfoUpdateIntervalChanged(_interval);
+    }
+
+    function setEpochSeconds(uint256 _epochSeconds) external onlyAdmin {
+        _getVaultBaseStorage()._epochSeconds = _epochSeconds;
+        emit EpochSecondsUpdated(_epochSeconds);
     }
 
     /**

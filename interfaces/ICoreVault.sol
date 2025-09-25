@@ -28,10 +28,6 @@ interface ICoreVault is IBaseVault {
 
     // View functions
     function delegatedAmount(uint64 valId) external view returns (uint256);
-    function epochSeconds() external view returns (uint256);
-    function lastRebalanceTimestamp() external view returns (uint256);
-
-    function finishedLastRebalance() external view returns (bool);
     function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
     function getValidatorCount() external view returns (uint256);
