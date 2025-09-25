@@ -52,6 +52,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 valId => uint256 amount) _pendingRedelegateByValidator;
         /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
         mapping(uint64 valId => uint256 amount) _pendingUndelegateByValidator;
+        /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
+        mapping(uint64 valId => DelInfo delInfo) _cachedDelegatorInfo;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -76,9 +78,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Current status of each validator in the removal process lifecycle
     mapping(uint64 => ValidatorStatus) public validatorStatus;
-
-    /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
-    mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
 
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
@@ -171,6 +170,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _getVaultBaseStorage()._pendingUndelegateByValidator[valId] = amount;
     }
 
+    function cachedDelegatorInfo(uint64 valId) external view returns (DelInfo memory) {
+        return _getVaultBaseStorage()._cachedDelegatorInfo[valId];
+    }
+
     /**
      * @dev Cache validator statistics from precompile to improve gas efficiency
      * @notice This function fetches fresh data from the staking precompile for all validators
@@ -183,7 +186,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         for (uint256 _i = 0; _i < validators.length; _i++) {
             uint64 _valId = validators[_i];
             DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
-            cachedDelegatorInfo[_valId] = _delInfo;
+            _getVaultBaseStorage()._cachedDelegatorInfo[_valId] = _delInfo;
             // Sum total assets: active stake + pending stake changes
             _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         }
@@ -436,7 +439,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     function _getDelegatorInfoCached(uint64 _valId) internal view returns (DelInfo memory) {
-        return cachedDelegatorInfo[_valId];
+        return _getVaultBaseStorage()._cachedDelegatorInfo[_valId];
     }
 
     /**

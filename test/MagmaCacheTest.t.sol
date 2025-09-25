@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import "./BaseTest.t.sol";
+import {DelInfo} from "../src/MagmaDelegationModule.sol";
 
 contract MagmaCacheTest is BaseTest {
     uint256 constant DEFAULT_CACHE_INTERVAL = 1 hours;
@@ -39,10 +40,10 @@ contract MagmaCacheTest is BaseTest {
         assertEq(coreVault.cachedTotalAssets(), 100 ether, "Cached assets should equal delegated amount");
 
         // Check individual validator cache
-        (uint256 stake1,,,,,,) = coreVault.cachedDelegatorInfo(1);
-        (uint256 stake2,,,,,,) = coreVault.cachedDelegatorInfo(2);
-        assertEq(stake1, 50 ether, "Validator 1 should have 50 ether cached");
-        assertEq(stake2, 50 ether, "Validator 2 should have 50 ether cached");
+        DelInfo memory delInfo1 = coreVault.cachedDelegatorInfo(1);
+        DelInfo memory delInfo2 = coreVault.cachedDelegatorInfo(2);
+        assertEq(delInfo1.stake, 50 ether, "Validator 1 should have 50 ether cached");
+        assertEq(delInfo2.stake, 50 ether, "Validator 2 should have 50 ether cached");
     }
 
     function test_CacheBecomesStaleAfterInterval() public {
