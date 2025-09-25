@@ -185,8 +185,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Returns array of validator IDs currently registered in the gVault
      * @return Array of validator IDs
      */
-    function getvalidators() external view returns (uint64[] memory) {
-        return validators;
+    function getValidators() public view override returns (uint64[] memory) {
+        return getValidators();
     }
 
     /**
@@ -384,7 +384,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
                 emit GVaultRescaled(MULTIPLIER_RESCALE_K, $._gvaultMultiplierP, $._gvaultScaleS);
             }
         }
-        uint64[] memory _list = validators;
+        uint64[] memory _list = getValidators();
         uint256 n = _list.length;
         $._finishedLastRebalance = false; // Mark rebalance as in progress
         for (uint256 i = 0; i < n; ++i) {
@@ -412,7 +412,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      *      through Magma protocol. Marks the rebalance process as finished.
      */
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
-        uint64[] memory _list = validators;
+        uint64[] memory _list = getValidators();
         uint256 _beforeBal = address(this).balance;
         uint256 _n = _list.length;
         // Process each validator's pending admin withdrawal

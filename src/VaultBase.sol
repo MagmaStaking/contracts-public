@@ -58,6 +58,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 => ValidatorStatus) _validatorStatus;
         /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
         mapping(address => WithdrawalRequestInfo[]) _userWithdrawalRequests;
+        /// @dev Active validator list (validators available for delegation)
+        uint64[] _validators;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -76,9 +78,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _VaultBaseStorageLocation =
         0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
-
-    /// @dev Active validator list (validators available for delegation)
-    uint64[] public validators;
 
     modifier onlyAdmin() {
         if (msg.sender != _getVaultBaseStorage()._magma.admin()) revert ErrNotAdmin();
@@ -180,6 +179,34 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _getVaultBaseStorage()._userWithdrawalRequests[user];
     }
 
+    function validators(uint256 index) external view returns (uint64) {
+        return _getVaultBaseStorage()._validators[index];
+    }
+
+    function getValidators() public view virtual returns (uint64[] memory) {
+        return _getVaultBaseStorage()._validators;
+    }
+
+    function validatorsLength() public view returns (uint256) {
+        return _getVaultBaseStorage()._validators.length;
+    }
+
+    /**
+     * @notice Remove validator ID from storage array
+     * @dev Efficiently removes validator by swapping with last element
+     * @param valId The validator ID to remove
+     */
+    function _removeValidatorFromArray(uint64 valId) internal {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        for (uint256 i = 0; i < $._validators.length; ++i) {
+            if ($._validators[i] == valId) {
+                $._validators[i] = $._validators[$._validators.length - 1];
+                $._validators.pop();
+                break;
+            }
+        }
+    }
+
     /**
      * @dev Cache validator statistics from precompile to improve gas efficiency
      * @notice This function fetches fresh data from the staking precompile for all validators
@@ -189,8 +216,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _cachedTotalAssets = 0;
 
         // Fetch and cache delegator info for each active validator
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            uint64 _valId = validators[_i];
+        uint64[] memory _validators = getValidators();
+        for (uint256 _i = 0; _i < _validators.length; _i++) {
+            uint64 _valId = _validators[_i];
             DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
             _getVaultBaseStorage()._cachedDelegatorInfo[_valId] = _delInfo;
             // Sum total assets: active stake + pending stake changes
@@ -363,7 +391,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         VaultBaseStorage storage $ = _getVaultBaseStorage();
         if ($._isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
 
-        validators.push(_valId);
+        $._validators.push(_valId);
         $._isWhitelisted[_valId] = true;
 
         emit ValidatorAdded(_valId);
@@ -381,7 +409,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         // Step 1: Pause validator to prevent new delegations
         $._validatorStatus[_valId] = ValidatorStatus.PAUSED;
         $._isWhitelisted[_valId] = false;
-        _removeFromArray(validators, _valId); // Remove from active validators list
+        _removeValidatorFromArray(_valId); // Remove from active validators list
 
         // Track the total stake that will need to be redelegated
         uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
@@ -401,8 +429,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;
-        for (uint256 _i = 0; _i < validators.length; ++_i) {
-            _total += _getTotalStakedToValidator(validators[_i]);
+        uint64[] memory _validators = getValidators();
+        for (uint256 _i = 0; _i < _validators.length; ++_i) {
+            _total += _getTotalStakedToValidator(_validators[_i]);
         }
         return _total;
     }
@@ -467,22 +496,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
-    }
-
-    /**
-     * @notice Remove validator ID from storage array
-     * @dev Efficiently removes validator by swapping with last element
-     * @param array The storage array to modify
-     * @param valId The validator ID to remove
-     */
-    function _removeFromArray(uint64[] storage array, uint64 valId) internal {
-        for (uint256 i = 0; i < array.length; ++i) {
-            if (array[i] == valId) {
-                array[i] = array[array.length - 1];
-                array.pop();
-                break;
-            }
-        }
     }
 
     /**
