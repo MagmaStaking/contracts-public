@@ -10,7 +10,6 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {VaultBase} from "./VaultBase.sol";
-import {console} from "forge-std/console.sol";
 
 import {
     ErrEpochGuard,
@@ -257,7 +256,6 @@ contract CoreVault is
 
                 // Track pending; do not lower local delegated until completion
                 pendingUndelegateByValidator[_valId] += _amountFromValidator;
-                totalPendingUndelegations += _amountFromValidator;
                 _remainingAmount -= _amountFromValidator;
             }
         }
@@ -267,7 +265,6 @@ contract CoreVault is
 
         // If we couldn't fulfill the full amount, revert
         if (_remainingAmount > 0) {
-            console.log("undelegate - remaining amount undelegated", _remainingAmount);
             revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
         }
     }
@@ -565,7 +562,7 @@ contract CoreVault is
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
-        if (_onetwentiethThreshold == 0) {
+        if (_totalActiveStake == 0) {
             // Send everything to the first (lowest-stake) validator
             uint64 _firstValId = _sortedValidators[0].valId;
             _delegate(_firstValId, _remainingAmount);
@@ -593,10 +590,10 @@ contract CoreVault is
 
         _trackCachedDelegation(_amount);
 
-        // If we couldn't fulfill the full amount, revert
+        // If we couldn't fulfill the full amount, deposit remaining to first validator
         if (_remainingAmount > 0) {
-            console.log("delegate - remaining amount undelegated", _remainingAmount);
-            revert ErrInsufficientDelegated(_amount, _amount - _remainingAmount);
+            uint64 _firstValId = _sortedValidators[0].valId;
+            _delegate(_firstValId, _remainingAmount);
         }
     }
 

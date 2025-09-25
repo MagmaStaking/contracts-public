@@ -321,6 +321,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Advance epochs to make withdrawals ready
         _advanceEpochsForWithdrawal();
         magma.refreshCache();
+
         // Redistribute the withdrawn funds
         vm.prank(admin);
         coreVault.redelegateToValidators();
@@ -404,6 +405,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.completeValidatorRemovalWithdrawal(VAL_2);
 
         // Test redistribution with single validator
+        magma.refreshCache();
         vm.prank(admin);
         coreVault.redelegateToValidators();
 
@@ -432,6 +434,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         _setupValidatorStake(VAL_1, 2000 ether);
         _setupValidatorStake(VAL_2, 2000 ether);
         _setupValidatorStake(VAL_3, 2000 ether);
+        magma.refreshCache();
 
         // Set up initial stakes using actual delegation (threshold-based distribution)
         vm.deal(address(magma), 450 ether);
@@ -904,12 +907,14 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Verify initial stakes
         uint256 val1InitialStake = coreVault.delegatedAmount(VAL_1);
         uint256 val2InitialStake = coreVault.delegatedAmount(VAL_2);
-        assertEq(val1InitialStake, 100 ether);
-        assertEq(val2InitialStake, 100 ether);
+        assertEq(val1InitialStake, 200 ether);
+        assertEq(val2InitialStake, 0 ether);
 
         // Set up rewards for VAL_1 using MockStakingPrecompile
         uint256 rewardsAmount = 5 ether;
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorRewards(VAL_1, address(coreVault), rewardsAmount);
+
+        magma.refreshCache();
 
         // Fund the staking precompile with ETH to pay out rewards
         vm.deal(STAKING_PRECOMPILE, 100 ether);
@@ -1087,6 +1092,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         _setupValidatorStake(VAL_1, 1000 ether);
         _setupValidatorStake(VAL_2, 1000 ether);
         _setupValidatorStake(VAL_3, 1000 ether);
+        magma.refreshCache();
 
         // Set up real stakes through delegation (threshold-based distribution should apply)
         vm.deal(address(magma), 300 ether);
@@ -1106,6 +1112,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertEq(val3Initial, 1000 ether);
 
         // Remove VAL_1 (3 -> 2 validators)
+        magma.refreshCache();
         vm.startPrank(admin);
         coreVault.initiateValidatorRemoval(VAL_1);
         coreVault.executeValidatorUndelegation(VAL_1);

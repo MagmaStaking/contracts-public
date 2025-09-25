@@ -188,7 +188,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
         uint256 assets = 5 ether;
         uint256 shares = _depositGVaultHelper(assets);
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(ErrBelowMinWithdraw.selector, 5000000000000000000, 0));
+        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientDelegated.selector, assets, 0));
         magma.requestRedeem(shares, user, user);
     }
 
