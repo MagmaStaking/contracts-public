@@ -354,10 +354,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_bps == BASE_BPS) {
             // Special handling for 100% outflow: prevent P from hitting zero which would break math
             // Scale up S massively so existing user units become worthless (entitlement ≈ 0)
-            uint256 K_FULL = 1e9; // large-but-safe scale bump
-            $._gVaultScaleS = $._gVaultScaleS * K_FULL;
+            uint256 kFull = 1e9; // large-but-safe scale bump
+            $._gVaultScaleS = $._gVaultScaleS * kFull;
             $._gVaultMultiplierP = 1e27; // reset P to nominal 1.0 in 1e27 scale
-            emit GVaultRescaled(K_FULL, $._gVaultMultiplierP, $._gVaultScaleS);
+            emit GVaultRescaled(kFull, $._gVaultMultiplierP, $._gVaultScaleS);
         } else {
             // Update cumulative multiplier P to reflect what fraction stays in gVault
             // P_new = P_old * (1 - bps/10000) tracks cumulative retention

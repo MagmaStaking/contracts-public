@@ -57,7 +57,7 @@ error ErrMustPauseBeforeRemove();
 error ErrPendingStakeNotZero();
 error ErrInvalidStatus();
 error ErrNotEnoughValidators();
-error ErrMaxValidators(uint64 ErrMaxValidators);
+error ErrMaxValidators(uint64 errMaxValidators);
 
 // Withdrawal ordering errors
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
