@@ -609,7 +609,7 @@ contract CoreVault is
     }
 
     function injectRewards() public payable {
-        if (msg.sender != magma().feeReceiver() && msg.sender != magma().admin()) revert ErrNotAuthorized();
+        if (msg.sender != magma().mevRewardsInjector()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         _distributeToNextValidator(msg.value);
         emit RewardsInjected(msg.value);
