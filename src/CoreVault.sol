@@ -44,6 +44,8 @@ contract CoreVault is
         uint256 _lastRebalanceTimestamp;
         /// @dev Flag indicating if the last rebalance operation has completed both phases
         bool _finishedLastRebalance;
+        /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
+        uint64 _maxValidatorPerBatch;
     }
 
     /// @dev Struct to hold validator ID and associated amount for sorting operations
@@ -56,9 +58,6 @@ contract CoreVault is
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _CoreVaultStorageLocation =
         0x52cc5b10e48806cc3038884ee015a89dc6583650d30099489137fff04e064c00;
-
-    /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
-    uint64 private _maxValidatorPerBatch;
 
     // whenNotPaused modifier is now inherited from PausableUpgradeable
     modifier onlyAfterEpoch() {
@@ -85,7 +84,7 @@ contract CoreVault is
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         $._epochSeconds = _epochSeconds;
         $._finishedLastRebalance = true;
-        _maxValidatorPerBatch = maxValidatorPerBatch_;
+        $._maxValidatorPerBatch = maxValidatorPerBatch_;
     }
 
     // Accept native funds returned from precompile withdrawals
@@ -152,7 +151,8 @@ contract CoreVault is
      * @param validators Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
     function addValidators(uint64[] memory validators) external onlyAdmin onlyAfterEpoch {
-        if (validators.length > _maxValidatorPerBatch) revert ErrMaxValidators(_maxValidatorPerBatch);
+        CoreVaultStorage storage $ = _getCoreVaultStorage();
+        if (validators.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
         for (uint256 i = 0; i < validators.length; ++i) {
             _registerValidator(validators[i]);
@@ -660,7 +660,7 @@ contract CoreVault is
      * @param maxValidatorPerBatch New maximum batch size for validator additions
      */
     function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyAdmin {
-        _maxValidatorPerBatch = maxValidatorPerBatch;
+        _getCoreVaultStorage()._maxValidatorPerBatch = maxValidatorPerBatch;
     }
 
     /**
