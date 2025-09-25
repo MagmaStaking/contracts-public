@@ -31,6 +31,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         IMagma _magma;
         /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
         uint256 _minUserWithdrawAmount;
+        /// @dev Total pending redelegation across all validators
+        uint256 _totalPendingRedelegation;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
@@ -63,8 +65,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
     /// Only one admin redelegation can be pending per validator at a time
     mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
-    /// @dev Total pending redelegation across all validators
-    uint256 public override totalPendingRedelegation;
 
     /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
     mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
@@ -120,6 +120,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _getVaultBaseStorage()._magma;
     }
 
+    function totalPendingRedelegation() public view returns (uint256) {
+        return _getVaultBaseStorage()._totalPendingRedelegation;
+    }
+
+    function setTotalPendingRedelegation(uint256 _totalPendingRedelegation) internal {
+        _getVaultBaseStorage()._totalPendingRedelegation = _totalPendingRedelegation;
+    }
+
     function minUserWithdrawAmount() public view returns (uint256) {
         return _getVaultBaseStorage()._minUserWithdrawAmount;
     }
@@ -152,7 +160,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return Total assets in wei (active stake + pending redelegation amounts)
      */
     function totalAssets() external view returns (uint256) {
-        return uint256(int256(cachedTotalAssets + totalPendingRedelegation) + cachedTotalNetPendingDelegations);
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        return uint256(int256(cachedTotalAssets + $._totalPendingRedelegation) + cachedTotalNetPendingDelegations);
     }
 
     /**
@@ -249,7 +258,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+        $._totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
         _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
         delete validatorStatus[_valId];
@@ -327,7 +336,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_totalStakedToValidator > 0) {
             // Reserve this amount for pending redelegation tracking
             pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
-            totalPendingRedelegation += _totalStakedToValidator;
+            $._totalPendingRedelegation += _totalStakedToValidator;
         }
 
         emit ValidatorRemovalInitiated(_valId);

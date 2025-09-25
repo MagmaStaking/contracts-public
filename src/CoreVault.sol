@@ -414,7 +414,7 @@ contract CoreVault is
                 }
             }
         }
-        totalPendingRedelegation += _totalToUndelegate;
+        setTotalPendingRedelegation(totalPendingRedelegation() + _totalToUndelegate);
         _trackCachedUndelegation(_totalToUndelegate);
         emit RebalanceInitiated();
     }
@@ -460,7 +460,7 @@ contract CoreVault is
                 // Update pending redelegation tracking
 
                 // Note: in the case where the withdrawal is slashed we use the cached amount to deduct from totalPendingRedelegation
-                totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+                setTotalPendingRedelegation(totalPendingRedelegation() - pendingRedelegateByValidator[_valId]);
                 pendingRedelegateByValidator[_valId] = 0;
 
                 // Mark withdrawal ID as completed
