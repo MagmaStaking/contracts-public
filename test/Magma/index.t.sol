@@ -61,7 +61,7 @@ contract MagmaAsyncModuleTest is BaseTest {
     // Helper to activate gVault validator stakes
     function _activateGVaultStakes() internal {
         // Get all validators from gVault
-        uint64[] memory validators = gvault.getvalidators();
+        uint64[] memory validators = gvault.getValidators();
 
         for (uint256 i = 0; i < validators.length; i++) {
             uint64 valId = validators[i];
@@ -1032,7 +1032,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
-    // TODO: see how to improve this test
     function test_setRedeemDelay_OnlyAdmin_Success() public {
         uint256 newDelay = 3600; // 1 hour
 

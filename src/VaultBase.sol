@@ -25,45 +25,41 @@ import {
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
-    /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
-    mapping(uint64 => BitMapLib.WithdrawalBitMap) internal withdrawalIdBitmaps;
-
-    /// @dev Reserved withdrawal ID for administrative operations (validator removal, rebalancing)
-    uint8 internal constant ADMIN_WID = 255;
-    /// @dev Basis points constant for percentage calculations (10,000 = 100%)
-    uint256 internal constant BASE_BPS = 10_000;
-    /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
-    uint256 public minUserWithdrawAmount;
-
-    /// @dev Tracks which validators are currently whitelisted for delegation
-    mapping(uint64 => bool) public override isWhitelisted;
-    /// @dev Active validator list (validators available for delegation)
-    uint64[] public override validators;
-
-    /// @dev Current status of each validator in the removal process lifecycle
-    mapping(uint64 => ValidatorStatus) public override validatorStatus;
-
-    /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
-    /// Only one admin redelegation can be pending per validator at a time
-    mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
-    /// @dev Total pending redelegation across all validators
-    uint256 public override totalPendingRedelegation;
-
-    /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
-    mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
-    /// @dev Total pending user withdrawals across all validators
-    uint256 public override totalPendingUndelegations;
-
-    /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
-    mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
-    /// @dev Timestamp when cached delegator info was last updated
-    uint256 public lastDelegatorInfoUpdateTimestamp;
-    /// @dev How often cached delegator info can be refreshed (default: 1 hour)
-    uint256 public delegatorInfoUpdateInterval;
-    /// @dev Cached total assets across all validators (from last cache update)
-    uint256 public cachedTotalAssets;
-    /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
-    int256 public cachedTotalNetPendingDelegations;
+    /// @custom:storage-location erc7201:storage.VaultBase
+    struct VaultBaseStorage {
+        IMagma _magma;
+        /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
+        uint256 _minUserWithdrawAmount;
+        /// @dev Total pending redelegation across all validators
+        uint256 _totalPendingRedelegation;
+        /// @dev Total pending user withdrawals across all validators
+        uint256 _totalPendingUndelegations;
+        /// @dev Timestamp when cached delegator info was last updated
+        uint256 _lastDelegatorInfoUpdateTimestamp;
+        /// @dev How often cached delegator info can be refreshed (default: 1 hour)
+        uint256 _delegatorInfoUpdateInterval;
+        /// @dev Cached total assets across all validators (from last cache update)
+        uint256 _cachedTotalAssets;
+        /// @dev Net pending delegations since last cache update (positive = more delegations, negative = more undelegations)
+        int256 _cachedTotalNetPendingDelegations;
+        /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
+        mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
+        /// @dev Tracks which validators are currently whitelisted for delegation
+        mapping(uint64 valId => bool) _isWhitelisted;
+        /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
+        /// Only one admin redelegation can be pending per validator at a time
+        mapping(uint64 valId => uint256 amount) _pendingRedelegateByValidator;
+        /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
+        mapping(uint64 valId => uint256 amount) _pendingUndelegateByValidator;
+        /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
+        mapping(uint64 valId => DelInfo delInfo) _cachedDelegatorInfo;
+        /// @dev Current status of each validator in the removal process lifecycle
+        mapping(uint64 => ValidatorStatus) _validatorStatus;
+        /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
+        mapping(address => WithdrawalRequestInfo[]) _userWithdrawalRequests;
+        /// @dev Active validator list (validators available for delegation)
+        uint64[] _validators;
+    }
 
     /// @dev Structure to track individual user withdrawal requests
     struct WithdrawalRequestInfo {
@@ -72,10 +68,25 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint8 withdrawalId; // Unique withdrawal ID for tracking
     }
 
-    /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
-    mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
+    /// @dev Reserved withdrawal ID for administrative operations (validator removal, rebalancing)
+    uint8 internal constant ADMIN_WID = 255;
+    /// @dev Basis points constant for percentage calculations (10,000 = 100%)
+    uint256 internal constant BASE_BPS = 10_000;
 
-    IMagma public magma;
+    // keccak256(abi.encode(uint256(keccak256("storage.VaultBase")) - 1)) & ~bytes32(uint256(0xff))
+    /* solhint-disable-next-line const-name-snakecase */
+    bytes32 private constant _VaultBaseStorageLocation =
+        0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
+
+    modifier onlyAdmin() {
+        if (msg.sender != _getVaultBaseStorage()._magma.admin()) revert ErrNotAdmin();
+        _;
+    }
+
+    modifier onlyMagma() {
+        if (msg.sender != address(_getVaultBaseStorage()._magma)) revert ErrNotMagma();
+        _;
+    }
 
     /**
      * @notice Initialize the VaultBase contract with Magma protocol reference
@@ -84,18 +95,115 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
-        magma = IMagma(_magma);
-        delegatorInfoUpdateInterval = 1 hours;
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        $._magma = IMagma(_magma);
+        $._delegatorInfoUpdateInterval = 1 hours;
     }
 
-    modifier onlyAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
-        _;
+    function _getVaultBaseStorage() private pure returns (VaultBaseStorage storage $) {
+        assembly {
+            $.slot := _VaultBaseStorageLocation
+        }
     }
 
-    modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
-        _;
+    function isWhitelisted(uint64 valId) public view returns (bool) {
+        return _getVaultBaseStorage()._isWhitelisted[valId];
+    }
+
+    function magma() public view returns (IMagma) {
+        return _getVaultBaseStorage()._magma;
+    }
+
+    function totalPendingUndelegations() public view returns (uint256) {
+        return _getVaultBaseStorage()._totalPendingUndelegations;
+    }
+
+    function setTotalPendingUndelegations(uint256 _totalPendingUndelegations) internal {
+        _getVaultBaseStorage()._totalPendingUndelegations = _totalPendingUndelegations;
+    }
+
+    function totalPendingRedelegation() public view returns (uint256) {
+        return _getVaultBaseStorage()._totalPendingRedelegation;
+    }
+
+    function setTotalPendingRedelegation(uint256 _totalPendingRedelegation) internal {
+        _getVaultBaseStorage()._totalPendingRedelegation = _totalPendingRedelegation;
+    }
+
+    function minUserWithdrawAmount() public view returns (uint256) {
+        return _getVaultBaseStorage()._minUserWithdrawAmount;
+    }
+
+    function lastDelegatorInfoUpdateTimestamp() external view returns (uint256) {
+        return _getVaultBaseStorage()._lastDelegatorInfoUpdateTimestamp;
+    }
+
+    function delegatorInfoUpdateInterval() external view returns (uint256) {
+        return _getVaultBaseStorage()._delegatorInfoUpdateInterval;
+    }
+
+    function cachedTotalAssets() external view returns (uint256) {
+        return _getVaultBaseStorage()._cachedTotalAssets;
+    }
+
+    function cachedTotalNetPendingDelegations() external view returns (int256) {
+        return _getVaultBaseStorage()._cachedTotalNetPendingDelegations;
+    }
+
+    function pendingRedelegateByValidator(uint64 valId) public view returns (uint256) {
+        return _getVaultBaseStorage()._pendingRedelegateByValidator[valId];
+    }
+
+    function setPendingRedelegateByValidator(uint64 valId, uint256 amount) internal {
+        _getVaultBaseStorage()._pendingRedelegateByValidator[valId] = amount;
+    }
+
+    function pendingUndelegateByValidator(uint64 valId) public view returns (uint256) {
+        return _getVaultBaseStorage()._pendingUndelegateByValidator[valId];
+    }
+
+    function setPendingUndelegateByValidator(uint64 valId, uint256 amount) internal {
+        _getVaultBaseStorage()._pendingUndelegateByValidator[valId] = amount;
+    }
+
+    function cachedDelegatorInfo(uint64 valId) public view returns (DelInfo memory) {
+        return _getVaultBaseStorage()._cachedDelegatorInfo[valId];
+    }
+
+    function validatorStatus(uint64 valId) external view returns (ValidatorStatus) {
+        return _getVaultBaseStorage()._validatorStatus[valId];
+    }
+
+    function userWithdrawalRequests(address user) public view returns (WithdrawalRequestInfo[] memory) {
+        return _getVaultBaseStorage()._userWithdrawalRequests[user];
+    }
+
+    function validators(uint256 index) external view returns (uint64) {
+        return _getVaultBaseStorage()._validators[index];
+    }
+
+    function getValidators() public view virtual returns (uint64[] memory) {
+        return _getVaultBaseStorage()._validators;
+    }
+
+    function validatorsLength() public view returns (uint256) {
+        return _getVaultBaseStorage()._validators.length;
+    }
+
+    /**
+     * @notice Remove validator ID from storage array
+     * @dev Efficiently removes validator by swapping with last element
+     * @param valId The validator ID to remove
+     */
+    function _removeValidatorFromArray(uint64 valId) internal {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        for (uint256 i = 0; i < $._validators.length; ++i) {
+            if ($._validators[i] == valId) {
+                $._validators[i] = $._validators[$._validators.length - 1];
+                $._validators.pop();
+                break;
+            }
+        }
     }
 
     /**
@@ -105,19 +213,21 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function cacheValidatorStats() internal {
         uint256 _cachedTotalAssets = 0;
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
 
         // Fetch and cache delegator info for each active validator
-        for (uint256 _i = 0; _i < validators.length; _i++) {
-            uint64 _valId = validators[_i];
+        uint64[] memory _validators = getValidators();
+        for (uint256 _i = 0; _i < _validators.length; _i++) {
+            uint64 _valId = _validators[_i];
             DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
-            cachedDelegatorInfo[_valId] = _delInfo;
+            $._cachedDelegatorInfo[_valId] = _delInfo;
             // Sum total assets: active stake + pending stake changes
             _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         }
 
         // Reset pending delta tracking since we just refreshed from source of truth
-        cachedTotalNetPendingDelegations = 0;
-        cachedTotalAssets = _cachedTotalAssets;
+        $._cachedTotalNetPendingDelegations = 0;
+        $._cachedTotalAssets = _cachedTotalAssets;
     }
 
     /**
@@ -126,7 +236,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return Total assets in wei (active stake + pending redelegation amounts)
      */
     function totalAssets() external view returns (uint256) {
-        return uint256(int256(cachedTotalAssets + totalPendingRedelegation) + cachedTotalNetPendingDelegations);
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        return uint256(int256($._cachedTotalAssets + $._totalPendingRedelegation) + $._cachedTotalNetPendingDelegations);
     }
 
     /**
@@ -134,9 +245,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @dev Only refreshes if more than delegatorInfoUpdateInterval has passed since last update
      */
     function refreshCacheCheck() external {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
         if (
-            block.timestamp - lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
-                || lastDelegatorInfoUpdateTimestamp == 0
+            block.timestamp - $._lastDelegatorInfoUpdateTimestamp > $._delegatorInfoUpdateInterval
+                || $._lastDelegatorInfoUpdateTimestamp == 0
         ) {
             _refreshCache();
         }
@@ -156,7 +268,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _refreshCache() internal {
         cacheValidatorStats();
-        lastDelegatorInfoUpdateTimestamp = block.timestamp;
+        _getVaultBaseStorage()._lastDelegatorInfoUpdateTimestamp = block.timestamp;
     }
 
     /**
@@ -166,7 +278,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
-        minUserWithdrawAmount = _amount;
+        _getVaultBaseStorage()._minUserWithdrawAmount = _amount;
     }
 
     /**
@@ -176,7 +288,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function setDelegatorInfoUpdateInterval(uint256 _interval) external onlyAdmin {
         if (_interval > 24 hours) revert ErrInvalidAmount(_interval);
-        delegatorInfoUpdateInterval = _interval;
+        _getVaultBaseStorage()._delegatorInfoUpdateInterval = _interval;
         emit DelegatorInfoUpdateIntervalChanged(_interval);
     }
 
@@ -187,15 +299,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return The fee amount charged
      */
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
         if (_totalWithdrawalAmount == 0) return 0;
-        if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
+        if ($._magma.withdrawalFee() == 0) return 0;
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, $._magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
-            (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
+            (bool okFee,) = $._magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
                 emit WithdrawalFeeTransferFailed(_fee);
             } else {
-                emit WithdrawalFeeTransferSuccess(_fee, magma.feeReceiver());
+                emit WithdrawalFeeTransferSuccess(_fee, $._magma.feeReceiver());
             }
         }
         return _fee;
@@ -208,10 +321,12 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return The amount withdrawn from the validator
      */
     function _completeValidatorRemovalWithdrawal(uint64 _valId) internal returns (uint256) {
-        if (validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+
+        if ($._validatorStatus[_valId] != ValidatorStatus.UNDELEGATING) revert ErrInvalidStatus();
 
         // Check bitmap first - if ADMIN_WID is not in use, no pending withdrawal exists
-        if (!withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+        if (!$._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
             revert ErrNoPendingWithdrawRequest();
         }
 
@@ -220,10 +335,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+        $._totalPendingRedelegation -= $._pendingRedelegateByValidator[_valId];
         _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
-        delete validatorStatus[_valId];
+        delete $._validatorStatus[_valId];
         emit ValidatorRemovalCompleted(_valId);
 
         return _withdrawalAmount;
@@ -235,7 +350,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to remove
      */
     function _executeValidatorUndelegation(uint64 _valId) internal {
-        if (validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if ($._validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
 
         DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
 
@@ -254,11 +370,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_amountToRedelegate > 0) {
             _checkFreeAdminWid(_valId); // Ensure admin withdrawal ID is available
             _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
-            validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
+            $._validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
             emit ValidatorRemoved(_valId);
         } else {
             // No stake to undelegate, validator removal is complete
-            delete validatorStatus[_valId];
+            delete $._validatorStatus[_valId];
             emit ValidatorRemovalCompleted(_valId);
         }
     }
@@ -270,10 +386,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _registerValidator(uint64 _valId) internal {
         if (_valId == 0) revert ErrZeroValidatorId();
-        if (isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if ($._isWhitelisted[_valId]) revert ErrAlreadyWhitelisted();
 
-        validators.push(_valId);
-        isWhitelisted[_valId] = true;
+        $._validators.push(_valId);
+        $._isWhitelisted[_valId] = true;
 
         emit ValidatorAdded(_valId);
     }
@@ -284,19 +401,20 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to remove
      */
     function _initiateValidatorRemoval(uint64 _valId) internal {
-        if (!isWhitelisted[_valId]) revert ErrNotWhitelisted();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if (!$._isWhitelisted[_valId]) revert ErrNotWhitelisted();
 
         // Step 1: Pause validator to prevent new delegations
-        validatorStatus[_valId] = ValidatorStatus.PAUSED;
-        isWhitelisted[_valId] = false;
-        _removeFromArray(validators, _valId); // Remove from active validators list
+        $._validatorStatus[_valId] = ValidatorStatus.PAUSED;
+        $._isWhitelisted[_valId] = false;
+        _removeValidatorFromArray(_valId); // Remove from active validators list
 
         // Track the total stake that will need to be redelegated
         uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
         if (_totalStakedToValidator > 0) {
             // Reserve this amount for pending redelegation tracking
-            pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
-            totalPendingRedelegation += _totalStakedToValidator;
+            $._pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
+            $._totalPendingRedelegation += _totalStakedToValidator;
         }
 
         emit ValidatorRemovalInitiated(_valId);
@@ -309,8 +427,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _getTotalStakedToAllValidators() internal view returns (uint256) {
         uint256 _total = 0;
-        for (uint256 _i = 0; _i < validators.length; ++_i) {
-            _total += _getTotalStakedToValidator(validators[_i]);
+        uint64[] memory _validators = getValidators();
+        for (uint256 _i = 0; _i < _validators.length; ++_i) {
+            _total += _getTotalStakedToValidator(_validators[_i]);
         }
         return _total;
     }
@@ -323,7 +442,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _wid The allocated withdrawal ID
      */
     function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        _wid = withdrawalIdBitmaps[_valId].allocateWithdrawalId();
+        _wid = _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
         return _wid;
     }
@@ -336,7 +455,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _wid The admin withdrawal ID (always 255)
      */
     function _allocateAdminWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
-        withdrawalIdBitmaps[_valId].allocateAdminWid();
+        _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].allocateAdminWid();
         _undelegate(_valId, _amount, ADMIN_WID);
         return _wid;
     }
@@ -349,13 +468,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _withdrawalId The withdrawal ID assigned
      */
     function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
-        userWithdrawalRequests[_user].push(
+        _getVaultBaseStorage()._userWithdrawalRequests[_user].push(
             WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
-    }
-
-    function _getDelegatorInfoCached(uint64 _valId) internal view returns (DelInfo memory) {
-        return cachedDelegatorInfo[_valId];
     }
 
     /**
@@ -366,7 +481,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake + pendingRedelegateByValidator[_valId];
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
+            + _getVaultBaseStorage()._pendingRedelegateByValidator[_valId];
     }
 
     /**
@@ -381,22 +497,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     }
 
     /**
-     * @notice Remove validator ID from storage array
-     * @dev Efficiently removes validator by swapping with last element
-     * @param array The storage array to modify
-     * @param valId The validator ID to remove
-     */
-    function _removeFromArray(uint64[] storage array, uint64 valId) internal {
-        for (uint256 i = 0; i < array.length; ++i) {
-            if (array[i] == valId) {
-                array[i] = array[array.length - 1];
-                array.pop();
-                break;
-            }
-        }
-    }
-
-    /**
      * @notice Complete all pending withdrawal requests for a user
      * @dev Processes all user withdrawal requests, charges fees, and transfers funds
      * @param _user The user address whose withdrawals to complete
@@ -407,7 +507,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         internal
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
     {
-        WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        WithdrawalRequestInfo[] storage _userRequests = $._userWithdrawalRequests[_user];
         if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
         _totalWithdrawn = 0;
@@ -429,15 +530,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
 
             // Update pending undelegation tracking (handle potential underflow from slashing)
-            if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
-                pendingUndelegateByValidator[_valId] -= _availableAmount;
+            if (pendingUndelegateByValidator(_valId) >= _availableAmount) {
+                setPendingUndelegateByValidator(_valId, pendingUndelegateByValidator(_valId) - _availableAmount);
             } else {
-                pendingUndelegateByValidator[_valId] = 0; // Prevent underflow if slashed
+                setPendingUndelegateByValidator(_valId, 0); // Prevent underflow if slashed
             }
 
             // Update global pending undelegations (handle potential underflow)
-            totalPendingUndelegations =
-                (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
+            $._totalPendingUndelegations = (_availableAmount > $._totalPendingUndelegations)
+                ? 0
+                : ($._totalPendingUndelegations - _availableAmount);
 
             // Mark withdrawal ID as completed and available for reuse
             _markWithdrawalCompleted(_valId, _withdrawalId);
@@ -449,7 +551,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
 
             // Transfer remaining funds to Magma contract which will forward to user
-            (bool success,) = address(magma).call{value: _remaining}("");
+            (bool success,) = address($._magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
@@ -459,7 +561,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
 
         // Clear all withdrawal requests for this user after processing
-        delete userWithdrawalRequests[_user];
+        delete $._userWithdrawalRequests[_user];
 
         emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
@@ -468,8 +570,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _withdraw(_valId, _withdrawalId);
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
-
-        pendingRedelegateByValidator[_valId] = 0;
+        setPendingRedelegateByValidator(_valId, 0);
     }
 
     /**
@@ -478,7 +579,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _withdrawalId The withdrawal ID to mark as free
      */
     function _markWithdrawalCompleted(uint64 _valId, uint8 _withdrawalId) internal {
-        withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
+        _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].markWithdrawalCompleted(_withdrawalId);
     }
 
     /**
@@ -487,7 +588,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to check
      */
     function _checkFreeAdminWid(uint64 _valId) internal view {
-        if (withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) revert ErrAdminWidInUse();
+        if (_getVaultBaseStorage()._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(ADMIN_WID)) {
+            revert ErrAdminWidInUse();
+        }
     }
 
     /**
@@ -521,7 +624,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount The amount of rewards to distribute
      */
     function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal virtual {
-        ICoreVault _coreVault = ICoreVault(magma.coreVault());
+        ICoreVault _coreVault = ICoreVault(_getVaultBaseStorage()._magma.coreVault());
         // Call delegate function on CoreVault to distribute to remaining validators
         _coreVault.delegate{value: _amount}();
     }
@@ -533,14 +636,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _fee The fee amount calculated and sent
      */
     function _calculateRewardsFeeAndSend(uint256 _totalRewards) internal returns (uint256 _fee) {
-        _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+
+        _fee = Math.mulDiv(_totalRewards, $._magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
             // send fee to fee receiver
-            (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
+            (bool _ok,) = $._magma.feeReceiver().call{value: _fee}("");
             if (!_ok) {
                 emit RewardsFeeTransferFailed(_fee);
             } else {
-                emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
+                emit RewardsFeeTransferSuccess(_fee, $._magma.feeReceiver());
             }
         }
         return _fee;
@@ -551,7 +656,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount Amount being delegated
      */
     function _trackCachedDelegation(uint256 _amount) internal {
-        cachedTotalNetPendingDelegations += int256(_amount);
+        _getVaultBaseStorage()._cachedTotalNetPendingDelegations += int256(_amount);
     }
 
     /**
@@ -559,6 +664,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount Amount being undelegated
      */
     function _trackCachedUndelegation(uint256 _amount) internal {
-        cachedTotalNetPendingDelegations -= int256(_amount);
+        _getVaultBaseStorage()._cachedTotalNetPendingDelegations -= int256(_amount);
+    }
+
+    /**
+     * @dev Check if a withdrawal ID is in use for a validator
+     * @param _valId The validator ID
+     * @param _withdrawalId The withdrawal ID to check
+     * @return true if the withdrawal ID is in use, false otherwise
+     */
+    function _isWithdrawalIdInUse(uint64 _valId, uint8 _withdrawalId) internal view returns (bool) {
+        return _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].isWithdrawalIdInUse(_withdrawalId);
     }
 }

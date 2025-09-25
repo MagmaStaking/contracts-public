@@ -2,6 +2,8 @@
 pragma solidity 0.8.30;
 
 import "./BaseTest.t.sol";
+import {DelInfo} from "../src/MagmaDelegationModule.sol";
+import {VaultBase} from "../src/VaultBase.sol";
 
 contract MagmaCacheTest is BaseTest {
     uint256 constant DEFAULT_CACHE_INTERVAL = 1 hours;
@@ -38,11 +40,11 @@ contract MagmaCacheTest is BaseTest {
         assertGt(coreVault.lastDelegatorInfoUpdateTimestamp(), 0, "Cache timestamp should be set");
         assertEq(coreVault.cachedTotalAssets(), 100 ether, "Cached assets should equal delegated amount");
 
-        // Check individual validator cache first deposit goes to validator 1
-        (uint256 stake1,,,,,,) = coreVault.cachedDelegatorInfo(1);
-        (uint256 stake2,,,,,,) = coreVault.cachedDelegatorInfo(2);
-        assertEq(stake1, 100 ether, "Validator 1 should have 100 ether cached");
-        assertEq(stake2, 0 ether, "Validator 2 should have 0 ether cached");
+        // Check individual validator cache
+        DelInfo memory delInfo1 = coreVault.cachedDelegatorInfo(1);
+        DelInfo memory delInfo2 = coreVault.cachedDelegatorInfo(2);
+        assertEq(delInfo1.stake, 100 ether, "Validator 1 should have 100 ether cached");
+        assertEq(delInfo2.stake, 0 ether, "Validator 2 should have 0 ether cached");
     }
 
     function test_CacheBecomesStaleAfterInterval() public {
@@ -123,17 +125,15 @@ contract MagmaCacheTest is BaseTest {
         uint256 totalWithdrawalAmount = 0;
         uint256 requestCount = 0;
 
-        // Count withdrawal requests until we hit an empty one
-        for (uint256 i = 0; i < 10; i++) {
-            try coreVault.userWithdrawalRequests(user, i) returns (uint256 amount, uint64 validator, uint8) {
-                if (amount == 0) break;
-                totalWithdrawalAmount += amount;
-                requestCount++;
-                assertGt(validator, 0, "Should have valid validator ID");
-                // Note: withdrawalId can be 0 in some cases, so we don't assert on it
-            } catch {
-                break;
-            }
+        // Get all withdrawal requests for the user
+        VaultBase.WithdrawalRequestInfo[] memory requests = coreVault.userWithdrawalRequests(user);
+        requestCount = requests.length;
+
+        // Sum up withdrawal amounts and validate
+        for (uint256 i = 0; i < requests.length; i++) {
+            totalWithdrawalAmount += requests[i].amount;
+            assertGt(requests[i].validator, 0, "Should have valid validator ID");
+            // Note: withdrawalId can be 0 in some cases, so we don't assert on it
         }
 
         assertEq(totalWithdrawalAmount, undelegateAmount, "Total withdrawal amount should match requested amount");

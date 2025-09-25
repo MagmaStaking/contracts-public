@@ -66,16 +66,3 @@ contract MagmaScript is Script {
         vm.stopBroadcast();
     }
 }
-
-/**
- * TODO:
- * @custom:oz-upgrades-from Magma review https://docs.openzeppelin.com/upgrades-plugins/api-foundry-upgrades https://docs.openzeppelin.com/upgrades-plugins/api-core#define-reference-contracts
- * @custom:storage-location erc7201:openzeppelin.storage.ERC4626,
- * MakeFile with ----force or forge clean before running forge script https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades?tab=readme-ov-file
- * fix openzeppelin lib here
- * you can do a test script just to test
- * Important Include the --sender <ADDRESS> flag for the forge script command when performing upgrades, specifying an address that owns the proxy or proxy admin. Otherwise, OwnableUnauthorizedAccount errors will occur.
- * read https://eips.ethereum.org/EIPS/eip-7201 before PR
- * console.log rule in cursor and test
- *  https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
- */

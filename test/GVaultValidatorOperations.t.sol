@@ -62,7 +62,7 @@ contract GVaultValidatorOperations is BaseTest {
 
         assertTrue(gvault.isWhitelisted(VAL_1));
 
-        uint64[] memory validators = gvault.getvalidators();
+        uint64[] memory validators = gvault.getValidators();
         assertEq(validators.length, 1);
         assertEq(validators[0], VAL_1);
     }
@@ -95,7 +95,7 @@ contract GVaultValidatorOperations is BaseTest {
         gvault.addValidator(VAL_3);
         vm.stopPrank();
 
-        uint64[] memory validators = gvault.getvalidators();
+        uint64[] memory validators = gvault.getValidators();
         assertEq(validators.length, 3);
         assertTrue(gvault.isWhitelisted(VAL_1));
         assertTrue(gvault.isWhitelisted(VAL_2));
@@ -122,7 +122,7 @@ contract GVaultValidatorOperations is BaseTest {
         assertFalse(gvault.isWhitelisted(VAL_1));
         assertEq(uint256(gvault.validatorStatus(VAL_1)), uint256(IBaseVault.ValidatorStatus.PAUSED));
 
-        uint64[] memory validators = gvault.getvalidators();
+        uint64[] memory validators = gvault.getValidators();
         assertEq(validators.length, 1); // VAL_2 should remain active
         assertTrue(gvault.isWhitelisted(VAL_2)); // VAL_2 should still be whitelisted
     }
@@ -591,7 +591,7 @@ contract GVaultValidatorOperations is BaseTest {
         _setupGVaultValidatorStake(VAL_2, 1 ether);
         _setupGVaultValidatorStake(VAL_3, 1 ether);
 
-        uint64[] memory initialValidators = gvault.getvalidators();
+        uint64[] memory initialValidators = gvault.getValidators();
         assertEq(initialValidators.length, 3);
 
         // Step 1: Initiate removal
@@ -599,7 +599,7 @@ contract GVaultValidatorOperations is BaseTest {
         gvault.initiateValidatorRemoval(VAL_1);
 
         assertFalse(gvault.isWhitelisted(VAL_1));
-        uint64[] memory validatorsAfterInitiate = gvault.getvalidators();
+        uint64[] memory validatorsAfterInitiate = gvault.getValidators();
         assertEq(validatorsAfterInitiate.length, 2);
 
         // Step 2: Execute undelegation
@@ -619,7 +619,7 @@ contract GVaultValidatorOperations is BaseTest {
         assertTrue(gvault.isWhitelisted(VAL_2));
         assertTrue(gvault.isWhitelisted(VAL_3));
 
-        uint64[] memory finalValidators = gvault.getvalidators();
+        uint64[] memory finalValidators = gvault.getValidators();
         assertEq(finalValidators.length, 2);
     }
 
