@@ -213,7 +213,7 @@ contract CoreVault is
      *      Only callable by Magma protocol or gVault contract.
      */
     function delegate() external payable whenNotPaused {
-        if (msg.sender != address(magma) && msg.sender != magma.gVault()) {
+        if (msg.sender != address(magma()) && msg.sender != magma().gVault()) {
             revert ErrNotMagma();
         }
         _distributeAmountEquallyToValidators(msg.value);

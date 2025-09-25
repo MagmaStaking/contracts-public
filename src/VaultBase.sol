@@ -22,11 +22,13 @@ import {
     ErrNotWhitelisted
 } from "./MagmaErrorsModule.sol";
 
+// TODO: check all functions have a maximum of _getVaultBaseStorage();
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
     /// @custom:storage-location erc7201:storage.VaultBase
     struct VaultBaseStorage {
+        IMagma _magma;
         /// @dev Minimum amount users can withdraw in a single transaction (prevents dust attacks)
         uint256 _minUserWithdrawAmount;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
@@ -83,15 +85,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
     mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
-    IMagma public magma;
-
     modifier onlyAdmin() {
-        if (msg.sender != magma.admin()) revert ErrNotAdmin();
+        if (msg.sender != _getVaultBaseStorage()._magma.admin()) revert ErrNotAdmin();
         _;
     }
 
     modifier onlyMagma() {
-        if (msg.sender != address(magma)) revert ErrNotMagma();
+        if (msg.sender != address(_getVaultBaseStorage()._magma)) revert ErrNotMagma();
         _;
     }
 
@@ -102,7 +102,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma) internal {
-        magma = IMagma(_magma);
+        _getVaultBaseStorage()._magma = IMagma(_magma);
         delegatorInfoUpdateInterval = 1 hours;
     }
 
@@ -114,6 +114,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function isWhitelisted(uint64 valId) public view returns (bool) {
         return _getVaultBaseStorage()._isWhitelisted[valId];
+    }
+
+    function magma() public view returns (IMagma) {
+        return _getVaultBaseStorage()._magma;
     }
 
     function minUserWithdrawAmount() public view returns (uint256) {
@@ -209,15 +213,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return The fee amount charged
      */
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
         if (_totalWithdrawalAmount == 0) return 0;
-        if (magma.withdrawalFee() == 0) return 0;
-        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
+        if ($._magma.withdrawalFee() == 0) return 0;
+        uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, $._magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
-            (bool okFee,) = magma.feeReceiver().call{value: _fee}("");
+            (bool okFee,) = $._magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
                 emit WithdrawalFeeTransferFailed(_fee);
             } else {
-                emit WithdrawalFeeTransferSuccess(_fee, magma.feeReceiver());
+                emit WithdrawalFeeTransferSuccess(_fee, $._magma.feeReceiver());
             }
         }
         return _fee;
@@ -436,6 +441,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
         if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
         _totalWithdrawn = 0;
         _totalWithdrawnAfterFee = 0;
         uint256 _totalSuccessfulWithdrawals = 0;
@@ -475,7 +481,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             uint256 _remaining = _totalSuccessfulWithdrawals - _fee;
 
             // Transfer remaining funds to Magma contract which will forward to user
-            (bool success,) = address(magma).call{value: _remaining}("");
+            (bool success,) = address($._magma).call{value: _remaining}("");
             if (!success) {
                 revert ErrNativeTransferFailed();
             }
@@ -549,7 +555,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount The amount of rewards to distribute
      */
     function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal virtual {
-        ICoreVault _coreVault = ICoreVault(magma.coreVault());
+        ICoreVault _coreVault = ICoreVault(_getVaultBaseStorage()._magma.coreVault());
         // Call delegate function on CoreVault to distribute to remaining validators
         _coreVault.delegate{value: _amount}();
     }
@@ -561,14 +567,16 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @return _fee The fee amount calculated and sent
      */
     function _calculateRewardsFeeAndSend(uint256 _totalRewards) internal returns (uint256 _fee) {
-        _fee = Math.mulDiv(_totalRewards, magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+
+        _fee = Math.mulDiv(_totalRewards, $._magma.rewardsFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
             // send fee to fee receiver
-            (bool _ok,) = magma.feeReceiver().call{value: _fee}("");
+            (bool _ok,) = $._magma.feeReceiver().call{value: _fee}("");
             if (!_ok) {
                 emit RewardsFeeTransferFailed(_fee);
             } else {
-                emit RewardsFeeTransferSuccess(_fee, magma.feeReceiver());
+                emit RewardsFeeTransferSuccess(_fee, $._magma.feeReceiver());
             }
         }
         return _fee;

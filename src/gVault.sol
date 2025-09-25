@@ -87,7 +87,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
         __VaultBase_init(_magma);
-        magma = IMagma(_magma);
         epochSeconds = _epochSeconds;
         finishedLastRebalance = true; // Initialize to true so rebalancing can start
         // initialize multiplier system for proxies (declarations don't run)
@@ -145,7 +144,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Send withdrawal amount to CoreVault
         if (_withdrawalAmount > 0) {
-            address coreVaultAddress = magma.coreVault();
+            address coreVaultAddress = magma().coreVault();
             ICoreVault(coreVaultAddress).delegate{value: _withdrawalAmount}();
         }
     }
@@ -195,7 +194,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 cap = validatorCap[_valId];
         if (cap != 0) return cap;
 
-        uint256 total = magma.totalAssets();
+        uint256 total = magma().totalAssets();
         return (total * defaultCapBps) / BASE_BPS;
     }
 
@@ -398,7 +397,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
         uint256 _delta = address(this).balance - _beforeBal;
         if (_delta > 0) {
-            ICoreVault(magma.coreVault()).delegate{value: _delta}();
+            ICoreVault(magma().coreVault()).delegate{value: _delta}();
         }
         finishedLastRebalance = true; // Mark rebalance as completed
         emit AdminCompletedRebalance(_delta);
