@@ -8,7 +8,6 @@ interface IBaseVault {
         UNDELEGATING
     }
 
-
     event ValidatorAdded(uint64 indexed valId);
     event ValidatorRemovalInitiated(uint64 indexed valId);
     event ValidatorRemoved(uint64 indexed valId);
@@ -30,6 +29,7 @@ interface IBaseVault {
     event RewardsFeeTransferFailed(uint256 indexed amount);
     event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
     event DelegatorInfoUpdateIntervalChanged(uint256 indexed newInterval);
+    event MinUserWithdrawAmountUpdated(uint256 indexed newAmount);
 
     function initiateValidatorRemoval(uint64 valId) external;
     function setMinUserWithdrawAmount(uint256 amount) external;

@@ -40,9 +40,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         /// @dev Default cap as percentage of total Magma assets in basis points (25 = 0.25%)
         uint256 _defaultCapBps;
         /// @dev High-precision (1e27) cumulative retention multiplier for gVault
-        uint256 _gvaultMultiplierP;
+        uint256 _gVaultMultiplierP;
         /// @dev Global scale factor (1e27) that increases during rescaling to maintain precision
-        uint256 _gvaultScaleS;
+        uint256 _gVaultScaleS;
         /// @dev EIP-4626 style share tracking: tracks user's share ownership per validator
         mapping(address => mapping(uint64 => uint256)) _delegatedSharesOf;
         /// @dev Total shares issued for each validator (used for share-to-asset conversion)
@@ -84,8 +84,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         $._finishedLastRebalance = true; // Initialize to true so rebalancing can start
         // initialize multiplier system for proxies (declarations don't run)
         $._defaultCapBps = 25;
-        $._gvaultMultiplierP = 1e27;
-        $._gvaultScaleS = 1e27;
+        $._gVaultMultiplierP = 1e27;
+        $._gVaultScaleS = 1e27;
     }
 
     /**
@@ -116,12 +116,12 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _getGVaultStorage()._defaultCapBps;
     }
 
-    function gvaultMultiplierP() external view returns (uint256) {
-        return _getGVaultStorage()._gvaultMultiplierP;
+    function gVaultMultiplierP() external view returns (uint256) {
+        return _getGVaultStorage()._gVaultMultiplierP;
     }
 
-    function gvaultScaleS() external view returns (uint256) {
-        return _getGVaultStorage()._gvaultScaleS;
+    function gVaultScaleS() external view returns (uint256) {
+        return _getGVaultStorage()._gVaultScaleS;
     }
 
     function delegatedSharesOf(address user, uint64 valId) external view returns (uint256) {
@@ -273,7 +273,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (msg.value > 0) {
             // Calculate units = ceil(deposit_amount * S / P) to track user's contribution
             // Using ceiling to prevent precision erosion in user's favor
-            uint256 _addUnits = Math.mulDiv(msg.value, $._gvaultScaleS, $._gvaultMultiplierP, Math.Rounding.Ceil);
+            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Ceil);
             $._scaledPrincipalUnits[_user][_valId] += _addUnits;
         }
 
@@ -318,7 +318,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             // Reduce scaled principal units proportionally to withdrawal amount
             // Calculate units to remove = ceil(withdrawal_amount * S / P)
             uint256 _currentUnits = $._scaledPrincipalUnits[_user][_valId];
-            uint256 _removeUnits = Math.mulDiv(_amount, $._gvaultScaleS, $._gvaultMultiplierP, Math.Rounding.Ceil);
+            uint256 _removeUnits = Math.mulDiv(_amount, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Ceil);
             // Prevent underflow: if removing more units than available, set to 0
             $._scaledPrincipalUnits[_user][_valId] = _removeUnits >= _currentUnits ? 0 : (_currentUnits - _removeUnits);
 
@@ -379,23 +379,23 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             // Special handling for 100% outflow: prevent P from hitting zero which would break math
             // Scale up S massively so existing user units become worthless (entitlement ≈ 0)
             uint256 K_FULL = 1e9; // large-but-safe scale bump
-            $._gvaultScaleS = $._gvaultScaleS * K_FULL;
-            $._gvaultMultiplierP = 1e27; // reset P to nominal 1.0 in 1e27 scale
-            emit GVaultRescaled(K_FULL, $._gvaultMultiplierP, $._gvaultScaleS);
+            $._gVaultScaleS = $._gVaultScaleS * K_FULL;
+            $._gVaultMultiplierP = 1e27; // reset P to nominal 1.0 in 1e27 scale
+            emit GVaultRescaled(K_FULL, $._gVaultMultiplierP, $._gVaultScaleS);
         } else {
             // Update cumulative multiplier P to reflect what fraction stays in gVault
             // P_new = P_old * (1 - bps/10000) tracks cumulative retention
-            uint256 _oldP = $._gvaultMultiplierP;
+            uint256 _oldP = $._gVaultMultiplierP;
             uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // Convert (1 - bps/10000) to 1e27 scale
-            $._gvaultMultiplierP = Math.mulDiv($._gvaultMultiplierP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
-            emit GVaultMultiplierUpdated(_oldP, $._gvaultMultiplierP, _bps);
+            $._gVaultMultiplierP = Math.mulDiv($._gVaultMultiplierP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
+            emit GVaultMultiplierUpdated(_oldP, $._gVaultMultiplierP, _bps);
 
             // Prevent precision loss: if P gets too small, rescale both P and S by same factor
             // This maintains the ratio P/S while bringing P back to a safe range
-            if ($._gvaultMultiplierP < MULTIPLIER_FLOOR) {
-                $._gvaultMultiplierP *= MULTIPLIER_RESCALE_K;
-                $._gvaultScaleS *= MULTIPLIER_RESCALE_K;
-                emit GVaultRescaled(MULTIPLIER_RESCALE_K, $._gvaultMultiplierP, $._gvaultScaleS);
+            if ($._gVaultMultiplierP < MULTIPLIER_FLOOR) {
+                $._gVaultMultiplierP *= MULTIPLIER_RESCALE_K;
+                $._gVaultScaleS *= MULTIPLIER_RESCALE_K;
+                emit GVaultRescaled(MULTIPLIER_RESCALE_K, $._gVaultMultiplierP, $._gVaultScaleS);
             }
         }
         uint64[] memory _list = getValidators();
@@ -513,7 +513,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // entitlement = units * P / S
         GVaultStorage storage $ = _getGVaultStorage();
         uint256 _units = $._scaledPrincipalUnits[_user][_valId];
-        return Math.mulDiv(_units, $._gvaultMultiplierP, $._gvaultScaleS);
+        return Math.mulDiv(_units, $._gVaultMultiplierP, $._gVaultScaleS);
     }
 
     /**
