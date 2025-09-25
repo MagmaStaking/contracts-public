@@ -66,10 +66,10 @@ contract Magma is
     /// @dev https://eips.ethereum.org/EIPS/eip-7540#request-lifecycle
     struct RedeemRequests {
         address owner; // Owner of the shares
+        bool isGVault; // If redeemRequest is for gVault or not
         uint256 shares; // Amount of shares to redeem
         uint256 assets; // Amount of assets to withdraw
         uint256 claimableTime; // When assets become claimable
-        bool isGVault; // If redeemRequest is for gVault or not
     }
 
     struct InitializeParams {
