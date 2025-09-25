@@ -538,13 +538,13 @@ contract Magma is
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 
@@ -557,7 +557,7 @@ contract Magma is
         override
         returns (uint256)
     {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 }
