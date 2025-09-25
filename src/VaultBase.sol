@@ -35,6 +35,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _totalPendingRedelegation;
         /// @dev Total pending user withdrawals across all validators
         uint256 _totalPendingUndelegations;
+        /// @dev Timestamp when cached delegator info was last updated
+        uint256 _lastDelegatorInfoUpdateTimestamp;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
@@ -73,8 +75,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
-    /// @dev Timestamp when cached delegator info was last updated
-    uint256 public lastDelegatorInfoUpdateTimestamp;
     /// @dev How often cached delegator info can be refreshed (default: 1 hour)
     uint256 public delegatorInfoUpdateInterval;
     /// @dev Cached total assets across all validators (from last cache update)
@@ -140,6 +140,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         return _getVaultBaseStorage()._minUserWithdrawAmount;
     }
 
+    function lastDelegatorInfoUpdateTimestamp() external view returns (uint256) {
+        return _getVaultBaseStorage()._lastDelegatorInfoUpdateTimestamp;
+    }
+
     /**
      * @dev Cache validator statistics from precompile to improve gas efficiency
      * @notice This function fetches fresh data from the staking precompile for all validators
@@ -177,9 +181,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @dev Only refreshes if more than delegatorInfoUpdateInterval has passed since last update
      */
     function refreshCacheCheck() external {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
         if (
-            block.timestamp - lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
-                || lastDelegatorInfoUpdateTimestamp == 0
+            block.timestamp - $._lastDelegatorInfoUpdateTimestamp > delegatorInfoUpdateInterval
+                || $._lastDelegatorInfoUpdateTimestamp == 0
         ) {
             _refreshCache();
         }
@@ -199,7 +204,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _refreshCache() internal {
         cacheValidatorStats();
-        lastDelegatorInfoUpdateTimestamp = block.timestamp;
+        _getVaultBaseStorage()._lastDelegatorInfoUpdateTimestamp = block.timestamp;
     }
 
     /**
