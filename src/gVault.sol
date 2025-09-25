@@ -67,8 +67,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _GVaultStorageLocation = 0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
 
-    event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
-    event GVaultRescaled(uint256 factorK, uint256 newP, uint256 newS);
+    event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
+    event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
 
     /**
      * @notice Initialize the gVault contract with configuration parameters

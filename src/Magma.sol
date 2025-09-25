@@ -106,7 +106,7 @@ contract Magma is
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
 
-    event OperatorSet(address indexed controller, address indexed operator, bool approved);
+    event OperatorSet(address indexed controller, address indexed operator, bool indexed approved);
 
     event Referral(
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
