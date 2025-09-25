@@ -30,6 +30,7 @@ interface IBaseVault {
     event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
     event DelegatorInfoUpdateIntervalChanged(uint256 indexed newInterval);
     event MinUserWithdrawAmountUpdated(uint256 indexed newAmount);
+    event EpochSecondsUpdated(uint256 indexed newEpochSeconds);
 
     function initiateValidatorRemoval(uint64 valId) external;
     function setMinUserWithdrawAmount(uint256 amount) external;
@@ -47,4 +48,7 @@ interface IBaseVault {
     function delegatorInfoUpdateInterval() external view returns (uint256);
     function refreshCacheCheck() external;
     function refreshCache() external;
+    function epochSeconds() external view returns (uint256);
+    function lastRebalanceTimestamp() external view returns (uint256);
+    function finishedLastRebalance() external view returns (bool);
 }

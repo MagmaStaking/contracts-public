@@ -31,12 +31,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     /// @custom:storage-location erc7201:storage.GVault
     struct GVaultStorage {
-        /// @dev Timestamp of the last admin rebalance operation
-        uint256 _lastRebalanceTimestamp;
-        /// @dev Duration in seconds between allowed operations (currently unused but kept for consistency)
-        uint256 _epochSeconds;
-        /// @dev Flag indicating if the last admin rebalance has completed both phases
-        bool _finishedLastRebalance;
         /// @dev Default cap as percentage of total Magma assets in basis points (25 = 0.25%)
         uint256 _defaultCapBps;
         /// @dev High-precision (1e27) cumulative retention multiplier for gVault
@@ -78,11 +72,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function initialize(address _magma, uint256 _epochSeconds) external initializer {
         __ReentrancyGuard_init();
-        __VaultBase_init(_magma);
-        GVaultStorage storage $ = _getGVaultStorage();
-        $._epochSeconds = _epochSeconds;
-        $._finishedLastRebalance = true; // Initialize to true so rebalancing can start
+        __VaultBase_init(_magma, _epochSeconds);
         // initialize multiplier system for proxies (declarations don't run)
+        GVaultStorage storage $ = _getGVaultStorage();
         $._defaultCapBps = 25;
         $._gVaultMultiplierP = 1e27;
         $._gVaultScaleS = 1e27;
@@ -98,18 +90,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         assembly {
             $.slot := _GVaultStorageLocation
         }
-    }
-
-    function lastRebalanceTimestamp() external view returns (uint256) {
-        return _getGVaultStorage()._lastRebalanceTimestamp;
-    }
-
-    function epochSeconds() external view returns (uint256) {
-        return _getGVaultStorage()._epochSeconds;
-    }
-
-    function finishedLastRebalance() external view returns (bool) {
-        return _getGVaultStorage()._finishedLastRebalance;
     }
 
     function defaultCapBps() external view returns (uint256) {
@@ -369,8 +349,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _bps The basis points to undelegate (e.g., 1000 = 10%)
      */
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
+        if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         GVaultStorage storage $ = _getGVaultStorage();
-        if (!$._finishedLastRebalance) revert ErrRebalanceInProgress();
 
         if (_bps > BASE_BPS) revert ErrInvalidBps();
 
@@ -400,7 +380,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
         uint64[] memory _list = getValidators();
         uint256 n = _list.length;
-        $._finishedLastRebalance = false; // Mark rebalance as in progress
+        setFinishedLastRebalance(false); // Mark rebalance as in progress
         for (uint256 i = 0; i < n; ++i) {
             uint64 v = _list[i];
             // Decode vault-level delegation from precompile
@@ -417,7 +397,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             }
         }
         emit AdminInitiatedRebalance(_bps);
-        $._lastRebalanceTimestamp = block.timestamp;
+        setLastRebalanceTimestamp(block.timestamp);
     }
 
     /**
@@ -447,7 +427,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_delta > 0) {
             ICoreVault(magma().coreVault()).delegate{value: _delta}();
         }
-        _getGVaultStorage()._finishedLastRebalance = true; // Mark rebalance as completed
+        setFinishedLastRebalance(true); // Mark rebalance as completed
         emit AdminCompletedRebalance(_delta);
     }
 
