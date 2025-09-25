@@ -5,6 +5,8 @@
         "use-natspec": "off",
         "no-unused-vars": "error",
         "no-inline-assembly": "off",
-        "import-path-check": "off"
+        "import-path-check": "off",
+        "function-max-lines": "off",
+        "gas-strict-inequalities": "off"
     }
 }
