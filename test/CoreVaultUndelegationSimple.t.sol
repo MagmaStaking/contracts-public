@@ -64,7 +64,8 @@ contract CoreVaultUndelegationSimpleTest is Test {
                     rewardsFee: 10,
                     withdrawalFee: 0,
                     feeReceiver: admin,
-                    redeemDelay: uint256(0)
+                    redeemDelay: uint256(0),
+                    mevRewardsInjector: admin
                 })
             )
         );

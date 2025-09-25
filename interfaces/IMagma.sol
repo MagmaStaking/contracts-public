@@ -10,4 +10,6 @@ interface IMagma {
     function rewardsFee() external view returns (uint256);
     function totalAssets() external view returns (uint256);
     function withdrawalFee() external view returns (uint256);
+    function mevRewardsInjector() external view returns (address);
+    function setMevRewardsInjector(address _mevRewardsInjector) external;
 }

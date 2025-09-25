@@ -52,6 +52,8 @@ contract Magma is
         /// @notice The fee for withdrawals.
         /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
         uint256 _withdrawalFee;
+        /// @notice The address authorized to inject MEV rewards.
+        address _mevRewardsInjector;
         mapping(address owner => bool) _ownerRequested;
         // Mapping from controller to their pending withdrawal requests
         mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
@@ -82,6 +84,7 @@ contract Magma is
         uint256 withdrawalFee;
         address feeReceiver;
         uint256 redeemDelay;
+        address mevRewardsInjector;
     }
 
     // ERC-7540 Asynchronous redemption Vault Interface ID
@@ -137,6 +140,7 @@ contract Magma is
         $._withdrawalFee = params.withdrawalFee;
         $._feeReceiver = params.feeReceiver;
         $._redeemDelay = params.redeemDelay;
+        $._mevRewardsInjector = params.mevRewardsInjector;
     }
 
     /**
@@ -191,6 +195,10 @@ contract Magma is
 
     function withdrawalFee() public view returns (uint256) {
         return _getMagmaStorage()._withdrawalFee;
+    }
+
+    function mevRewardsInjector() public view returns (address) {
+        return _getMagmaStorage()._mevRewardsInjector;
     }
 
     function totalAssets() public view virtual override returns (uint256) {
@@ -504,6 +512,10 @@ contract Magma is
     function setRedeemDelay(uint256 _redeemDelay) external onlyAdmin {
         _getMagmaStorage()._redeemDelay = _redeemDelay;
         emit RedeemDelayUpdated(_redeemDelay);
+    }
+
+    function setMevRewardsInjector(address _mevRewardsInjector) external onlyAdmin {
+        _getMagmaStorage()._mevRewardsInjector = _mevRewardsInjector;
     }
 
     /**

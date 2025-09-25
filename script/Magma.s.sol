@@ -23,6 +23,9 @@ contract MagmaScript is Script {
         address feeReceiverAddress = vm.envAddress("FEE_RECEIVER");
         require(feeReceiverAddress != address(0), "missing FEE_RECEIVER");
 
+        address mevRewardsInjectorAddress = vm.envAddress("MEV_REWARDS_INJECTOR");
+        require(mevRewardsInjectorAddress != address(0), "missing MEV_REWARDS_INJECTOR");
+
         // Based on 250 parallel withdraws per 25,000 second epoch
         uint256 delay = 25000 / 250;
         uint256 epoch = 25000;
@@ -42,7 +45,8 @@ contract MagmaScript is Script {
                     rewardsFee: 0,
                     withdrawalFee: 0,
                     feeReceiver: feeReceiverAddress,
-                    redeemDelay: delay
+                    redeemDelay: delay,
+                    mevRewardsInjector: mevRewardsInjectorAddress
                 })
             )
         );
