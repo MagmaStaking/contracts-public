@@ -22,7 +22,7 @@ import {
     ErrNotWhitelisted
 } from "./MagmaErrorsModule.sol";
 
-// TODO: check all functions have a maximum of _getVaultBaseStorage();
+// TODO: check all functions have a maximum of _getVaultBaseStorage() and struct ordered
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
@@ -33,6 +33,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _minUserWithdrawAmount;
         /// @dev Total pending redelegation across all validators
         uint256 _totalPendingRedelegation;
+        /// @dev Total pending user withdrawals across all validators
+        uint256 _totalPendingUndelegations;
         /// @dev Per-validator withdrawal ID bitmap management (tracks IDs 0-254 for users, 255 for admin)
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
@@ -68,8 +70,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
     mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
-    /// @dev Total pending user withdrawals across all validators
-    uint256 public override totalPendingUndelegations;
 
     /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
@@ -118,6 +118,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function magma() public view returns (IMagma) {
         return _getVaultBaseStorage()._magma;
+    }
+
+    function totalPendingUndelegations() public view returns (uint256) {
+        return _getVaultBaseStorage()._totalPendingUndelegations;
+    }
+
+    function setTotalPendingUndelegations(uint256 _totalPendingUndelegations) internal {
+        _getVaultBaseStorage()._totalPendingUndelegations = _totalPendingUndelegations;
     }
 
     function totalPendingRedelegation() public view returns (uint256) {
@@ -477,8 +485,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             }
 
             // Update global pending undelegations (handle potential underflow)
-            totalPendingUndelegations =
-                (_availableAmount > totalPendingUndelegations) ? 0 : (totalPendingUndelegations - _availableAmount);
+            $._totalPendingUndelegations = (_availableAmount > $._totalPendingUndelegations)
+                ? 0
+                : ($._totalPendingUndelegations - _availableAmount);
 
             // Mark withdrawal ID as completed and available for reuse
             _markWithdrawalCompleted(_valId, _withdrawalId);

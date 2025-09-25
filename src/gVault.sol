@@ -292,7 +292,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
             // Track pending; do not lower local delegated until completion
             pendingUndelegateByValidator[_valId] += _amount;
-            totalPendingUndelegations += _amount;
+            setTotalPendingUndelegations(totalPendingUndelegations() + _amount);
 
             // Track undelegation for caching
             _trackCachedUndelegation(_amount);

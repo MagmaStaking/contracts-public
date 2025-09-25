@@ -273,7 +273,7 @@ contract CoreVault is
             }
         }
 
-        totalPendingUndelegations += _amount;
+        setTotalPendingUndelegations(totalPendingUndelegations() + _amount);
         _trackCachedUndelegation(_amount);
 
         // If we couldn't fulfill the full amount, revert
