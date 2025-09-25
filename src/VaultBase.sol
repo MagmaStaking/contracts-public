@@ -246,7 +246,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
         // Fetch and cache delegator info for each active validator
         uint64[] memory _validators = getValidators();
-        for (uint256 _i = 0; _i < _validators.length; _i++) {
+        for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _valId = _validators[_i];
             DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
             $._cachedDelegatorInfo[_valId] = _delInfo;

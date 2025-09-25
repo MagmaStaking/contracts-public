@@ -577,7 +577,7 @@ contract CoreVault is
             _delegate(_firstValId, _remainingAmount);
             _remainingAmount = 0;
         } else {
-            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; ++_i) {
                 uint64 _valId = _sortedValidators[_i].valId;
 
                 // Check if request exceeds 1/20th of total active stake
