@@ -244,7 +244,7 @@ contract CoreVault is
         if (validators.length == 0) revert ErrNoValidators();
 
         // only one withdrawal per user
-        if (userWithdrawalRequests[_user].length > 0) revert ErrExistingWithdrawalInProgress();
+        if (userWithdrawalRequests(_user).length > 0) revert ErrExistingWithdrawalInProgress();
 
         // Get validators sorted by stake (highest first) and total stake in one go
         (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
@@ -627,7 +627,7 @@ contract CoreVault is
      * @return Array of withdrawal request information
      */
     function getUserWithdrawalRequests(address _user) external view returns (WithdrawalRequestInfo[] memory) {
-        return userWithdrawalRequests[_user];
+        return userWithdrawalRequests(_user);
     }
 
     /**
@@ -641,8 +641,9 @@ contract CoreVault is
         view
         returns (WithdrawalRequestInfo memory)
     {
-        if (_index >= userWithdrawalRequests[_user].length) revert ErrInvalidAmount(_index);
-        return userWithdrawalRequests[_user][_index];
+        WithdrawalRequestInfo[] memory requests = userWithdrawalRequests(_user);
+        if (_index >= requests.length) revert ErrInvalidAmount(_index);
+        return requests[_index];
     }
 
     /**
@@ -651,7 +652,7 @@ contract CoreVault is
      * @return The total count of withdrawal requests for the user
      */
     function getUserWithdrawalRequestCount(address _user) external view returns (uint256) {
-        return userWithdrawalRequests[_user].length;
+        return userWithdrawalRequests(_user).length;
     }
 
     /**

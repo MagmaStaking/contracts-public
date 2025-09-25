@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import "./BaseTest.t.sol";
 import {DelInfo} from "../src/MagmaDelegationModule.sol";
+import {VaultBase} from "../src/VaultBase.sol";
 
 contract MagmaCacheTest is BaseTest {
     uint256 constant DEFAULT_CACHE_INTERVAL = 1 hours;
@@ -124,17 +125,15 @@ contract MagmaCacheTest is BaseTest {
         uint256 totalWithdrawalAmount = 0;
         uint256 requestCount = 0;
 
-        // Count withdrawal requests until we hit an empty one
-        for (uint256 i = 0; i < 10; i++) {
-            try coreVault.userWithdrawalRequests(user, i) returns (uint256 amount, uint64 validator, uint8) {
-                if (amount == 0) break;
-                totalWithdrawalAmount += amount;
-                requestCount++;
-                assertGt(validator, 0, "Should have valid validator ID");
-                // Note: withdrawalId can be 0 in some cases, so we don't assert on it
-            } catch {
-                break;
-            }
+        // Get all withdrawal requests for the user
+        VaultBase.WithdrawalRequestInfo[] memory requests = coreVault.userWithdrawalRequests(user);
+        requestCount = requests.length;
+
+        // Sum up withdrawal amounts and validate
+        for (uint256 i = 0; i < requests.length; i++) {
+            totalWithdrawalAmount += requests[i].amount;
+            assertGt(requests[i].validator, 0, "Should have valid validator ID");
+            // Note: withdrawalId can be 0 in some cases, so we don't assert on it
         }
 
         assertEq(totalWithdrawalAmount, undelegateAmount, "Total withdrawal amount should match requested amount");

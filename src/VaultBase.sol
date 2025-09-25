@@ -56,6 +56,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 valId => DelInfo delInfo) _cachedDelegatorInfo;
         /// @dev Current status of each validator in the removal process lifecycle
         mapping(uint64 => ValidatorStatus) _validatorStatus;
+        /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
+        mapping(address => WithdrawalRequestInfo[]) _userWithdrawalRequests;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -77,9 +79,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Active validator list (validators available for delegation)
     uint64[] public validators;
-
-    /// @dev Storage for user withdrawal requests: each user can have multiple pending withdrawals
-    mapping(address => WithdrawalRequestInfo[]) public userWithdrawalRequests;
 
     modifier onlyAdmin() {
         if (msg.sender != _getVaultBaseStorage()._magma.admin()) revert ErrNotAdmin();
@@ -175,6 +174,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function validatorStatus(uint64 valId) external view returns (ValidatorStatus) {
         return _getVaultBaseStorage()._validatorStatus[valId];
+    }
+
+    function userWithdrawalRequests(address user) public view returns (WithdrawalRequestInfo[] memory) {
+        return _getVaultBaseStorage()._userWithdrawalRequests[user];
     }
 
     /**
@@ -438,7 +441,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _withdrawalId The withdrawal ID assigned
      */
     function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
-        userWithdrawalRequests[_user].push(
+        _getVaultBaseStorage()._userWithdrawalRequests[_user].push(
             WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
     }
@@ -493,10 +496,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         internal
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
     {
-        WithdrawalRequestInfo[] storage _userRequests = userWithdrawalRequests[_user];
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        WithdrawalRequestInfo[] storage _userRequests = $._userWithdrawalRequests[_user];
         if (_userRequests.length == 0) revert ErrNoPendingWithdrawRequest();
 
-        VaultBaseStorage storage $ = _getVaultBaseStorage();
         _totalWithdrawn = 0;
         _totalWithdrawnAfterFee = 0;
         uint256 _totalSuccessfulWithdrawals = 0;
@@ -547,7 +550,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         }
 
         // Clear all withdrawal requests for this user after processing
-        delete userWithdrawalRequests[_user];
+        delete $._userWithdrawalRequests[_user];
 
         emit UserWithdrawalCompleted(_user, _totalWithdrawnAfterFee);
     }
