@@ -25,7 +25,6 @@ import {
     ErrInvalidAmount,
     ErrNotAdmin,
     ErrNotAuthorized
-
 } from "./MagmaErrorsModule.sol";
 
 contract CoreVault is
@@ -240,7 +239,7 @@ contract CoreVault is
 
             // Calculate amount to withdraw from this validator (min of needed, allowed, and available)
             uint256 _amountFromValidator = _remainingAmount;
-            
+
             if (_amountFromValidator > _maxAllowedFromValidator) {
                 _amountFromValidator = _maxAllowedFromValidator; // Respect the 5% limit per validator
             }
