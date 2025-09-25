@@ -4,11 +4,8 @@ pragma solidity 0.8.30;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
-import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -21,7 +18,6 @@ import {
     ErrBelowMinWithdraw,
     ErrInsufficientDelegated,
     ErrRebalanceInProgress,
-    ErrNotAdmin,
     ErrNotAuthorized,
     ErrZeroAmount
 } from "./MagmaErrorsModule.sol";

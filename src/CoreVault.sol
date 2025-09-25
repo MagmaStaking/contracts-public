@@ -8,7 +8,6 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {VaultBase} from "./VaultBase.sol";
 
 import {
@@ -23,7 +22,6 @@ import {
     ErrInsufficientDelegated,
     ErrZeroAmount,
     ErrInvalidAmount,
-    ErrNotAdmin,
     ErrNotAuthorized
 } from "./MagmaErrorsModule.sol";
 
