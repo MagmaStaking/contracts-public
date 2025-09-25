@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {ErrZeroAssets, ErrDelegateFailed, ErrUndelegateFailed, ErrWithdrawalFailed} from "./MagmaErrorsModule.sol";
 import {IMonadStaking} from "../interfaces/IMonadStaking.sol";
@@ -48,11 +48,6 @@ abstract contract MagmaDelegationModule {
     function _withdraw(uint64 valId, uint8 withdrawalId) internal {
         bool success = STAKING.withdraw(valId, withdrawalId);
         if (!success) revert ErrWithdrawalFailed(valId, withdrawalId);
-    }
-
-    function _compound(uint64 valId) internal {
-        bool success = STAKING.compound(valId);
-        if (!success) revert ErrDelegateFailed();
     }
 
     function _claim(uint64 valId) internal {

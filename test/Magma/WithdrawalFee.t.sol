@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {MagmaAsyncModuleTest} from "./index.t.sol";
@@ -7,11 +8,12 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
-import {MagmaBase} from "src/MagmaBase.sol";
 import {Magma} from "src/Magma.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import "src/MagmaErrorsModule.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";
+
+import {IBaseVault} from "interfaces/IBaseVault.sol";
 
 contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
     function setUp() public override {
@@ -27,15 +29,14 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         uint256 assetsBefore = magma.totalAssets();
 
         // Assertions before redeem
-        (address owner, uint256 pendingShares, uint256 pendingAssets,, bool isGVault) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(user, owner);
-        assertEq(shares, pendingShares);
-        assertEq(assets, pendingAssets);
-        assertEq(false, isGVault);
+        Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(user, redeemData.owner);
+        assertEq(shares, redeemData.shares);
+        assertEq(assets, redeemData.assets);
+        assertEq(false, redeemData.isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assetsAfterFee);
         vm.expectEmit(true, true, true, true);
@@ -47,12 +48,11 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(assetsAfterFee, magma.redeem(requestId, user, user));
 
         // 7540 vault assertions
-        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(address(0), _owner);
-        assertEq(0, _shares);
-        assertEq(0, _assets);
-        assertEq(0, _claimableTime);
+        Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(address(0), redeemDataAfter.owner);
+        assertEq(0, redeemDataAfter.shares);
+        assertEq(0, redeemDataAfter.assets);
+        assertEq(0, redeemDataAfter.claimableTime);
 
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets(), "Assets before should equal magma total assets");
@@ -74,15 +74,14 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         uint256 assetsBefore = magma.totalAssets();
 
         // Assertions before redeem
-        (address owner, uint256 pendingShares, uint256 pendingAssets,, bool isGVault) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(user, owner);
-        assertEq(shares, pendingShares);
-        assertEq(assets, pendingAssets);
-        assertEq(true, isGVault);
+        Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(user, redeemData.owner);
+        assertEq(shares, redeemData.shares);
+        assertEq(assets, redeemData.assets);
+        assertEq(true, redeemData.isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit WrappedMonad.Deposit(address(magma), assetsAfterFee);
         vm.expectEmit(true, true, true, true);
@@ -94,12 +93,11 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(assetsAfterFee, magma.redeem(requestId, user, user));
 
         // 7540 vault assertions
-        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(address(0), _owner);
-        assertEq(0, _shares);
-        assertEq(0, _assets);
-        assertEq(0, _claimableTime);
+        Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(address(0), redeemDataAfter.owner);
+        assertEq(0, redeemDataAfter.shares);
+        assertEq(0, redeemDataAfter.assets);
+        assertEq(0, redeemDataAfter.claimableTime);
 
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
@@ -126,15 +124,14 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         uint256 assetsBefore = magma.totalAssets();
 
         // Assertions before redeem
-        (address owner, uint256 pendingShares, uint256 pendingAssets,, bool isGVault) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(user, owner);
-        assertEq(shares, pendingShares);
-        assertEq(assets, pendingAssets);
-        assertEq(false, isGVault);
+        Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(user, redeemData.owner);
+        assertEq(shares, redeemData.shares);
+        assertEq(assets, redeemData.assets);
+        assertEq(false, redeemData.isGVault);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, assetsAfterFee);
+        emit IBaseVault.UserWithdrawalCompleted(user, assetsAfterFee);
         vm.expectEmit(true, true, true, true);
         emit IERC4626.Withdraw(user, user, address(magma), assetsAfterFee, shares);
 
@@ -142,12 +139,11 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(assetsAfterFee, magma.redeemMON(requestId, user, user));
 
         // 7540 vault assertions
-        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(address(0), _owner);
-        assertEq(0, _shares);
-        assertEq(0, _assets);
-        assertEq(0, _claimableTime);
+        Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(address(0), redeemDataAfter.owner);
+        assertEq(0, redeemDataAfter.shares);
+        assertEq(0, redeemDataAfter.assets);
+        assertEq(0, redeemDataAfter.claimableTime);
 
         assertEq(0, magma.balanceOf(address(magma)));
         assertEq(assetsBefore, magma.totalAssets());
@@ -171,15 +167,15 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         uint256 sharesAfterSlash = magma.convertToShares(assets / 2);
 
         // Assertions before redeem
-        (address owner, uint256 pendingShares, uint256 pendingAssets,,) = magma.pendingRedeemRequests(user, requestId);
-        assertEq(user, owner);
-        assertEq(shares, pendingShares);
-        assertEq(assets, pendingAssets);
+        Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(user, redeemData.owner);
+        assertEq(shares, redeemData.shares);
+        assertEq(assets, redeemData.assets);
 
         MockStakingPrecompile(STAKING_PRECOMPILE).setSlashDivider(2);
 
         vm.expectEmit(true, true, true, true);
-        emit UserWithdrawalCompleted(user, expectedAssets);
+        emit IBaseVault.UserWithdrawalCompleted(user, expectedAssets);
         vm.expectEmit(true, true, true, true);
         emit IERC20.Transfer(address(0), user, shares - sharesAfterSlash);
         vm.expectEmit(true, true, true, true);
@@ -193,12 +189,11 @@ contract MagmaAsyncModuleWithdrawalFeeTest is MagmaAsyncModuleTest {
         assertEq(expectedAssets, magma.redeem(requestId, user, user));
 
         // 7540 vault assertions
-        (address _owner, uint256 _shares, uint256 _assets, uint256 _claimableTime,) =
-            magma.pendingRedeemRequests(user, requestId);
-        assertEq(address(0), _owner);
-        assertEq(0, _shares);
-        assertEq(0, _assets);
-        assertEq(0, _claimableTime);
+        Magma.RedeemRequests memory _redeemData = magma.pendingRedeemRequestData(requestId, user);
+        assertEq(address(0), _redeemData.owner);
+        assertEq(0, _redeemData.shares);
+        assertEq(0, _redeemData.assets);
+        assertEq(0, _redeemData.claimableTime);
 
         assertEq(0, magma.balanceOf(address(magma)), "shares of magma should be 0");
         assertEq(assetsBefore, magma.totalAssets(), "total assets should be same as before");

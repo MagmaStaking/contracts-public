@@ -1,12 +1,12 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {MagmaAsyncModuleTest} from "./index.t.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {WrappedMonad} from "monad/WrappedMonad.sol";
-import {MagmaBase} from "src/MagmaBase.sol";
 import {ICoreVault} from "interfaces/ICoreVault.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {MockStakingPrecompile} from "../mock/MockStakingPrecompile.sol";

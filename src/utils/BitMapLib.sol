@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
-
-import {ErrNoFreeWithdrawalId} from "../MagmaErrorsModule.sol";
+pragma solidity 0.8.30;
 
 /**
  * @title BitMapLib
@@ -28,8 +26,8 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
-        _allocateADMIN_WID(bitMap);
+    function allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
+        _allocateAdminWid(bitMap);
     }
 
     /**
@@ -64,38 +62,6 @@ library BitMapLib {
     }
 
     /**
-     * @dev Get the current bitmap value
-     * @param bitMap The bitmap storage reference
-     * @return The 256-bit bitmap value
-     */
-    function getBitmap(WithdrawalBitMap storage bitMap) internal view returns (uint256) {
-        return bitMap.bitmap;
-    }
-
-    /**
-     * @dev Get the next withdrawal ID cursor
-     * @param bitMap The bitmap storage reference
-     * @return The next withdrawal ID cursor
-     */
-    function getNextWithdrawalId(WithdrawalBitMap storage bitMap) internal view returns (uint8) {
-        return bitMap.nextWithdrawalId;
-    }
-
-    /**
-     * @dev Count the number of withdrawal IDs currently in use
-     * @param bitMap The bitmap storage reference
-     * @return count The number of bits set in the bitmap
-     */
-    function countInUse(WithdrawalBitMap storage bitMap) internal view returns (uint256 count) {
-        uint256 bitmap = bitMap.bitmap;
-        // Brian Kernighan's algorithm to count set bits
-        while (bitmap != 0) {
-            bitmap &= bitmap - 1; // Clear the lowest set bit
-            count++;
-        }
-    }
-
-    /**
      * @dev Internal function to allocate a free withdrawal ID, skipping the specified reserved ID
      * @param bitMap The bitmap storage reference
      * @param reservedId The reserved ID to skip during allocation
@@ -107,7 +73,7 @@ library BitMapLib {
         uint8 start = bitMap.nextWithdrawalId;
 
         // Find first free slot starting from cursor
-        for (uint16 i = 0; i < 256; i++) {
+        for (uint16 i = 0; i < 256; ++i) {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == reservedId) continue;
 
@@ -127,7 +93,7 @@ library BitMapLib {
      * @dev Mark ADMIN_WID as reserved
      * @param bitMap The bitmap storage reference
      */
-    function _allocateADMIN_WID(WithdrawalBitMap storage bitMap) internal {
+    function _allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
         uint256 adminMask = 1 << ADMIN_WID;
         bitMap.bitmap |= adminMask;
     }

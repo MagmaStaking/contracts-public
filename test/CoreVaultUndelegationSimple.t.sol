@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -53,7 +54,18 @@ contract CoreVaultUndelegationSimpleTest is Test {
             magmaImpl,
             abi.encodeCall(
                 Magma.initialize,
-                (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, uint256(0))
+                Magma.InitializeParams({
+                    asset: IERC20(address(wmon)),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: admin,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 10,
+                    withdrawalFee: 0,
+                    feeReceiver: admin,
+                    redeemDelay: uint256(0)
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -102,13 +114,9 @@ contract CoreVaultUndelegationSimpleTest is Test {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val2, address(coreVault), 300 ether); // High stake
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val3, address(coreVault), 200 ether); // Medium stake
 
-        // Verify stakes are set correctly
-        console.log("Val 1 stake:", coreVault.delegatedAmount(val1));
-        console.log("Val 2 stake:", coreVault.delegatedAmount(val2));
-        console.log("Val 3 stake:", coreVault.delegatedAmount(val3));
-
         // Test: Alice makes a withdrawal
         uint256 withdrawAmount = 50 ether;
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(withdrawAmount, alice);
 
@@ -120,7 +128,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
         uint256 totalWithdrawn = 0;
         for (uint256 i = 0; i < requests.length; i++) {
             totalWithdrawn += requests[i].amount;
-            console.log("Request %d - Validator: %d Amount: %d", i, requests[i].validator, requests[i].amount);
         }
         assertEq(totalWithdrawn, withdrawAmount, "Total withdrawn should match requested");
 
@@ -144,6 +151,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         coreVault.addValidator(val1);
 
         // Alice makes first withdrawal (use smaller amount within available active stake)
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(3 ether, alice);
 
@@ -161,6 +169,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         coreVault.addValidator(val1);
 
         // Alice withdraws (use smaller amount within available active stake)
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(8 ether, alice);
 
@@ -196,10 +205,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
         vm.prank(admin);
         freshCoreVault.addValidator(val1);
 
-        // Check what the actual available stake is after rebalancing
-        uint256 actualStake = freshCoreVault.delegatedAmount(val1);
-        console.log("Actual stake after rebalancing: %d", actualStake);
-
         // Try to withdraw more than available - expect revert with actual available amount
         vm.prank(address(magma));
         vm.expectRevert(); // Just expect insufficient delegated error, don't check exact amounts due to rebalancing
@@ -220,6 +225,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
 
         // Total stake = 600 ether, 1/20th = 30 ether
         uint256 onetwentiethAmount = 30 ether;
+        magma.refreshCache();
 
         // Should succeed
         vm.prank(address(magma));
@@ -266,7 +272,7 @@ contract CoreVaultUndelegationSimpleTest is Test {
         MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(coreVault), 100 ether);
         vm.prank(admin);
         coreVault.addValidator(val1);
-
+        magma.refreshCache();
         // Make withdrawal (use smaller amount within available active stake)
         vm.prank(address(magma));
         coreVault.undelegate(4 ether, alice);

@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -15,6 +16,8 @@ import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
 contract BaseTest is Test {
     address public admin;
     address public user;
+    uint256 public constant DELAY = 25000 / 250;
+    uint256 public constant EPOCH = 0; // Disable EPOCH guard for testing
 
     WrappedMonad public wmon;
     Magma public magma;
@@ -28,8 +31,6 @@ contract BaseTest is Test {
     function setUp() public virtual {
         admin = address(0xA11CE);
         user = address(0xB0B);
-        uint256 delay = 25000 / 250;
-        uint256 epoch = 0; // Disable epoch guard for testing
 
         // Deploy mock staking precompile at the expected address
         stakingPrecompile = new MockStakingPrecompile();
@@ -50,7 +51,18 @@ contract BaseTest is Test {
             magmaImpl,
             abi.encodeCall(
                 Magma.initialize,
-                (IERC20(address(wmon)), "gMON", "gMON", admin, address(0), address(0), 10, 0, admin, delay)
+                Magma.InitializeParams({
+                    asset: IERC20(address(wmon)),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: admin,
+                    coreVault: address(0),
+                    gVault: address(0),
+                    rewardsFee: 10,
+                    withdrawalFee: 0,
+                    feeReceiver: admin,
+                    redeemDelay: DELAY
+                })
             )
         );
         magma = Magma(payable(magmaProxy));
@@ -58,14 +70,14 @@ contract BaseTest is Test {
         // CoreVault
         address coreImpl = address(new CoreVault());
         address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), epoch, uint64(10)))
+            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), EPOCH, uint64(10)))
         );
         coreVault = CoreVault(payable(coreProxy));
 
         // gVault
         address gvImpl = address(new gVault());
         address gvProxy =
-            UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), epoch)));
+            UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), EPOCH)));
         gvault = gVault(payable(gvProxy));
 
         // Wire magma vault refs
@@ -77,7 +89,7 @@ contract BaseTest is Test {
         _setupValidatorInStakingPrecompile(1);
         _setupValidatorInStakingPrecompile(2);
 
-        // Advance epoch to activate the initial validator stakes
+        // Advance EPOCH to activate the initial validator stakes
         _advanceEpoch();
 
         // Then add them to the CoreVault
@@ -130,7 +142,7 @@ contract BaseTest is Test {
 
     // Helper to activate delegated stakes after deposits
     function _activateDelegatedStakes() internal {
-        // Advance epoch to activate any pending delegations
+        // Advance EPOCH to activate any pending delegations
         _advanceEpoch();
 
         // Manually set delegator stakes to match what should be delegated
@@ -175,6 +187,8 @@ contract BaseTest is Test {
                 );
             }
         }
+
+        skip(8 hours);
     }
 
     // Helper to advance multiple epochs and wait for withdrawals to mature

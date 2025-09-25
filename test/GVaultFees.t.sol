@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {BaseTest} from "./BaseTest.t.sol";
 import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
@@ -46,6 +47,9 @@ contract GVaultRewardsTest is BaseTest {
     }
 
     function testWithdrawalsFeeIsCharged() public {
+        // Initialize cache before operations that depend on totalAssets()
+        magma.refreshCache();
+
         // Configure withdrawal fee and receiver as admin
         vm.startPrank(admin);
         magma.setWithdrawalFee(100); // 100 per 10_000 = 1%
@@ -82,10 +86,10 @@ contract GVaultRewardsTest is BaseTest {
         uint256 shares = magma.balanceOf(user);
         uint256 sharesToRedeem = shares / 20;
         vm.prank(user);
-        uint256 requestId = magma.requestRedeemGVault(sharesToRedeem, user, user, VAL_1);
+        magma.requestRedeemGVault(sharesToRedeem, user, user, VAL_1);
 
         // Wait for async delay and withdrawal maturity in the mock
-        vm.warp(block.timestamp + magma.redeemDelay());
+        vm.warp(block.timestamp + DELAY);
         _advanceEpochsForWithdrawal();
 
         // Balances before completion

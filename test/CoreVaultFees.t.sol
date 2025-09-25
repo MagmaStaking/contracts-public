@@ -1,5 +1,6 @@
+/* solhint-disable */
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.30;
 
 import {BaseTest} from "./BaseTest.t.sol";
 import {MockStakingPrecompile} from "./mock/MockStakingPrecompile.sol";
@@ -76,10 +77,10 @@ contract CoreVaultRewardsTest is BaseTest {
         uint256 shares = magma.balanceOf(user);
         uint256 sharesToRedeem = shares / 20;
         vm.prank(user);
-        uint256 requestId = magma.requestRedeem(sharesToRedeem, user, user);
+        magma.requestRedeem(sharesToRedeem, user, user);
 
         // Wait for async delay and withdrawal maturity in the mock
-        vm.warp(block.timestamp + magma.redeemDelay());
+        vm.warp(block.timestamp + DELAY);
         _advanceEpochsForWithdrawal();
 
         // Balances before completion
