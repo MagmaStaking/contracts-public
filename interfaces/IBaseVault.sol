@@ -30,6 +30,7 @@ interface IBaseVault {
     event RewardsFeeTransferSuccess(uint256 indexed amount, address indexed receiver);
     event DelegatorInfoUpdateIntervalChanged(uint256 indexed newInterval);
     event MinUserWithdrawAmountUpdated(uint256 indexed newAmount);
+    event EpochSecondsUpdated(uint256 indexed newEpochSeconds);
 
     function initiateValidatorRemoval(uint64 valId) external;
     function setMinUserWithdrawAmount(uint256 amount) external;

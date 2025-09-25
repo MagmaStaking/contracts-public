@@ -322,6 +322,11 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         emit DelegatorInfoUpdateIntervalChanged(_interval);
     }
 
+    function setEpochSeconds(uint256 _epochSeconds) external onlyAdmin {
+        _getVaultBaseStorage()._epochSeconds = _epochSeconds;
+        emit EpochSecondsUpdated(_epochSeconds);
+    }
+
     /**
      * @notice Calculate and charge withdrawal fees
      * @dev Calculates withdrawal fee based on protocol fee rate and sends it to fee receiver
