@@ -1,0 +1,54 @@
+# Compiler files
+cache/
+out/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+/broadcast/Magma.s.sol/10143
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+
+# Node modules
+node_modules/
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+coverage/
+lcov.info
+
+# Gas reports
+gas-report.txt
+
+# Foundry artifacts
+artifacts/
+
+# Local environment
+.local/
+
+# Temporary files
+*.tmp
+*.temp
+/test
+env.sample
+/upgrades
+.claude/
+.cursor/
+.github/
+.vscode/
+.cursor/rules/camel-case.mdc
+.cursor/rules/magma-errors.mdc
+.github/workflows/forge-fmt-solhint-test.yml
