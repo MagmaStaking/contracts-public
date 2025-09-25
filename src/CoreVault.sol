@@ -454,7 +454,6 @@ contract CoreVault is
         // Step 4: Update timestamp and mark rebalance as finished
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         $._lastRebalanceTimestamp = block.timestamp;
-        $._finishedLastRebalance = true;
     }
 
     /**
