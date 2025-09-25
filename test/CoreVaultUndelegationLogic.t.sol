@@ -979,6 +979,7 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 beforeTinyTotalAssets = coreVault.totalAssets();
         uint256 beforeTinyPendingUndelegations = coreVault.totalPendingUndelegations();
 
+        magma.refreshCache();
         vm.prank(address(magma));
         coreVault.undelegate(tinyAmount, alice);
 

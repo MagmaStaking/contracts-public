@@ -38,11 +38,11 @@ contract MagmaCacheTest is BaseTest {
         assertGt(coreVault.lastDelegatorInfoUpdateTimestamp(), 0, "Cache timestamp should be set");
         assertEq(coreVault.cachedTotalAssets(), 100 ether, "Cached assets should equal delegated amount");
 
-        // Check individual validator cache
+        // Check individual validator cache first deposit goes to validator 1
         (uint256 stake1,,,,,,) = coreVault.cachedDelegatorInfo(1);
         (uint256 stake2,,,,,,) = coreVault.cachedDelegatorInfo(2);
-        assertEq(stake1, 50 ether, "Validator 1 should have 50 ether cached");
-        assertEq(stake2, 50 ether, "Validator 2 should have 50 ether cached");
+        assertEq(stake1, 100 ether, "Validator 1 should have 100 ether cached");
+        assertEq(stake2, 0 ether, "Validator 2 should have 0 ether cached");
     }
 
     function test_CacheBecomesStaleAfterInterval() public {
@@ -105,7 +105,7 @@ contract MagmaCacheTest is BaseTest {
         assertEq(initialCachedAssets, 100 ether, "Should have cached 100 ether");
 
         // Test undelegation - this uses _getDelegatorInfoCached internally
-        uint256 undelegateAmount = 10 ether;
+        uint256 undelegateAmount = 3 ether;
         vm.prank(address(magma));
         coreVault.undelegate(undelegateAmount, user);
 

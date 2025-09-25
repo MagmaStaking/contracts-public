@@ -23,7 +23,8 @@ import {
     ErrInsufficientDelegated,
     ErrZeroAmount,
     ErrInvalidAmount,
-    ErrNotAdmin
+    ErrNotAdmin,
+    ErrNotAuthorized
 } from "./MagmaErrorsModule.sol";
 
 contract CoreVault is
@@ -183,7 +184,7 @@ contract CoreVault is
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
         if (_withdrawalAmount > 0) {
-            _distributeAmountEquallyToValidators(_withdrawalAmount);
+            _distributeToNextValidator(_withdrawalAmount);
         }
     }
 
@@ -200,7 +201,7 @@ contract CoreVault is
         if (msg.sender != address(magma) && msg.sender != magma.gVault()) {
             revert ErrNotMagma();
         }
-        _distributeAmountEquallyToValidators(msg.value);
+        _distributeToNextValidator(msg.value);
     }
 
     /**
@@ -238,6 +239,7 @@ contract CoreVault is
 
             // Calculate amount to withdraw from this validator (min of needed, allowed, and available)
             uint256 _amountFromValidator = _remainingAmount;
+
             if (_amountFromValidator > _maxAllowedFromValidator) {
                 _amountFromValidator = _maxAllowedFromValidator; // Respect the 5% limit per validator
             }
@@ -352,7 +354,7 @@ contract CoreVault is
         uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
         uint256 _remaining = _rewards - _fee;
-        _distributeAmountEquallyToValidators(_remaining);
+        _distributeToNextValidator(_remaining);
     }
 
     /**
@@ -361,7 +363,7 @@ contract CoreVault is
      */
     function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal override {
         // Use internal distribution instead of external delegate call
-        _distributeAmountEquallyToValidators(_amount);
+        _distributeToNextValidator(_amount);
     }
 
     /**
@@ -541,10 +543,10 @@ contract CoreVault is
     }
 
     /**
-     * @dev Distributes the specified amount equally among all validators
+     * @dev Distributes the specified amount to the validator with the lowest stake
      * @param _amount The total amount to distribute
      */
-    function _distributeAmountEquallyToValidators(uint256 _amount) internal {
+    function _distributeToNextValidator(uint256 _amount) internal {
         if (validators.length == 0) {
             revert ErrNoValidators();
         }
@@ -552,12 +554,53 @@ contract CoreVault is
             revert ErrZeroAmount();
         }
 
-        uint256 _amountPerValidator = _amount / validators.length;
-        for (uint256 _i = 0; _i < validators.length; ++_i) {
-            _delegate(validators[_i], _amountPerValidator);
+        // Get validators sorted by stake (highest first, then sort lowest) and total stake in one go
+        (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
+            _getSortedValidatorsByActiveStakeDescendingWithTotal();
+        _sort(_sortedValidators);
+
+        uint256 _remainingAmount = _amount;
+        uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
+        if (_totalActiveStake == 0) {
+            // Send everything to the first (lowest-stake) validator
+            uint64 _firstValId = _sortedValidators[0].valId;
+            _delegate(_firstValId, _remainingAmount);
+            _remainingAmount = 0;
+        } else {
+            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+                uint64 _valId = _sortedValidators[_i].valId;
+
+                // Check if request exceeds 1/20th of total active stake
+                uint256 _maxAllowedFromValidator =
+                    _remainingAmount > _onetwentiethThreshold ? _onetwentiethThreshold : _remainingAmount;
+
+                uint256 _amountToValidator = _remainingAmount;
+
+                if (_amountToValidator > _maxAllowedFromValidator && _i < _sortedValidators.length - 1) {
+                    _amountToValidator = _maxAllowedFromValidator;
+                }
+
+                if (_amountToValidator > 0) {
+                    _delegate(_valId, _amountToValidator);
+                    _remainingAmount -= _amountToValidator;
+                }
+            }
         }
 
         _trackCachedDelegation(_amount);
+
+        // If we couldn't fulfill the full amount, deposit remaining to first validator
+        if (_remainingAmount > 0) {
+            uint64 _firstValId = _sortedValidators[0].valId;
+            _delegate(_firstValId, _remainingAmount);
+        }
+    }
+
+    function injectRewards() public payable {
+        if (msg.sender != magma.feeReceiver() && msg.sender != magma.admin()) revert ErrNotAuthorized();
+        if (msg.value == 0) revert ErrZeroAmount();
+        _distributeToNextValidator(msg.value);
+        emit RewardsInjected(msg.value);
     }
 
     /**
