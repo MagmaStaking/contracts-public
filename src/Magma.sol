@@ -36,12 +36,14 @@ contract Magma is
 {
     /// @custom:storage-location erc7201:storage.Magma
     struct MagmaStorage {
+        /// @notice The address that receives the fees.
+        address _feeReceiver;
+        // Admin for Magma, CoreVault validator management, etc
+        address _admin;
+        // Vault contract references (to be set by admin)
+        address _coreVault;
+        address _gVault;
         uint256 _requestIdCount;
-        mapping(address owner => bool) _ownerRequested;
-        // Mapping from controller to their pending withdrawal requests
-        mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
-        // Mapping for operator approvals (ERC-7540)
-        mapping(address controller => mapping(address operator => bool)) _isOperator;
         // Time in seconds a user needs to wait between requestRedeem and redeem to be able to withdraw his stake
         uint256 _redeemDelay;
         /// @notice The fee for rewards.
@@ -50,13 +52,11 @@ contract Magma is
         /// @notice The fee for withdrawals.
         /// @dev The fee is expressed as a bps percentage of the withdrawal amount.
         uint256 _withdrawalFee;
-        /// @notice The address that receives the fees.
-        address _feeReceiver;
-        // Admin for Magma, CoreVault validator management, etc
-        address _admin;
-        // Vault contract references (to be set by admin)
-        address _coreVault;
-        address _gVault;
+        mapping(address owner => bool) _ownerRequested;
+        // Mapping from controller to their pending withdrawal requests
+        mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
+        // Mapping for operator approvals (ERC-7540)
+        mapping(address controller => mapping(address operator => bool)) _isOperator;
     }
 
     /// @notice Struct to track pending redeem requests
@@ -83,6 +83,11 @@ contract Magma is
         address feeReceiver;
         uint256 redeemDelay;
     }
+
+    // ERC-7540 Asynchronous redemption Vault Interface ID
+    bytes4 private constant INTERFACE_ID_ERC7540 = 0x620ee8e4;
+
+    uint256 public constant BASE_BPS = 10_000;
 
     // keccak256(abi.encode(uint256(keccak256("storage.Magma")) - 1)) & ~bytes32(uint256(0xff))
     /* solhint-disable-next-line const-name-snakecase */
@@ -153,8 +158,7 @@ contract Magma is
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
-        // ERC-7540 Asynchronous redemption Vault Interface ID: 0x620ee8e4
-        return interfaceId == 0x620ee8e4 || super.supportsInterface(interfaceId);
+        return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
     }
 
     function admin() public view returns (address) {
@@ -471,12 +475,12 @@ contract Magma is
     }
 
     function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
-        if (_rewardsFee > 10_000) revert ErrInvalidBps();
+        if (_rewardsFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._rewardsFee = _rewardsFee;
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external onlyAdmin {
-        if (_withdrawalFee > 10_000) revert ErrInvalidBps();
+        if (_withdrawalFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._withdrawalFee = _withdrawalFee;
     }
 
