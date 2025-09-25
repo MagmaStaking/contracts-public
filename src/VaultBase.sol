@@ -50,6 +50,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
         /// Only one admin redelegation can be pending per validator at a time
         mapping(uint64 valId => uint256 amount) _pendingRedelegateByValidator;
+        /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
+        mapping(uint64 valId => uint256 amount) _pendingUndelegateByValidator;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -74,9 +76,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     /// @dev Current status of each validator in the removal process lifecycle
     mapping(uint64 => ValidatorStatus) public validatorStatus;
-
-    /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
-    mapping(uint64 valId => uint256 amount) public pendingUndelegateByValidator;
 
     /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
@@ -162,6 +161,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function setPendingRedelegateByValidator(uint64 valId, uint256 amount) internal {
         _getVaultBaseStorage()._pendingRedelegateByValidator[valId] = amount;
+    }
+
+    function pendingUndelegateByValidator(uint64 valId) public view returns (uint256) {
+        return _getVaultBaseStorage()._pendingUndelegateByValidator[valId];
+    }
+
+    function setPendingUndelegateByValidator(uint64 valId, uint256 amount) internal {
+        _getVaultBaseStorage()._pendingUndelegateByValidator[valId] = amount;
     }
 
     /**
@@ -505,10 +512,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
             emit WithdrawalPaymentSuccess(_valId, _withdrawalId, _user, _availableAmount);
 
             // Update pending undelegation tracking (handle potential underflow from slashing)
-            if (pendingUndelegateByValidator[_valId] >= _availableAmount) {
-                pendingUndelegateByValidator[_valId] -= _availableAmount;
+            if (pendingUndelegateByValidator(_valId) >= _availableAmount) {
+                setPendingUndelegateByValidator(_valId, pendingUndelegateByValidator(_valId) - _availableAmount);
             } else {
-                pendingUndelegateByValidator[_valId] = 0; // Prevent underflow if slashed
+                setPendingUndelegateByValidator(_valId, 0); // Prevent underflow if slashed
             }
 
             // Update global pending undelegations (handle potential underflow)

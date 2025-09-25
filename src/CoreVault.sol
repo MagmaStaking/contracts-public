@@ -279,7 +279,7 @@ contract CoreVault is
                 _storeWithdrawalRequest(_user, _amountFromValidator, _valId, _wid);
 
                 // Track pending; do not lower local delegated until completion
-                pendingUndelegateByValidator[_valId] += _amountFromValidator;
+                setPendingUndelegateByValidator(_valId, pendingUndelegateByValidator(_valId) + _amountFromValidator);
                 _remainingAmount -= _amountFromValidator;
             }
         }
