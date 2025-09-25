@@ -71,7 +71,8 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
                 rewardsFee: 0,
                 withdrawalFee: 0,
                 feeReceiver: address(0),
-                redeemDelay: uint256(1)
+                redeemDelay: uint256(1),
+                mevRewardsInjector: admin
             })
         );
 

@@ -61,7 +61,8 @@ contract BaseTest is Test {
                     rewardsFee: 10,
                     withdrawalFee: 0,
                     feeReceiver: admin,
-                    redeemDelay: DELAY
+                    redeemDelay: DELAY,
+                    mevRewardsInjector: admin
                 })
             )
         );
