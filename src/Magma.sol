@@ -41,6 +41,7 @@ contract Magma is
         // Admin for Magma, CoreVault validator management, etc
         address _admin;
         // Vault contract references (to be set by admin)
+        // TODO: event here
         address _coreVault;
         address _gVault;
         uint256 _requestIdCount;
@@ -108,6 +109,13 @@ contract Magma is
     event Referral(
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
     );
+
+    // Configuration update events
+    event AdminUpdated(address indexed newAdmin);
+    event FeeReceiverUpdated(address indexed newFeeReceiver);
+    event RewardsFeeUpdated(uint256 indexed newRewardsFee);
+    event WithdrawalFeeUpdated(uint256 indexed newWithdrawalFee);
+    event RedeemDelayUpdated(uint256 indexed newRedeemDelay);
 
     modifier onlyAdmin() {
         if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
@@ -465,6 +473,7 @@ contract Magma is
     function setAdmin(address newAdmin) external onlyAdmin {
         if (newAdmin == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._admin = newAdmin;
+        emit AdminUpdated(newAdmin);
     }
 
     function setVaults(address _coreVault, address _gVault) external onlyAdmin {
@@ -477,19 +486,23 @@ contract Magma is
     function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
         if (_rewardsFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._rewardsFee = _rewardsFee;
+        emit RewardsFeeUpdated(_rewardsFee);
     }
 
     function setWithdrawalFee(uint256 _withdrawalFee) external onlyAdmin {
         if (_withdrawalFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._withdrawalFee = _withdrawalFee;
+        emit WithdrawalFeeUpdated(_withdrawalFee);
     }
 
     function setFeeReceiver(address _feeReceiver) external onlyAdmin {
         _getMagmaStorage()._feeReceiver = _feeReceiver;
+        emit FeeReceiverUpdated(_feeReceiver);
     }
 
     function setRedeemDelay(uint256 _redeemDelay) external onlyAdmin {
         _getMagmaStorage()._redeemDelay = _redeemDelay;
+        emit RedeemDelayUpdated(_redeemDelay);
     }
 
     /**

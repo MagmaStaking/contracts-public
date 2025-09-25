@@ -279,6 +279,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     function setMinUserWithdrawAmount(uint256 _amount) external onlyAdmin {
         if (_amount >= 10000 ether) revert ErrInvalidAmount(_amount);
         _getVaultBaseStorage()._minUserWithdrawAmount = _amount;
+        emit MinUserWithdrawAmountUpdated(_amount);
     }
 
     /**
