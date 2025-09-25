@@ -151,7 +151,7 @@ contract CoreVault is
      * @dev Batch add validators with gas limit protection, then trigger rebalancing
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
-    function addValidators(uint64[] memory validatorIds) external onlyAdmin onlyAfterEpoch {
+    function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
