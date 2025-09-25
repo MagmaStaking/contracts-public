@@ -47,6 +47,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         mapping(uint64 valId => BitMapLib.WithdrawalBitMap) _withdrawalIdBitmaps;
         /// @dev Tracks which validators are currently whitelisted for delegation
         mapping(uint64 valId => bool) _isWhitelisted;
+        /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
+        /// Only one admin redelegation can be pending per validator at a time
+        mapping(uint64 valId => uint256 amount) _pendingRedelegateByValidator;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -67,17 +70,13 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         0xb7f6be55aeb1e46574646d91168b2b956bfd4e1e74e0627fdc265cef2efaed00;
 
     /// @dev Active validator list (validators available for delegation)
-    uint64[] public override validators;
+    uint64[] public validators;
 
     /// @dev Current status of each validator in the removal process lifecycle
-    mapping(uint64 => ValidatorStatus) public override validatorStatus;
-
-    /// @dev Pending redelegation amounts per validator (used for admin operations like rebalancing)
-    /// Only one admin redelegation can be pending per validator at a time
-    mapping(uint64 valId => uint256 amount) public override pendingRedelegateByValidator;
+    mapping(uint64 => ValidatorStatus) public validatorStatus;
 
     /// @dev Pending user withdrawal amounts per validator (sum of all user withdrawal requests)
-    mapping(uint64 valId => uint256 amount) public override pendingUndelegateByValidator;
+    mapping(uint64 valId => uint256 amount) public pendingUndelegateByValidator;
 
     /// @dev Cached delegator info from precompile to reduce gas costs and improve performance
     mapping(uint64 valId => DelInfo delInfo) public cachedDelegatorInfo;
@@ -155,6 +154,14 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
 
     function cachedTotalNetPendingDelegations() external view returns (int256) {
         return _getVaultBaseStorage()._cachedTotalNetPendingDelegations;
+    }
+
+    function pendingRedelegateByValidator(uint64 valId) public view returns (uint256) {
+        return _getVaultBaseStorage()._pendingRedelegateByValidator[valId];
+    }
+
+    function setPendingRedelegateByValidator(uint64 valId, uint256 amount) internal {
+        _getVaultBaseStorage()._pendingRedelegateByValidator[valId] = amount;
     }
 
     /**
@@ -285,7 +292,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (!(_exists && _withdrawalAmount > 0)) revert ErrNoPendingWithdrawRequest();
 
         // Complete the withdrawal using the admin withdrawal ID
-        $._totalPendingRedelegation -= pendingRedelegateByValidator[_valId];
+        $._totalPendingRedelegation -= $._pendingRedelegateByValidator[_valId];
         _completeRedelegationWithdrawal(_valId, ADMIN_WID);
 
         delete validatorStatus[_valId];
@@ -362,7 +369,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         uint256 _totalStakedToValidator = _getTotalStakedToValidator(_valId);
         if (_totalStakedToValidator > 0) {
             // Reserve this amount for pending redelegation tracking
-            pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
+            $._pendingRedelegateByValidator[_valId] = _totalStakedToValidator;
             $._totalPendingRedelegation += _totalStakedToValidator;
         }
 
@@ -433,7 +440,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake + pendingRedelegateByValidator[_valId];
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
+            + _getVaultBaseStorage()._pendingRedelegateByValidator[_valId];
     }
 
     /**
@@ -537,8 +545,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         _withdraw(_valId, _withdrawalId);
         // Mark the withdrawal as completed in the bitmap
         _markWithdrawalCompleted(_valId, _withdrawalId);
-
-        pendingRedelegateByValidator[_valId] = 0;
+        setPendingRedelegateByValidator(_valId, 0);
     }
 
     /**

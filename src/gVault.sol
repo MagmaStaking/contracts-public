@@ -383,7 +383,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             if (pull > 0) {
                 _checkFreeAdminWid(v);
                 _allocateAdminWidAndUndelegate(v, pull);
-                pendingRedelegateByValidator[v] = pull;
+                setPendingRedelegateByValidator(v, pull);
                 setTotalPendingRedelegation(totalPendingRedelegation() + pull);
 
                 // Track undelegation for caching
@@ -414,9 +414,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             _markWithdrawalCompleted(_valId, ADMIN_WID);
             emit AdminCompletedRebalanceWithdrawal(_valId, amt);
             // Note: in the case where the withdrawal is slashed we use the cached amount to deduct from totalPendingRedelegation
-            setTotalPendingRedelegation(totalPendingRedelegation() - pendingRedelegateByValidator[_valId]);
-
-            pendingRedelegateByValidator[_valId] = 0;
+            setTotalPendingRedelegation(totalPendingRedelegation() - pendingRedelegateByValidator(_valId));
+            setPendingRedelegateByValidator(_valId, 0);
         }
         uint256 _delta = address(this).balance - _beforeBal;
         if (_delta > 0) {
