@@ -47,4 +47,7 @@ interface IBaseVault {
     function delegatorInfoUpdateInterval() external view returns (uint256);
     function refreshCacheCheck() external;
     function refreshCache() external;
+    function epochSeconds() external view returns (uint256);
+    function lastRebalanceTimestamp() external view returns (uint256);
+    function finishedLastRebalance() external view returns (bool);
 }
