@@ -43,6 +43,7 @@ error ErrUndelegateFailed();
 error ErrGVUndelegateFailed();
 error ErrGVCompleteFailed();
 error ErrNativeTransferFailed();
+error ErrTokenTransferFailed();
 error ErrForwardFailed();
 error ErrRebalanceInitiateFailed();
 error ErrRebalanceCompleteFailed();

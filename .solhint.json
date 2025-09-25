@@ -4,6 +4,9 @@
         "compiler-version": ["error", "0.8.30"],
         "use-natspec": "off",
         "no-unused-vars": "error",
-        "no-inline-assembly": "off"
+        "no-inline-assembly": "off",
+        "import-path-check": "off",
+        "function-max-lines": "off",
+        "gas-strict-inequalities": "off"
     }
 }

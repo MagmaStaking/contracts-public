@@ -476,7 +476,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _amount The amount to undelegate
      * @return _wid The allocated withdrawal ID
      */
-    function _allocateWIDandUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
+    function _allocateWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
         _wid = _getVaultBaseStorage()._withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
         return _wid;

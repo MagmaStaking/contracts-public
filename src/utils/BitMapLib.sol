@@ -46,7 +46,7 @@ library BitMapLib {
      * @param withdrawalId The withdrawal ID to mark as free
      */
     function markWithdrawalCompleted(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal {
-        uint256 mask = 1 << withdrawalId;
+        uint256 mask = uint256(1) << withdrawalId;
         bitMap.bitmap &= ~mask; // Clear the bit
     }
 
@@ -57,7 +57,7 @@ library BitMapLib {
      * @return true if the ID is in use, false if available
      */
     function isWithdrawalIdInUse(WithdrawalBitMap storage bitMap, uint8 withdrawalId) internal view returns (bool) {
-        uint256 mask = 1 << withdrawalId;
+        uint256 mask = uint256(1) << withdrawalId;
         return (bitMap.bitmap & mask) != 0;
     }
 
@@ -77,7 +77,7 @@ library BitMapLib {
             uint8 candidate = uint8(uint16(start) + i);
             if (candidate == reservedId) continue;
 
-            uint256 mask = 1 << candidate;
+            uint256 mask = uint256(1) << candidate;
             if (bitmap & mask == 0) {
                 // Mark as used in bitmap
                 bitMap.bitmap |= mask;
@@ -94,7 +94,7 @@ library BitMapLib {
      * @param bitMap The bitmap storage reference
      */
     function _allocateAdminWid(WithdrawalBitMap storage bitMap) internal {
-        uint256 adminMask = 1 << ADMIN_WID;
+        uint256 adminMask = uint256(1) << ADMIN_WID;
         bitMap.bitmap |= adminMask;
     }
 }
