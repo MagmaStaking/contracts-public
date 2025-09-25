@@ -251,7 +251,7 @@ contract CoreVault is
             }
 
             if (_amountFromValidator > 0) {
-                uint8 _wid = _allocateWIDandUndelegate(_valId, _amountFromValidator);
+                uint8 _wid = _allocateWidAndUndelegate(_valId, _amountFromValidator);
 
                 // Store withdrawal request information
                 _storeWithdrawalRequest(_user, _amountFromValidator, _valId, _wid);

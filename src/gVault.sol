@@ -299,7 +299,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
             // Prevent underflow: if removing more units than available, set to 0
             $._scaledPrincipalUnits[_user][_valId] = _removeUnits >= _currentUnits ? 0 : (_currentUnits - _removeUnits);
 
-            uint8 _wid = _allocateWIDandUndelegate(_valId, _amount);
+            uint8 _wid = _allocateWidAndUndelegate(_valId, _amount);
 
             // Store withdrawal request information
             _storeWithdrawalRequest(_user, _amount, _valId, _wid);
