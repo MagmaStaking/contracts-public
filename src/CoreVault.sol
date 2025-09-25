@@ -38,7 +38,12 @@ contract CoreVault is
 
     /// @custom:storage-location erc7201:storage.CoreVault
     struct CoreVaultStorage {
-        uint256 start;
+        /// @dev Duration in seconds between allowed rebalance operations (0 = no time restriction)
+        uint256 _epochSeconds;
+        /// @dev Timestamp of the last rebalance operation, used for epoch guard timing
+        uint256 _lastRebalanceTimestamp;
+        /// @dev Flag indicating if the last rebalance operation has completed both phases
+        bool _finishedLastRebalance;
     }
 
     /// @dev Struct to hold validator ID and associated amount for sorting operations
@@ -52,22 +57,14 @@ contract CoreVault is
     bytes32 private constant _CoreVaultStorageLocation =
         0x52cc5b10e48806cc3038884ee015a89dc6583650d30099489137fff04e064c00;
 
-    /// @dev Duration in seconds between allowed rebalance operations (0 = no time restriction)
-    uint256 public epochSeconds;
-
     /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
     uint64 private _maxValidatorPerBatch;
 
-    /// @dev Timestamp of the last rebalance operation, used for epoch guard timing
-    uint256 public lastRebalanceTimestamp;
-
-    /// @dev Flag indicating if the last rebalance operation has completed both phases
-    bool public finishedLastRebalance;
-
     // whenNotPaused modifier is now inherited from PausableUpgradeable
     modifier onlyAfterEpoch() {
-        if (epochSeconds != 0) {
-            if (block.timestamp < lastRebalanceTimestamp + epochSeconds) {
+        CoreVaultStorage storage $ = _getCoreVaultStorage();
+        if ($._epochSeconds != 0) {
+            if (block.timestamp < $._lastRebalanceTimestamp + $._epochSeconds) {
                 revert ErrEpochGuard();
             }
         }
@@ -85,8 +82,9 @@ contract CoreVault is
         __ReentrancyGuard_init();
         __Pausable_init();
         __VaultBase_init(_magma);
-        epochSeconds = _epochSeconds;
-        finishedLastRebalance = true;
+        CoreVaultStorage storage $ = _getCoreVaultStorage();
+        $._epochSeconds = _epochSeconds;
+        $._finishedLastRebalance = true;
         _maxValidatorPerBatch = maxValidatorPerBatch_;
     }
 
@@ -97,6 +95,18 @@ contract CoreVault is
         assembly {
             $.slot := _CoreVaultStorageLocation
         }
+    }
+
+    function epochSeconds() external view returns (uint256) {
+        return _getCoreVaultStorage()._epochSeconds;
+    }
+
+    function lastRebalanceTimestamp() external view returns (uint256) {
+        return _getCoreVaultStorage()._lastRebalanceTimestamp;
+    }
+
+    function finishedLastRebalance() external view returns (bool) {
+        return _getCoreVaultStorage()._finishedLastRebalance;
     }
 
     /**
@@ -156,10 +166,11 @@ contract CoreVault is
      *      to complete the redistribution. Prevents concurrent rebalances.
      */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
-        if (!finishedLastRebalance) revert ErrRebalanceInProgress();
-        finishedLastRebalance = false;
+        CoreVaultStorage storage $ = _getCoreVaultStorage();
+        if (!$._finishedLastRebalance) revert ErrRebalanceInProgress();
+        $._finishedLastRebalance = false;
         _redelegateInitiate();
-        lastRebalanceTimestamp = block.timestamp;
+        $._lastRebalanceTimestamp = block.timestamp;
     }
 
     /**
@@ -435,8 +446,10 @@ contract CoreVault is
         // Step 3: Distribute stake to under-target validators in ascending order of stake
         _distributeStakeToValidatorsAscending(_sortedValidators, _totalAmountToDistribute);
 
-        // Step 4: Update timestamp
-        lastRebalanceTimestamp = block.timestamp;
+        // Step 4: Update timestamp and mark rebalance as finished
+        CoreVaultStorage storage $ = _getCoreVaultStorage();
+        $._lastRebalanceTimestamp = block.timestamp;
+        $._finishedLastRebalance = true;
     }
 
     /**
