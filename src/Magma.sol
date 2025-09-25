@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {
     ErrNotEnoughAssetsGVault,
-    ErrZeroAddress,
     ErrRequestPending,
     ErrZeroShares,
     ErrNotAuthorized,
@@ -67,10 +66,10 @@ contract Magma is
     /// @dev https://eips.ethereum.org/EIPS/eip-7540#request-lifecycle
     struct RedeemRequests {
         address owner; // Owner of the shares
+        bool isGVault; // If redeemRequest is for gVault or not
         uint256 shares; // Amount of shares to redeem
         uint256 assets; // Amount of assets to withdraw
         uint256 claimableTime; // When assets become claimable
-        bool isGVault; // If redeemRequest is for gVault or not
     }
 
     struct InitializeParams {
@@ -106,7 +105,7 @@ contract Magma is
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
 
-    event OperatorSet(address indexed controller, address indexed operator, bool approved);
+    event OperatorSet(address indexed controller, address indexed operator, bool indexed approved);
 
     event Referral(
         address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
@@ -167,6 +166,7 @@ contract Magma is
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
+    /* solhint-disable-next-line no-empty-blocks */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
@@ -538,13 +538,13 @@ contract Magma is
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
     function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 
@@ -557,7 +557,7 @@ contract Magma is
         override
         returns (uint256)
     {
-        /* solhint-disable-next-line gas-custom-errors */
+        /* solhint-disable-next-line */
         revert();
     }
 }

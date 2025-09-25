@@ -3,6 +3,7 @@
     "rules": {
         "compiler-version": ["error", "0.8.30"],
         "use-natspec": "off",
-        "no-unused-vars": "error"
+        "no-unused-vars": "error",
+        "no-inline-assembly": "off"
     }
 }

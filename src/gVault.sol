@@ -4,11 +4,8 @@ pragma solidity 0.8.30;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {MagmaDelegationModule} from "./MagmaDelegationModule.sol";
-import {IMagma} from "../interfaces/IMagma.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
-import {DelInfo} from "./MagmaDelegationModule.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -21,7 +18,6 @@ import {
     ErrBelowMinWithdraw,
     ErrInsufficientDelegated,
     ErrRebalanceInProgress,
-    ErrNotAdmin,
     ErrNotAuthorized,
     ErrZeroAmount
 } from "./MagmaErrorsModule.sol";
@@ -61,8 +57,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _GVaultStorageLocation = 0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
 
-    event GVaultMultiplierUpdated(uint256 oldP, uint256 newP, uint16 bps);
-    event GVaultRescaled(uint256 factorK, uint256 newP, uint256 newS);
+    event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
+    event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
 
     /**
      * @notice Initialize the gVault contract with configuration parameters
@@ -358,10 +354,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_bps == BASE_BPS) {
             // Special handling for 100% outflow: prevent P from hitting zero which would break math
             // Scale up S massively so existing user units become worthless (entitlement ≈ 0)
-            uint256 K_FULL = 1e9; // large-but-safe scale bump
-            $._gVaultScaleS = $._gVaultScaleS * K_FULL;
+            uint256 kFull = 1e9; // large-but-safe scale bump
+            $._gVaultScaleS = $._gVaultScaleS * kFull;
             $._gVaultMultiplierP = 1e27; // reset P to nominal 1.0 in 1e27 scale
-            emit GVaultRescaled(K_FULL, $._gVaultMultiplierP, $._gVaultScaleS);
+            emit GVaultRescaled(kFull, $._gVaultMultiplierP, $._gVaultScaleS);
         } else {
             // Update cumulative multiplier P to reflect what fraction stays in gVault
             // P_new = P_old * (1 - bps/10000) tracks cumulative retention
@@ -521,5 +517,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
+    /* solhint-disable-next-line no-empty-blocks */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 }

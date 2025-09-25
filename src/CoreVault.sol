@@ -8,7 +8,6 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {VaultBase} from "./VaultBase.sol";
 
 import {
@@ -23,7 +22,6 @@ import {
     ErrInsufficientDelegated,
     ErrZeroAmount,
     ErrInvalidAmount,
-    ErrNotAdmin,
     ErrNotAuthorized
 } from "./MagmaErrorsModule.sol";
 
@@ -130,7 +128,7 @@ contract CoreVault is
      * @dev Batch add validators with gas limit protection, then trigger rebalancing
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
-    function addValidators(uint64[] memory validatorIds) external onlyAdmin onlyAfterEpoch {
+    function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
@@ -579,7 +577,7 @@ contract CoreVault is
             _delegate(_firstValId, _remainingAmount);
             _remainingAmount = 0;
         } else {
-            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; _i++) {
+            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; ++_i) {
                 uint64 _valId = _sortedValidators[_i].valId;
 
                 // Check if request exceeds 1/20th of total active stake
@@ -695,5 +693,6 @@ contract CoreVault is
      * @dev Only allows the Magma admin to authorize upgrades. Required by UUPSUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
+    /* solhint-disable-next-line no-empty-blocks */
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 }
