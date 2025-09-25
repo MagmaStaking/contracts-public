@@ -22,6 +22,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         vm.startPrank(admin);
         gvault.addValidator(3);
         gvault.changeValidatorCap(3, 5 ether);
+        magma.refreshCache();
         vm.stopPrank();
     }
 

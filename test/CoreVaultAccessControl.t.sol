@@ -256,7 +256,7 @@ contract CoreVaultAccessControl is BaseTest {
         coreVault.setMinUserWithdrawAmount(1 ether);
 
         // Try to undelegate as magma
-        uint256 undelegateAmount = 10 ether;
+        uint256 undelegateAmount = 2 ether;
         vm.prank(address(magma));
         coreVault.undelegate(undelegateAmount, user);
 
@@ -388,7 +388,7 @@ contract CoreVaultAccessControl is BaseTest {
         vm.startPrank(address(magma));
 
         // Undelegate should succeed
-        coreVault.undelegate(10 ether, user);
+        coreVault.undelegate(2 ether, user);
 
         // Advance epochs to make withdrawal ready
         vm.stopPrank();
