@@ -42,10 +42,10 @@ contract CoreVault is
         uint256 _epochSeconds;
         /// @dev Timestamp of the last rebalance operation, used for epoch guard timing
         uint256 _lastRebalanceTimestamp;
-        /// @dev Flag indicating if the last rebalance operation has completed both phases
-        bool _finishedLastRebalance;
         /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
         uint64 _maxValidatorPerBatch;
+        /// @dev Flag indicating if the last rebalance operation has completed both phases
+        bool _finishedLastRebalance;
     }
 
     /// @dev Struct to hold validator ID and associated amount for sorting operations

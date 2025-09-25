@@ -50,8 +50,6 @@ contract CoreVaultRewardsTest is BaseTest {
         assertEq(coreAfter, coreBefore, "coreVault should not retain funds after redistribution");
     }
 
-    // todo: Test: zero fee
-
     function testWithdrawalsFeeIsCharged() public {
         // Configure withdrawal fee and receiver as admin
         vm.startPrank(admin);

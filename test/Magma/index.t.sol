@@ -1031,7 +1031,6 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(user.balance, 0);
     }
 
-    // TODO: see how to improve this test
     function test_setRedeemDelay_OnlyAdmin_Success() public {
         uint256 newDelay = 3600; // 1 hour
 

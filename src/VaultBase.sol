@@ -22,7 +22,6 @@ import {
     ErrNotWhitelisted
 } from "./MagmaErrorsModule.sol";
 
-// TODO: check all functions have a maximum of _getVaultBaseStorage() and struct ordered
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
@@ -214,19 +213,19 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     function cacheValidatorStats() internal {
         uint256 _cachedTotalAssets = 0;
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
 
         // Fetch and cache delegator info for each active validator
         uint64[] memory _validators = getValidators();
         for (uint256 _i = 0; _i < _validators.length; _i++) {
             uint64 _valId = _validators[_i];
             DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this)); // Expensive precompile call
-            _getVaultBaseStorage()._cachedDelegatorInfo[_valId] = _delInfo;
+            $._cachedDelegatorInfo[_valId] = _delInfo;
             // Sum total assets: active stake + pending stake changes
             _cachedTotalAssets += _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         }
 
         // Reset pending delta tracking since we just refreshed from source of truth
-        VaultBaseStorage storage $ = _getVaultBaseStorage();
         $._cachedTotalNetPendingDelegations = 0;
         $._cachedTotalAssets = _cachedTotalAssets;
     }
@@ -351,7 +350,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      * @param _valId The validator ID to remove
      */
     function _executeValidatorUndelegation(uint64 _valId) internal {
-        if (_getVaultBaseStorage()._validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if ($._validatorStatus[_valId] != ValidatorStatus.PAUSED) revert ErrInvalidStatus();
 
         DelInfo memory _coreVaultDelInfo = _getDelegatorInfo(_valId, address(this));
 
@@ -370,12 +370,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         if (_amountToRedelegate > 0) {
             _checkFreeAdminWid(_valId); // Ensure admin withdrawal ID is available
             _allocateAdminWidAndUndelegate(_valId, _amountToRedelegate);
-            VaultBaseStorage storage $ = _getVaultBaseStorage();
             $._validatorStatus[_valId] = ValidatorStatus.UNDELEGATING; // Move to final removal phase
             emit ValidatorRemoved(_valId);
         } else {
             // No stake to undelegate, validator removal is complete
-            VaultBaseStorage storage $ = _getVaultBaseStorage();
             delete $._validatorStatus[_valId];
             emit ValidatorRemovalCompleted(_valId);
         }

@@ -222,11 +222,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @return The maximum deposit cap amount
      */
     function _maxCapFor(uint64 _valId) internal view returns (uint256) {
-        uint256 cap = _getGVaultStorage()._validatorCap[_valId];
+        GVaultStorage storage $ = _getGVaultStorage();
+
+        uint256 cap = $._validatorCap[_valId];
         if (cap != 0) return cap;
 
         uint256 total = magma().totalAssets();
-        return (total * _getGVaultStorage()._defaultCapBps) / BASE_BPS;
+        return (total * $._defaultCapBps) / BASE_BPS;
     }
 
     /**
