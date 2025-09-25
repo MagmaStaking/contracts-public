@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {
     ErrNotEnoughAssetsGVault,
-    ErrZeroAddress,
     ErrRequestPending,
     ErrZeroShares,
     ErrNotAuthorized,
