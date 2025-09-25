@@ -743,7 +743,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(val1));
         assertTrue(coreVault.isWhitelisted(val2));
 
-        // Use real delegation to set up stakes (this approach works)
+        // Use real delegation to set up stakes (threshold == 0 → all goes to first validator)
         vm.deal(address(magma), 200 ether);
         vm.prank(address(magma));
         coreVault.delegate{value: 200 ether}();
@@ -751,9 +751,11 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Activate the delegations
         _activatePendingDelegations();
 
-        // Verify both validators have stake
-        assertTrue(coreVault.delegatedAmount(val1) > 0);
-        assertTrue(coreVault.delegatedAmount(val2) > 0);
+        // Verify post-deposit distribution under new algorithm
+        uint256 val1Stake = coreVault.delegatedAmount(val1);
+        uint256 val2Stake = coreVault.delegatedAmount(val2);
+        assertEq(val1Stake, 200 ether);
+        assertEq(val2Stake, 0);
 
         vm.startPrank(admin);
         coreVault.initiateValidatorRemoval(val1);
@@ -967,7 +969,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         coreVault.addValidator(VAL_3);
         vm.stopPrank();
 
-        // Set up real stakes through delegation
+        // Set up real stakes through delegation (threshold == 0 → all to first validator)
         vm.deal(address(magma), 900 ether);
         vm.prank(address(magma));
         coreVault.delegate{value: 900 ether}();
@@ -975,12 +977,14 @@ contract CoreVaultValidatorOperations is BaseTest {
         // Activate the delegations
         _activatePendingDelegations();
 
-        // Verify all 3 validators have equal stakes
+        // Verify initial distribution under new algorithm
         assertEq(coreVault.getValidatorCount(), 3);
-        uint256 stakePerValidator = coreVault.delegatedAmount(VAL_1);
-        assertEq(coreVault.delegatedAmount(VAL_2), stakePerValidator);
-        assertEq(coreVault.delegatedAmount(VAL_3), stakePerValidator);
-        assertTrue(stakePerValidator > 0);
+        uint256 val1Initial = coreVault.delegatedAmount(VAL_1);
+        uint256 val2Initial = coreVault.delegatedAmount(VAL_2);
+        uint256 val3Initial = coreVault.delegatedAmount(VAL_3);
+        assertEq(val1Initial, 900 ether);
+        assertEq(val2Initial, 0);
+        assertEq(val3Initial, 0);
 
         // Remove VAL_1 (3 -> 2 validators)
         vm.startPrank(admin);
@@ -994,7 +998,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.prank(admin);
         coreVault.completeValidatorRemovalWithdrawal(VAL_1);
 
-        // Verify VAL_1 is removed and others received redistribution
+        // Verify VAL_1 is removed and redistribution occurred
         assertEq(coreVault.getValidatorCount(), 2);
         assertFalse(coreVault.isWhitelisted(VAL_1));
         assertTrue(coreVault.isWhitelisted(VAL_2));
@@ -1003,9 +1007,9 @@ contract CoreVaultValidatorOperations is BaseTest {
         uint256 val2StakeAfterFirst = coreVault.delegatedAmount(VAL_2);
         uint256 val3StakeAfterFirst = coreVault.delegatedAmount(VAL_3);
 
-        // Both should have received additional stake
-        assertTrue(val2StakeAfterFirst > stakePerValidator);
-        assertTrue(val3StakeAfterFirst > stakePerValidator);
+        // With threshold == 0 at redistribution time, all goes to first remaining (VAL_2)
+        assertEq(val2StakeAfterFirst, 900 ether);
+        assertEq(val3StakeAfterFirst, 0);
 
         // Advance additional epochs to activate any pending stakes from redistribution
         for (uint256 i = 0; i < 5; i++) {
@@ -1030,7 +1034,7 @@ contract CoreVaultValidatorOperations is BaseTest {
         assertTrue(coreVault.isWhitelisted(VAL_3));
 
         uint256 val3FinalStake = coreVault.delegatedAmount(VAL_3);
-        assertTrue(val3FinalStake > val3StakeAfterFirst);
+        assertEq(val3FinalStake, 900 ether);
 
         // Now VAL_3 is the last validator, so removal should fail
         vm.prank(admin);
@@ -1054,20 +1058,20 @@ contract CoreVaultValidatorOperations is BaseTest {
         vm.stopPrank();
 
         // Use real delegation to set up stakes
-        vm.deal(address(magma), 500 ether);
+        uint256 depositAmount = 500 ether;
+        vm.deal(address(magma), depositAmount);
         vm.prank(address(magma));
-        coreVault.delegate{value: 500 ether}();
+        coreVault.delegate{value: depositAmount}();
 
         // Activate the delegations
         _activatePendingDelegations();
 
-        // Record initial stakes (should be equal due to equal distribution)
+        // Record initial stakes (threshold == 0 -> entire deposit goes to first validator)
         uint256 val1InitialStake = coreVault.delegatedAmount(VAL_1);
         uint256 val2InitialStake = coreVault.delegatedAmount(VAL_2);
 
-        assertTrue(val1InitialStake > 0);
-        assertTrue(val2InitialStake > 0);
-        assertEq(val1InitialStake, val2InitialStake); // Should be equal
+        assertEq(val1InitialStake, depositAmount);
+        assertEq(val2InitialStake, 0);
 
         // Should be able to remove VAL_1 (leaving VAL_2 as the only validator)
         vm.startPrank(admin);
@@ -1088,9 +1092,7 @@ contract CoreVaultValidatorOperations is BaseTest {
 
         // VAL_2 should have received all of VAL_1's stake
         uint256 val2FinalStake = coreVault.delegatedAmount(VAL_2);
-        assertTrue(val2FinalStake >= val2InitialStake); // Should have received additional stake
-        // Total should be approximately the original total (allowing for small rounding)
-        assertTrue(val2FinalStake >= val1InitialStake + val2InitialStake - 1 ether);
+        assertEq(val2FinalStake, val1InitialStake + val2InitialStake);
 
         // Now trying to remove VAL_2 (the last validator) should fail
         vm.prank(admin);

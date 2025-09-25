@@ -438,34 +438,47 @@ contract GVaultValidatorOperations is BaseTest {
 
         console.log("gVault.totalAssets() after rebalancing:", gvaultTotalAfterRebalance);
 
-        // Verify CoreVault distributed funds equally among its 3 validators
-        uint256 val1CoreFinal = coreVault.delegatedAmount(VAL_1);
-        uint256 val2CoreFinal = coreVault.delegatedAmount(VAL_2);
-        uint256 val3CoreFinal = coreVault.delegatedAmount(VAL_3);
+        // Verify CoreVault distributed funds according to capped-then-remainder algorithm
+        _assertCoreVaultCappedDistribution(expectedUndelegation, coreVaultTotalInitial);
+    }
 
-        console.log("=== COREVAULT FINAL DISTRIBUTION ===");
-        console.log("CoreVault VAL_1:", val1CoreFinal);
-        console.log("CoreVault VAL_2:", val2CoreFinal);
-        console.log("CoreVault VAL_3:", val3CoreFinal);
+    function _assertCoreVaultCappedDistribution(uint256 forwardedAmount, uint256 totalActiveBefore) internal {
+        // Compute threshold (1/20th of active stake) and expected per-validator final stakes
+        uint256 threshold = totalActiveBefore / 20;
 
-        // Each CoreVault validator should have approximately 100 ether (50 initial + 50 from redistribution)
-        uint256 expectedPerCoreValidator = 100 ether;
-        uint256 tolerance = 1 gwei;
+        uint256 val1After = coreVault.delegatedAmount(VAL_1);
+        uint256 val2After = coreVault.delegatedAmount(VAL_2);
+        uint256 val3After = coreVault.delegatedAmount(VAL_3);
+
+        // Initial per-validator stakes were 50 ether each in this test
+        uint256 exp1 = 50 ether;
+        uint256 exp2 = 50 ether;
+        uint256 exp3 = 50 ether;
+
+        if (threshold == 0) {
+            exp1 += forwardedAmount;
+        } else {
+            uint256 rem = forwardedAmount;
+            uint256 add = rem > threshold ? threshold : rem; // VAL_1 (non-last)
+            exp1 += add;
+            rem -= add;
+            add = rem > threshold ? threshold : rem; // VAL_2 (non-last)
+            exp2 += add;
+            rem -= add;
+            exp3 += rem; // VAL_3 (last) gets remainder
+        }
 
         assertTrue(
-            val1CoreFinal >= expectedPerCoreValidator - tolerance
-                && val1CoreFinal <= expectedPerCoreValidator + tolerance,
-            "CoreVault VAL_1 should have approximately 100 ether"
+            val1After >= exp1 - 1 gwei && val1After <= exp1 + 1 gwei,
+            "CoreVault VAL_1 final stake deviates from expected distribution"
         );
         assertTrue(
-            val2CoreFinal >= expectedPerCoreValidator - tolerance
-                && val2CoreFinal <= expectedPerCoreValidator + tolerance,
-            "CoreVault VAL_2 should have approximately 100 ether"
+            val2After >= exp2 - 1 gwei && val2After <= exp2 + 1 gwei,
+            "CoreVault VAL_2 final stake deviates from expected distribution"
         );
         assertTrue(
-            val3CoreFinal >= expectedPerCoreValidator - tolerance
-                && val3CoreFinal <= expectedPerCoreValidator + tolerance,
-            "CoreVault VAL_3 should have approximately 100 ether"
+            val3After >= exp3 - 1 gwei && val3After <= exp3 + 1 gwei,
+            "CoreVault VAL_3 final stake deviates from expected distribution"
         );
     }
 

@@ -195,8 +195,7 @@ contract CoreVault is
 
                 uint256 _amountFromValidator = _remainingAmount;
 
-                // if we have iterated to the last validator, try to undelegate total remaining not max allowed per 1/20th threshold
-                if (_amountFromValidator > _maxAllowedFromValidator && _i < _sortedValidators.length - 1) {
+                if (_amountFromValidator > _maxAllowedFromValidator) {
                     _amountFromValidator = _maxAllowedFromValidator;
                 }
                 if (_amountFromValidator > _availableStake) {
@@ -464,7 +463,7 @@ contract CoreVault is
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
-        if (_onetwentiethThreshold == 0) {
+        if (_onetwentiethThreshold == 0 && _totalActiveStake > 0) {
             // Send everything to the first (lowest-stake) validator
             uint64 _firstValId = _sortedValidators[0].valId;
             _delegate(_firstValId, _remainingAmount);

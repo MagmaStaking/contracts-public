@@ -28,22 +28,20 @@ contract CoreVaultRewardsInjectionTest is BaseTest {
         // admin (same as feeReceiver) already covered; if feeReceiver changes, admin should still be authorized
     }
 
-    function testInjectRewardsEqualDistributionAndRemainder() public {
-        // BaseTest already added validators 1 and 2 to CoreVault
+    function testInjectRewardsThresholdZeroSendsAllToFirst() public {
+        // BaseTest already added validators 1 and 2 to CoreVault; active stake is zero initially
         uint256 before1 = coreVault.delegatedAmount(VAL_1);
         uint256 before2 = coreVault.delegatedAmount(VAL_2);
         uint256 beforeBal = address(coreVault).balance;
 
-        // 3 ether -> 1.5 ether to each validator (exactly divisible), 0 remainder on CoreVault balance
         vm.deal(admin, 3 ether);
         vm.prank(admin);
         coreVault.injectRewards{value: 3 ether}();
 
-        uint256 per = 3 ether / 2;
-        uint256 remainder = 3 ether - per * 2;
-        assertEq(coreVault.delegatedAmount(VAL_1), before1 + per);
-        assertEq(coreVault.delegatedAmount(VAL_2), before2 + per);
-        assertEq(address(coreVault).balance, beforeBal + remainder);
+        // With _onetwentiethThreshold == 0, all goes to the first (lowest-stake) validator
+        assertEq(coreVault.delegatedAmount(VAL_1), before1 + 3 ether);
+        assertEq(coreVault.delegatedAmount(VAL_2), before2);
+        assertEq(address(coreVault).balance, beforeBal);
     }
 
     function testInjectRewardsNoValidators() public {
