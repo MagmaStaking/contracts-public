@@ -4,12 +4,10 @@ pragma solidity 0.8.30;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
-
 import {
     ErrEpochGuard,
     ErrMaxValidators,
@@ -25,14 +23,7 @@ import {
     ErrNotAuthorized
 } from "./MagmaErrorsModule.sol";
 
-contract CoreVault is
-    Initializable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable,
-    PausableUpgradeable,
-    ICoreVault,
-    VaultBase
-{
+contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, ICoreVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
     /// @custom:storage-location erc7201:storage.CoreVault
@@ -71,7 +62,6 @@ contract CoreVault is
      */
     function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
         __ReentrancyGuard_init();
-        __Pausable_init();
         __VaultBase_init(_magma, _epochSeconds);
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         $._maxValidatorPerBatch = maxValidatorPerBatch_;
@@ -84,29 +74,6 @@ contract CoreVault is
         assembly {
             $.slot := _CoreVaultStorageLocation
         }
-    }
-
-    /**
-     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
-     */
-    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
-        return super.paused();
-    }
-
-    /**
-     * @notice Pause all vault operations
-     * @dev Emergency function to halt deposits, withdrawals, and delegations. Only callable by admin
-     */
-    function pause() external onlyAdmin {
-        _pause();
-    }
-
-    /**
-     * @notice Resume all vault operations
-     * @dev Removes emergency pause from deposits, withdrawals, and delegations. Only callable by admin
-     */
-    function unpause() external onlyAdmin {
-        _unpause();
     }
 
     // --------------------------------------------------------------------------------------------------------------
@@ -416,6 +383,8 @@ contract CoreVault is
      * @dev Completes pending withdrawals and redistributes funds to under-target validators
      */
     function _redelegateRedistribute() internal {
+        // Refresh cache to reset any tracking inconsistencies
+        _refreshCache();
         // Step 1: Complete all pending withdrawals
         uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
 
@@ -606,7 +575,7 @@ contract CoreVault is
         }
     }
 
-    function injectRewards() public payable {
+    function injectRewards() public payable whenNotPaused {
         if (msg.sender != magma().mevRewardsInjector()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         _distributeToNextValidator(msg.value);
