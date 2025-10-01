@@ -10,8 +10,6 @@ interface ICoreVault is IBaseVault {
     function executeValidatorUndelegation(uint64 valId) external;
     function completeValidatorRemovalWithdrawal(uint64 valId) external;
     function adminRebalanceInitiate() external;
-    function pause() external;
-    function unpause() external;
     function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external;
 
     // Delegation functions (onlyMagma)
@@ -28,7 +26,6 @@ interface ICoreVault is IBaseVault {
 
     // View functions
     function delegatedAmount(uint64 valId) external view returns (uint256);
-    function paused() external view returns (bool);
     function getValidators() external view returns (uint64[] memory);
     function getValidatorCount() external view returns (uint256);
     function getTotalDelegated() external view returns (uint256);

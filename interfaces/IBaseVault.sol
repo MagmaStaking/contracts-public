@@ -36,6 +36,9 @@ interface IBaseVault {
     function setMinUserWithdrawAmount(uint256 amount) external;
     function setDelegatorInfoUpdateInterval(uint256 interval) external;
 
+    function pause() external;
+    function unpause() external;
+
     function isWhitelisted(uint64 valId) external view returns (bool);
     function pendingRedelegateByValidator(uint64 valId) external view returns (uint256);
     function pendingUndelegateByValidator(uint64 valId) external view returns (uint256);
