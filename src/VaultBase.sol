@@ -8,6 +8,7 @@ import {DelInfo} from "./MagmaDelegationModule.sol";
 import {IBaseVault} from "../interfaces/IBaseVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     ErrNotAdmin,
     ErrNotMagma,
@@ -22,7 +23,7 @@ import {
     ErrNotWhitelisted
 } from "./MagmaErrorsModule.sol";
 
-abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
+abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgradeable {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
     /// @custom:storage-location erc7201:storage.VaultBase
@@ -102,6 +103,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
      */
     /* solhint-disable-next-line func-name-mixedcase */
     function __VaultBase_init(address _magma, uint256 _epochSeconds) internal {
+        __Pausable_init();
         VaultBaseStorage storage $ = _getVaultBaseStorage();
         $._magma = IMagma(_magma);
         $._delegatorInfoUpdateInterval = 1 hours;
@@ -113,6 +115,22 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault {
         assembly {
             $.slot := _VaultBaseStorageLocation
         }
+    }
+
+    /**
+     * @notice Pause all vault operations
+     * @dev Emergency function to halt deposits, withdrawals, and delegations. Only callable by admin
+     */
+    function pause() external onlyAdmin {
+        _pause();
+    }
+
+    /**
+     * @notice Resume all vault operations
+     * @dev Removes emergency pause from deposits, withdrawals, and delegations. Only callable by admin
+     */
+    function unpause() external onlyAdmin {
+        _unpause();
     }
 
     function isWhitelisted(uint64 valId) public view returns (bool) {

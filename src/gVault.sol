@@ -227,7 +227,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _user The user address receiving the shares
      * @param _valId The validator ID to delegate to
      */
-    function delegate(address _user, uint64 _valId) external payable onlyMagma {
+    function delegate(address _user, uint64 _valId) external payable onlyMagma whenNotPaused {
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
         // Cap check
@@ -269,7 +269,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to undelegate from
      * @param _amount The amount to undelegate
      */
-    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
+    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma whenNotPaused {
         if (_amount < minUserWithdrawAmount()) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
@@ -328,7 +328,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _completeUserWithdrawal(_user);
     }
 
-    function injectRewards(uint64 _valId) public payable {
+    function injectRewards(uint64 _valId) public payable whenNotPaused {
         if (msg.sender != magma().mevRewardsInjector()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
