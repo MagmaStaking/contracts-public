@@ -383,6 +383,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Completes pending withdrawals and redistributes funds to under-target validators
      */
     function _redelegateRedistribute() internal {
+        // Refresh cache to reset any tracking inconsistencies
+        _refreshCache();
         // Step 1: Complete all pending withdrawals
         uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
 
