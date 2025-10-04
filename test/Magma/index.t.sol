@@ -437,7 +437,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 sharesUserBefore,
         uint256 assetsBefore,
         bool expectedIsGVault
-    ) internal  {
+    ) internal {
         Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
 
         // 7540 vault assertions

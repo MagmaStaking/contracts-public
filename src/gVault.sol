@@ -470,7 +470,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function _convertToShares(uint64 _valId, uint256 _assets, Math.Rounding rounding)
         internal
-       
         returns (uint256 _shares)
     {
         uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
