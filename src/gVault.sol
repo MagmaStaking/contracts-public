@@ -9,6 +9,7 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {DelInfo} from "./MagmaDelegationModule.sol";
 import {
     ErrNotWhitelisted,
     ErrInvalidBps,
@@ -211,6 +212,18 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
+     * @notice Get total stake for validator including pending operations
+     * @dev Returns active stake plus pending stakes plus pending redelegation amounts
+     * @param _valId The validator ID to query
+     * @return Total stake including all pending operations
+     */
+    function _getTotalStakedWithCap(uint64 _valId) internal view returns (uint256) {
+        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
+            + (pendingRedelegateByValidator(_valId) * _getGVaultStorage()._defaultCapBps) / BASE_BPS;
+    }
+
+    /**
      * @notice Get the amount of assets corresponding to user's shares for a validator
      * @param _user The user address
      * @param _valId The validator ID
@@ -233,7 +246,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Cap check
         uint256 _cap = _maxCapFor(_valId);
         if (_cap == 0) revert ErrCapZero();
-        uint256 newAmt = _getTotalStakedWithPendingToValidator(_valId) + msg.value;
+        uint256 newAmt = _getTotalStakedWithCap(_valId) + msg.value;
         if (newAmt > _cap) revert ErrExceedsCap();
 
         // Convert assets to shares based on current exchange rate
