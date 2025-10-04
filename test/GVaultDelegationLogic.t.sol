@@ -12,6 +12,7 @@ import {
     ErrNotWhitelisted,
     ErrExceedsCap,
     ErrCapZero,
+    ErrZeroShares,
     ErrInsufficientDelegated,
     ErrNotMagma,
     ErrZeroAddress,
@@ -93,9 +94,6 @@ contract GVaultDelegationLogicTest is BaseTest {
         vm.deal(address(coreVault), 3000 ether);
 
         coreVault.refreshCache();
-
-        console.log("CoreVault total assets:", coreVault.totalAssets());
-        console.log("gVault default cap (0.25%):", (coreVault.totalAssets() * 25) / 10_000);
     }
 
     function _setupGVaultValidators() internal {
@@ -146,6 +144,19 @@ contract GVaultDelegationLogicTest is BaseTest {
             expectedAmount,
             "User delegated amount should equal total validator stake they represent"
         );
+    }
+
+    function test_RevertWhen_DelegateZeroShares() public {
+        uint256 delegateAmount = 5 ether;
+        vm.startPrank(address(magma));
+
+        vm.deal(address(magma), delegateAmount + 1);
+        gvault.delegate{value: delegateAmount}(alice, VAL_1);
+
+        vm.expectRevert(ErrZeroShares.selector);
+        gvault.delegate{value: 1}(alice, VAL_1);
+
+        vm.stopPrank();
     }
 
     // ============ TEST 2: BASIC UNDELEGATION ============

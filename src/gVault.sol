@@ -13,6 +13,7 @@ import {
     ErrNotWhitelisted,
     ErrInvalidBps,
     ErrZeroAddress,
+    ErrZeroShares,
     ErrCapZero,
     ErrExceedsCap,
     ErrBelowMinWithdraw,
@@ -238,6 +239,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Convert assets to shares based on current exchange rate
         uint256 _sharesToMint = _convertToShares(_valId, msg.value, Math.Rounding.Floor);
+        if (_sharesToMint == 0) {
+            revert ErrZeroShares();
+        }
 
         // Execute delegation to validator
         _delegate(_valId, msg.value);
@@ -250,7 +254,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (msg.value > 0) {
             // Calculate units = ceil(deposit_amount * S / P) to track user's contribution
             // Using ceiling to prevent precision erosion in user's favor
-            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Ceil);
+            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Floor);
             $._scaledPrincipalUnits[_user][_valId] += _addUnits;
         }
 
