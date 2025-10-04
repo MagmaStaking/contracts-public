@@ -60,7 +60,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
     function test_RevertWhen_DepositMONExceedsMaxAssets() public {
         uint256 assets = 5 ether;
         uint256 maxAssets = 3 ether;
-        
+
         // Deploy MockMaxDeposit using proxy pattern like other tests
         address mockImpl = address(new MockMaxDeposit());
         address mockProxy = UnsafeUpgrades.deployUUPSProxy(
