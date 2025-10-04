@@ -13,6 +13,7 @@ import {
     ErrNotWhitelisted,
     ErrInvalidBps,
     ErrZeroAddress,
+    ErrZeroShares,
     ErrCapZero,
     ErrExceedsCap,
     ErrBelowMinWithdraw,
@@ -238,6 +239,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Convert assets to shares based on current exchange rate
         uint256 _sharesToMint = _convertToShares(_valId, msg.value);
+        if (_sharesToMint == 0) {
+            revert ErrZeroShares();
+        }
 
         // Execute delegation to validator
         _delegate(_valId, msg.value);
