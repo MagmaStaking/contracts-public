@@ -473,7 +473,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         view
         returns (uint256 _shares)
     {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle initial deposit case: no existing shares or assets
@@ -509,7 +509,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @return _assets The equivalent amount of assets
      */
     function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle edge case: no shares exist (shouldn't happen in normal operation)
