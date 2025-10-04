@@ -968,7 +968,11 @@ contract MagmaAsyncModuleTest is BaseTest {
         // gVault assertions
         assertEq(0, gvault.delegatedAmountOf(user, 3), "Delegated amount in gVault should be 0");
         // After redeeming max withdrawable amount, user should have minimal shares left due to rounding
-        assertLt(gvault.delegatedSharesOf(user, 3), 5, "User should have minimal shares left after redeeming max withdrawable");
+        assertLt(
+            gvault.delegatedSharesOf(user, 3),
+            5,
+            "User should have minimal shares left after redeeming max withdrawable"
+        );
         assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions
