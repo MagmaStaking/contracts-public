@@ -90,6 +90,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         _registerValidator(_valId);
         _redelegateInitiate();
     }
@@ -100,6 +101,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
     function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
@@ -115,6 +117,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      *      to complete the redistribution. Prevents concurrent rebalances.
      */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         setFinishedLastRebalance(false);
         _redelegateInitiate();
@@ -126,6 +129,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
     function redelegateToValidators() external onlyAdmin {
+        _refreshCache();
         _redelegateRedistribute();
     }
 
@@ -136,6 +140,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to remove
      */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         if (validatorsLength() == 1) revert ErrNotEnoughValidators();
         _initiateValidatorRemoval(_valId);
     }
@@ -146,6 +151,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
 
@@ -155,6 +161,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
         if (_withdrawalAmount > 0) {
