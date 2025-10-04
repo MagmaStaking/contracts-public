@@ -62,6 +62,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
     event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the gVault contract with configuration parameters
      * @dev Sets up the vault with Magma protocol address, epoch timing, and multiplier system

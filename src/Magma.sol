@@ -125,6 +125,10 @@ contract Magma is
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
@@ -509,6 +513,7 @@ contract Magma is
     }
 
     function setFeeReceiver(address _feeReceiver) external onlyAdmin {
+        if (_feeReceiver == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._feeReceiver = _feeReceiver;
         emit FeeReceiverUpdated(_feeReceiver);
     }
@@ -519,6 +524,7 @@ contract Magma is
     }
 
     function setMevRewardsInjector(address _mevRewardsInjector) external onlyAdmin {
+        if (_mevRewardsInjector == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._mevRewardsInjector = _mevRewardsInjector;
     }
 

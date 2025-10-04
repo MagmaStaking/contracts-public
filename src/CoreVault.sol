@@ -53,6 +53,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the CoreVault contract with configuration parameters
      * @dev Sets up the vault with Magma protocol address and epoch timing configuration

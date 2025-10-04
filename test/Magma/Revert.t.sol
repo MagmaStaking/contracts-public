@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 
 import "forge-std/Test.sol";
 import {MagmaAsyncModuleTest} from "./index.t.sol";
+import {UnsafeUpgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -59,22 +60,29 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
     function test_RevertWhen_DepositMONExceedsMaxAssets() public {
         uint256 assets = 5 ether;
         uint256 maxAssets = 3 ether;
-        MockMaxDeposit mockMagma = new MockMaxDeposit();
-        mockMagma.initialize(
-            Magma.InitializeParams({
-                asset: IERC20(address(wmon)),
-                name: "gMON",
-                symbol: "gMON",
-                admin: admin,
-                coreVault: address(coreVault),
-                gVault: address(gvault),
-                rewardsFee: 0,
-                withdrawalFee: 0,
-                feeReceiver: address(0),
-                redeemDelay: uint256(1),
-                mevRewardsInjector: admin
-            })
+        
+        // Deploy MockMaxDeposit using proxy pattern like other tests
+        address mockImpl = address(new MockMaxDeposit());
+        address mockProxy = UnsafeUpgrades.deployUUPSProxy(
+            mockImpl,
+            abi.encodeCall(
+                Magma.initialize,
+                Magma.InitializeParams({
+                    asset: IERC20(address(wmon)),
+                    name: "gMON",
+                    symbol: "gMON",
+                    admin: admin,
+                    coreVault: address(coreVault),
+                    gVault: address(gvault),
+                    rewardsFee: 0,
+                    withdrawalFee: 0,
+                    feeReceiver: address(0),
+                    redeemDelay: uint256(1),
+                    mevRewardsInjector: admin
+                })
+            )
         );
+        MockMaxDeposit mockMagma = MockMaxDeposit(payable(mockProxy));
 
         vm.deal(user, assets);
         vm.expectRevert(

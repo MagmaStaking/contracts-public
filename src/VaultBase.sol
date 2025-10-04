@@ -95,6 +95,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the VaultBase contract with Magma protocol reference
      * @dev Sets the Magma protocol contract address for vault operations
