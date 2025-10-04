@@ -212,10 +212,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
-     * @notice Get total stake for validator including pending operations
-     * @dev Returns active stake plus pending stakes plus pending redelegation amounts
+     * @notice Calculate total effective stake for validator cap validation
+     * @dev Returns active stake plus pending stakes plus a proportional amount of pending redelegations
+     *      based on defaultCapBps. Used specifically for deposit cap enforcement during delegation.
      * @param _valId The validator ID to query
-     * @return Total stake including all pending operations
+     * @return Total effective stake amount for cap validation purposes
      */
     function _getTotalStakedWithCap(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
