@@ -1000,7 +1000,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 shares,
         uint256 assetsBefore,
         uint256 userWMONBefore
-    ) internal view {
+    ) internal {
         // 7540 vault assertions
         Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId2, user);
         assertEq(address(0), redeemDataAfter.owner);
