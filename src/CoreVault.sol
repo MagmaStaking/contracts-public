@@ -288,7 +288,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Calculates and returns the sum of all delegated amounts including pending stakes
      * @return Total delegated amount in wei
      */
-    function getTotalDelegated() external view returns (uint256) {
+    function getTotalDelegated() external returns (uint256) {
         uint256 _total = 0;
         uint64[] memory _validators = getValidators();
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
@@ -303,7 +303,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to query
      * @return Total delegated amount to the validator in wei
      */
-    function delegatedAmount(uint64 _valId) external view returns (uint256) {
+    function delegatedAmount(uint64 _valId) external returns (uint256) {
         return _getTotalStakedToValidator(_valId);
     }
 

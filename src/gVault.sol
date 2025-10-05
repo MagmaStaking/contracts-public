@@ -225,7 +225,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID
      * @return _assets The amount of assets the user's shares represent
      */
-    function delegatedAmountOf(address _user, uint64 _valId) external view returns (uint256 _assets) {
+    function delegatedAmountOf(address _user, uint64 _valId) external returns (uint256 _assets) {
         return _convertToAssets(_valId, _getGVaultStorage()._delegatedSharesOf[_user][_valId]);
     }
 
@@ -480,10 +480,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function _convertToShares(uint64 _valId, uint256 _assets, Math.Rounding rounding)
         internal
-        view
         returns (uint256 _shares)
     {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle initial deposit case: no existing shares or assets
@@ -518,8 +517,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _shares The number of shares to convert
      * @return _assets The equivalent amount of assets
      */
-    function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+    function _convertToAssets(uint64 _valId, uint256 _shares) internal returns (uint256 _assets) {
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle edge case: no shares exist (shouldn't happen in normal operation)
