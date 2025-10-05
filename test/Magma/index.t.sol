@@ -437,7 +437,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 sharesUserBefore,
         uint256 assetsBefore,
         bool expectedIsGVault
-    ) internal view {
+    ) internal {
         Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
 
         // 7540 vault assertions
@@ -944,7 +944,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 shares,
         uint256 assetsBefore,
         uint256 userWMONBefore
-    ) internal view {
+    ) internal {
         // 7540 vault assertions
         Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId1, user);
         assertEq(address(0), redeemDataAfter.owner);
@@ -1007,7 +1007,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 shares,
         uint256 assetsBefore,
         uint256 userWMONBefore
-    ) internal view {
+    ) internal {
         // 7540 vault assertions
         Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId2, user);
         assertEq(address(0), redeemDataAfter.owner);
