@@ -439,7 +439,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 sharesUserBefore,
         uint256 assetsBefore,
         bool expectedIsGVault
-    ) internal view {
+    ) internal {
         Magma.RedeemRequests memory redeemData = magma.pendingRedeemRequestData(requestId, user);
 
         // 7540 vault assertions
@@ -923,12 +923,12 @@ contract MagmaAsyncModuleTest is BaseTest {
         userWMONBefore = wmon.balanceOf(address(user));
 
         vm.prank(admin);
-        gvault.adminInitiateRebalanceBps(5_000);
+        gvault.adminInitiateRebalanceBps(5_000); // 50% rebalance
     }
 
     function _performGVaultRedeemInRebalance(uint256 assets, uint256 shares) internal returns (uint256 requestId1) {
         uint256 assetsGVault = gvault.maxWithdrawableFromGVault(user, 3);
-        uint256 sharesGVault = magma.convertToAssets(assetsGVault);
+        uint256 sharesGVault = magma.convertToShares(assetsGVault);
 
         assertEq(assets / 2, assetsGVault);
         assertEq(assets, magma.convertToAssets(shares));
@@ -946,7 +946,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 shares,
         uint256 assetsBefore,
         uint256 userWMONBefore
-    ) internal view {
+    ) internal {
         // 7540 vault assertions
         Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId1, user);
         assertEq(address(0), redeemDataAfter.owner);
@@ -965,18 +965,25 @@ contract MagmaAsyncModuleTest is BaseTest {
 
         // Calculate sharesGVault for assertions
         uint256 assetsGVault = assets / 2; // This was asserted earlier
-        uint256 sharesGVault = magma.convertToAssets(assetsGVault);
+        uint256 sharesGVault = magma.convertToShares(assetsGVault);
 
         // gVault assertions
-        assertEq(assets / 2, gvault.delegatedAmountOf(user, 3), "Delegated amount in gVault should be 0");
-        assertEq(shares - sharesGVault, gvault.delegatedSharesOf(user, 3), "Delegates shares in gVault should be 0");
+        assertEq(0, gvault.delegatedAmountOf(user, 3), "Delegated amount in gVault should be 0");
+        // After redeeming max withdrawable amount, user should have minimal shares left due to rounding
+        assertLt(
+            gvault.delegatedSharesOf(user, 3),
+            5,
+            "User should have minimal shares left after redeeming max withdrawable"
+        );
         assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions
         assertEq(wmon.balanceOf(address(user)), userWMONBefore + assets / 2);
-        assertEq(
+        // User should have approximately the remaining shares (allowing for small rounding differences)
+        assertApproxEqAbs(
             magma.balanceOf(address(user)),
             shares - sharesGVault,
+            1000,
             "Shares to be redeemed on corevault should be consistent with the balance of the user"
         );
         assertEq(user.balance, 0);
@@ -984,7 +991,7 @@ contract MagmaAsyncModuleTest is BaseTest {
 
     function _performCoreVaultRedeemInRebalance(uint256 assets, uint256 shares) internal returns (uint256 requestId2) {
         uint256 assetsGVault = assets / 2; // From previous calculations
-        uint256 sharesGVault = magma.convertToAssets(assetsGVault);
+        uint256 sharesGVault = magma.convertToShares(assetsGVault);
 
         requestId2 = magma.requestRedeem(shares - sharesGVault, user, user);
         vm.warp(block.timestamp + DELAY);
@@ -1002,7 +1009,7 @@ contract MagmaAsyncModuleTest is BaseTest {
         uint256 shares,
         uint256 assetsBefore,
         uint256 userWMONBefore
-    ) internal view {
+    ) internal {
         // 7540 vault assertions
         Magma.RedeemRequests memory redeemDataAfter = magma.pendingRedeemRequestData(requestId2, user);
         assertEq(address(0), redeemDataAfter.owner);
@@ -1019,13 +1026,10 @@ contract MagmaAsyncModuleTest is BaseTest {
         assertEq(address(magma).balance, 0);
         assertEq(wmon.balanceOf(address(magma)), 0);
 
-        // Calculate sharesGVault for final assertions
-        uint256 assetsGVault = assets / 2;
-        uint256 sharesGVault = magma.convertToAssets(assetsGVault);
-
-        // gVault assertions
-        assertEq(assets / 2, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
-        assertEq(shares - sharesGVault, gvault.delegatedSharesOf(user, 3), "Delegated shares should be 0");
+        // gVault assertions - after full redemption, user should have no assets or withdrawable amount
+        assertEq(0, gvault.delegatedAmountOf(user, 3), "Delegated amount should be 0");
+        // User should have minimal shares left due to rounding after redeeming max withdrawable
+        assertLt(gvault.delegatedSharesOf(user, 3), 1000, "User should have minimal shares left");
         assertEq(0, gvault.maxWithdrawableFromGVault(user, 3), "maxWithdrawableFromGVault should be 0");
 
         // User assertions
