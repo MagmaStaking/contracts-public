@@ -59,8 +59,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
                     name: "gMON",
                     symbol: "gMON",
                     admin: admin,
-                    coreVault: address(0),
-                    gVault: address(0),
                     rewardsFee: 10,
                     withdrawalFee: 0,
                     feeReceiver: admin,
@@ -84,9 +82,8 @@ contract CoreVaultUndelegationSimpleTest is Test {
             UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gvProxy));
 
-        // Wire magma vault refs
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set minimum withdrawal amount
         vm.prank(admin);

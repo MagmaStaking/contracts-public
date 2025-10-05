@@ -16,6 +16,8 @@ import {ErrRequestInexistent} from "src/MagmaErrorsModule.sol";
 contract MagmaAsyncModuleTest is BaseTest {
     function setUp() public virtual override {
         BaseTest.setUp();
+        vm.prank(admin);
+        magma.initVaults(address(coreVault), address(gvault));
 
         _setupValidatorInStakingPrecompile(3);
         _advanceEpoch();

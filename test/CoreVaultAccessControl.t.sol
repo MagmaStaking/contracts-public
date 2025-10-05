@@ -28,6 +28,8 @@ contract CoreVaultAccessControl is BaseTest {
 
     function setUp() public override {
         BaseTest.setUp();
+        vm.prank(admin);
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Ensure we have validators set up for testing
         _setupValidatorInStakingPrecompile(VAL_1);

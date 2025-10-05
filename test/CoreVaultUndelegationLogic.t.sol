@@ -43,9 +43,8 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         );
         coreVault = CoreVault(payable(coreProxy));
 
-        // Wire magma to new coreVault
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set minimum withdrawal amount for testing
         vm.prank(admin);

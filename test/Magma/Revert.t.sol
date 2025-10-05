@@ -66,8 +66,6 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
                 name: "gMON",
                 symbol: "gMON",
                 admin: admin,
-                coreVault: address(coreVault),
-                gVault: address(gvault),
                 rewardsFee: 0,
                 withdrawalFee: 0,
                 feeReceiver: address(0),
@@ -75,6 +73,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
                 mevRewardsInjector: admin
             })
         );
+        mockMagma.initVaults(address(coreVault), address(gvault));
 
         vm.deal(user, assets);
         vm.expectRevert(

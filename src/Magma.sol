@@ -13,7 +13,8 @@ import {
     ErrTokenTransferFailed,
     ErrNotAdmin,
     ErrZeroAddress,
-    ErrInvalidBps
+    ErrInvalidBps,
+    ErrVaultsSet
 } from "./MagmaErrorsModule.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -78,8 +79,6 @@ contract Magma is
         string name;
         string symbol;
         address admin;
-        address coreVault;
-        address gVault;
         uint256 rewardsFee;
         uint256 withdrawalFee;
         address feeReceiver;
@@ -134,8 +133,6 @@ contract Magma is
         __ERC4626_init(params.asset);
         __ERC165_init();
         $._admin = params.admin;
-        $._coreVault = params.coreVault;
-        $._gVault = params.gVault;
         $._rewardsFee = params.rewardsFee;
         $._withdrawalFee = params.withdrawalFee;
         $._feeReceiver = params.feeReceiver;
@@ -152,6 +149,23 @@ contract Magma is
         assembly {
             $.slot := _MagmaStorageLocation
         }
+    }
+
+    /// @notice Initializes the CoreVault and GVault addresses for the Magma protocol
+    /// @dev This function can only be called once during contract initialization. Both vault addresses must be non-zero.
+    /// @param _coreVault The address of the CoreVault contract
+    /// @param _gVault The address of the GVault contract
+    /// @custom:security Only callable by admin and restricted to one-time initialization
+    // TODO: tests for initVaults
+    function initVaults(address _coreVault, address _gVault) external onlyAdmin {
+        if (_coreVault == address(0) || _gVault == address(0)) revert ErrZeroAddress();
+        MagmaStorage storage $ = _getMagmaStorage();
+        if (!($._coreVault == address(0) && $._gVault == address(0))) {
+            revert ErrVaultsSet();
+        }
+        $._coreVault = _coreVault;
+        $._gVault = _gVault;
+        emit VaultsUpdated(_coreVault, _gVault);
     }
 
     function pause() external onlyAdmin {
@@ -486,14 +500,6 @@ contract Magma is
         if (newAdmin == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._admin = newAdmin;
         emit AdminUpdated(newAdmin);
-    }
-
-    function setVaults(address _coreVault, address _gVault) external onlyAdmin {
-        if (_coreVault == address(0)) revert ErrZeroAddress();
-        MagmaStorage storage $ = _getMagmaStorage();
-        $._coreVault = _coreVault;
-        $._gVault = _gVault;
-        emit VaultsUpdated(_coreVault, _gVault);
     }
 
     function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
