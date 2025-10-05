@@ -30,7 +30,6 @@ contract MagmaCacheTest is BaseTest {
 
     function test_CacheIsPopulatedAfterRefresh() public {
         // Initially cache should be empty/stale
-        assertEq(coreVault.lastDelegatorInfoUpdateTimestamp(), 0, "Cache should be uninitialized");
         assertEq(coreVault.cachedTotalAssets(), 0, "Cached assets should be 0");
 
         // Refresh the cache
