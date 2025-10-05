@@ -11,6 +11,8 @@ contract GVaultRewardsInjectionTest is BaseTest {
 
     function setUp() public override {
         BaseTest.setUp();
+        vm.prank(admin);
+        magma.initVaults(address(coreVault), address(gvault));
 
         // gVault maintains its own whitelist; add VAL_1 and VAL_2
         vm.startPrank(admin);
