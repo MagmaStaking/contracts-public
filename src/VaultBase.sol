@@ -422,6 +422,9 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
         }
 
         uint256 _amountToRedelegate = _coreVaultDelInfo.stake;
+        $._totalPendingRedelegation =
+            $._totalPendingRedelegation - $._pendingRedelegateByValidator[_valId] + _amountToRedelegate;
+        $._pendingRedelegateByValidator[_valId] = _amountToRedelegate;
 
         // Initiate undelegation of all remaining stake from this validator
         if (_amountToRedelegate > 0) {
