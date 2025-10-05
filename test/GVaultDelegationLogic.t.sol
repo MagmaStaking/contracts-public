@@ -54,9 +54,8 @@ contract GVaultDelegationLogicTest is BaseTest {
             UnsafeUpgrades.deployUUPSProxy(gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gVaultProxy));
 
-        // Wire magma to new gVault
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set minimum withdrawal amount for testing
         vm.prank(admin);

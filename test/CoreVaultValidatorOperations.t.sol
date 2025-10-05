@@ -43,9 +43,8 @@ contract CoreVaultValidatorOperations is BaseTest {
             coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
         );
         coreVault = CoreVault(payable(coreProxy));
-        // Wire magma to new coreVault
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set up VAL_3 in the staking precompile since BaseTest only sets up 1 and 2
         _setupValidatorInStakingPrecompile(VAL_3);

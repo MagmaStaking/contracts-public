@@ -16,6 +16,8 @@ contract GVaultRewardsTest is BaseTest {
 
     function setUp() public override {
         BaseTest.setUp();
+        vm.prank(admin);
+        magma.initVaults(address(coreVault), address(gvault));
 
         // gVault manages its own validator list; add a validator to gVault for this test
         vm.prank(admin);

@@ -59,8 +59,6 @@ contract CoreVaultUndelegationSimpleTest is Test {
                     name: "gMON",
                     symbol: "gMON",
                     admin: admin,
-                    coreVault: address(0),
-                    gVault: address(0),
                     rewardsFee: 10,
                     withdrawalFee: 0,
                     feeReceiver: admin,
@@ -84,9 +82,8 @@ contract CoreVaultUndelegationSimpleTest is Test {
             UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gvProxy));
 
-        // Wire magma vault refs
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set minimum withdrawal amount
         vm.prank(admin);
@@ -184,32 +181,22 @@ contract CoreVaultUndelegationSimpleTest is Test {
     }
 
     function test_InsufficientStake() public {
-        // Setup fresh CoreVault to avoid interference
-        address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
-        );
-        CoreVault freshCoreVault = CoreVault(payable(coreProxy));
-
         vm.prank(admin);
-        magma.setVaults(address(freshCoreVault), address(gvault));
-
-        vm.prank(admin);
-        freshCoreVault.setMinUserWithdrawAmount(1 ether);
+        coreVault.setMinUserWithdrawAmount(1 ether);
 
         // Setup validator with low stake
         uint64 val1 = 99; // Use unique validator ID
 
         // Set stake BEFORE adding validator to avoid rebalancing
-        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(freshCoreVault), 5 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(coreVault), 5 ether);
 
         vm.prank(admin);
-        freshCoreVault.addValidator(val1);
+        coreVault.addValidator(val1);
 
         // Try to withdraw more than available - expect revert with actual available amount
         vm.prank(address(magma));
         vm.expectRevert(); // Just expect insufficient delegated error, don't check exact amounts due to rebalancing
-        freshCoreVault.undelegate(10 ether, alice);
+        coreVault.undelegate(10 ether, alice);
     }
 
     function test_OnetwentiethThreshold() public {

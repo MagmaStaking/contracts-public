@@ -46,9 +46,8 @@ contract GVaultValidatorOperations is BaseTest {
         address gVaultProxy =
             UnsafeUpgrades.deployUUPSProxy(gVaultImpl, abi.encodeCall(gVault.initialize, (address(magma), uint256(0))));
         gvault = gVault(payable(gVaultProxy));
-        // Wire magma to new gVault
         vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
+        magma.initVaults(address(coreVault), address(gvault));
 
         // Set up VAL_3 in the staking precompile since BaseTest only sets up 1 and 2
         _setupValidatorInStakingPrecompile(VAL_3);

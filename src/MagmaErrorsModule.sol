@@ -36,7 +36,7 @@ error ErrCapZero();
 error ErrExceedsCap();
 error ErrRequestInexistent();
 error ErrNotEnoughAssetsGVault();
-
+error ErrVaultsSet();
 // External call failures
 error ErrDelegateFailed();
 error ErrUndelegateFailed();

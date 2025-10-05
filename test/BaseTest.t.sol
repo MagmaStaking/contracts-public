@@ -56,8 +56,6 @@ contract BaseTest is Test {
                     name: "gMON",
                     symbol: "gMON",
                     admin: admin,
-                    coreVault: address(0),
-                    gVault: address(0),
                     rewardsFee: 10,
                     withdrawalFee: 0,
                     feeReceiver: admin,
@@ -80,10 +78,6 @@ contract BaseTest is Test {
         address gvProxy =
             UnsafeUpgrades.deployUUPSProxy(gvImpl, abi.encodeCall(gVault.initialize, (address(magma), EPOCH)));
         gvault = gVault(payable(gvProxy));
-
-        // Wire magma vault refs
-        vm.prank(admin);
-        magma.setVaults(address(coreVault), address(gvault));
 
         // Set up some validators for testing
         // First register validators in the mock staking precompile
