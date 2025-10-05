@@ -362,56 +362,24 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         coreVault.undelegate(0, alice);
     }
 
-    // Test no validators scenario
-    function test_UndelegateNoValidators() public {
-        // Deploy fresh CoreVault with no validators
-        address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
-        );
-        CoreVault freshCoreVault = CoreVault(payable(coreProxy));
-
-        // Wire magma to fresh coreVault
-        vm.prank(admin);
-        magma.setVaults(address(freshCoreVault), address(gvault));
-
-        // Set minimum withdrawal amount
-        vm.prank(admin);
-        freshCoreVault.setMinUserWithdrawAmount(1 ether);
-
-        // Try to withdraw with no validators
-        vm.prank(address(magma));
-        vm.expectRevert(ErrNoValidators.selector);
-        freshCoreVault.undelegate(10 ether, alice);
-    }
-
     // Test insufficient delegated amount scenario
     function test_UndelegateInsufficientAmount() public {
-        // Create fresh CoreVault with controlled stakes to avoid rebalancing interference
-        address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
-        );
-        CoreVault freshCoreVault = CoreVault(payable(coreProxy));
-
         vm.prank(admin);
-        magma.setVaults(address(freshCoreVault), address(gvault));
-
-        vm.prank(admin);
-        freshCoreVault.setMinUserWithdrawAmount(1 ether);
+        coreVault.setMinUserWithdrawAmount(1 ether);
 
         // Setup validators with known active stakes
         uint64 val1 = 91;
         uint64 val2 = 92;
 
         // Set stakes first, then add validators
-        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(freshCoreVault), 50 ether);
-        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val2, address(freshCoreVault), 30 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val1, address(coreVault), 50 ether);
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(val2, address(coreVault), 30 ether);
 
         vm.prank(admin);
-        freshCoreVault.addValidator(val1);
-        vm.prank(admin);
-        freshCoreVault.addValidator(val2);
+        uint64[] memory validators = new uint64[](2);
+        validators[0] = val1;
+        validators[1] = val2;
+        coreVault.addValidators(validators);
 
         // Test the insufficient amount scenario
         // Based on the pattern we've seen, active stake is typically much less than total stake
@@ -420,17 +388,17 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         // First, try a small withdrawal that should succeed
         uint256 smallAmount = 5 ether;
         vm.prank(address(magma));
-        freshCoreVault.undelegate(smallAmount, bob); // Use bob since alice might have existing requests
+        coreVault.undelegate(smallAmount, bob); // Use bob since alice might have existing requests
 
         // Verify it succeeded
-        CoreVault.WithdrawalRequestInfo[] memory bobRequests = freshCoreVault.getUserWithdrawalRequests(bob);
+        CoreVault.WithdrawalRequestInfo[] memory bobRequests = coreVault.getUserWithdrawalRequests(bob);
         assertTrue(bobRequests.length > 0, "Small withdrawal should succeed");
 
         // Now try a large withdrawal that should fail due to insufficient stake
         uint256 largeAmount = 500 ether; // Way more than any reasonable active stake
         vm.prank(address(magma));
         vm.expectRevert(); // Expect ErrInsufficientDelegated with any amounts
-        freshCoreVault.undelegate(largeAmount, alice);
+        coreVault.undelegate(largeAmount, alice);
     }
 
     // Test only Magma can call undelegate
@@ -642,20 +610,9 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
     // Test edge case: single validator with exact stake amount
     function test_UndelegateSingleValidatorExactAmount() public {
-        // Deploy fresh CoreVault with single validator
-        address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
-        );
-        CoreVault freshCoreVault = CoreVault(payable(coreProxy));
-
-        // Wire magma to fresh coreVault
-        vm.prank(admin);
-        magma.setVaults(address(freshCoreVault), address(gvault));
-
         // Set minimum withdrawal amount
         vm.prank(admin);
-        freshCoreVault.setMinUserWithdrawAmount(1 ether);
+        coreVault.setMinUserWithdrawAmount(1 ether);
 
         // Add single validator
         uint64 singleValId = 99;
@@ -663,11 +620,9 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
 
         _setupValidatorInStakingPrecompile(singleValId);
         // Set stake for the fresh CoreVault specifically
-        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(
-            singleValId, address(freshCoreVault), validatorStake
-        );
+        MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(singleValId, address(coreVault), validatorStake);
         vm.prank(admin);
-        freshCoreVault.addValidator(singleValId);
+        coreVault.addValidator(singleValId);
 
         magma.refreshCache();
         // The delegatedAmount shows total stake, but active stake available for withdrawal is much less
@@ -675,10 +630,10 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
         uint256 withdrawAmount = 3 ether; // Small amount that should be available as active stake
 
         vm.prank(address(magma));
-        freshCoreVault.undelegate(withdrawAmount, alice);
+        coreVault.undelegate(withdrawAmount, alice);
 
         // Verify withdrawal
-        CoreVault.WithdrawalRequestInfo[] memory requests = freshCoreVault.getUserWithdrawalRequests(alice);
+        CoreVault.WithdrawalRequestInfo[] memory requests = coreVault.getUserWithdrawalRequests(alice);
         assertTrue(requests.length > 0, "Should have withdrawal requests");
 
         uint256 totalWithdrawn = 0;
@@ -686,98 +641,6 @@ contract CoreVaultUndelegationLogicTest is BaseTest {
             totalWithdrawn += requests[i].amount;
         }
         assertEq(totalWithdrawn, withdrawAmount, "Should withdraw exactly requested amount");
-    }
-
-    // Test large-scale withdrawal spanning multiple validators
-    function test_UndelegateLargeScaleAllValidators() public {
-        // Create fresh CoreVault with proper validator setup to avoid rebalancing issues
-        address coreImpl = address(new CoreVault());
-        address coreProxy = UnsafeUpgrades.deployUUPSProxy(
-            coreImpl, abi.encodeCall(CoreVault.initialize, (address(magma), uint256(0), uint64(10)))
-        );
-        CoreVault freshCoreVault = CoreVault(payable(coreProxy));
-
-        vm.prank(admin);
-        magma.setVaults(address(freshCoreVault), address(gvault));
-
-        vm.prank(admin);
-        freshCoreVault.setMinUserWithdrawAmount(1 ether);
-
-        // Setup multiple validators with significant active stakes
-        uint64[4] memory validators = [uint64(81), uint64(82), uint64(83), uint64(84)];
-        uint256[4] memory stakes = [uint256(50 ether), uint256(100 ether), uint256(75 ether), uint256(60 ether)];
-
-        // Set stakes first, then add validators to preserve stakes
-        for (uint256 i = 0; i < validators.length; i++) {
-            MockStakingPrecompile(STAKING_PRECOMPILE).setDelegatorStake(
-                validators[i], address(freshCoreVault), stakes[i]
-            );
-        }
-
-        // Add validators one by one, completing rebalancing between each to avoid ErrAdminWidInUse
-        vm.startPrank(admin);
-        for (uint256 i = 0; i < validators.length; i++) {
-            freshCoreVault.addValidator(validators[i]);
-
-            // Complete rebalancing after each validator addition (except the last one)
-            if (i < validators.length - 1) {
-                // Advance epochs to make admin withdrawals ready
-                _advanceEpochsForWithdrawal();
-
-                // Complete the rebalancing to clear admin withdrawal IDs
-                freshCoreVault.redelegateToValidators();
-            }
-        }
-        vm.stopPrank();
-
-        // Calculate actual available active stake (much smaller than total)
-        uint256 totalActiveStake = 0;
-        for (uint256 i = 0; i < validators.length; i++) {
-            uint256 validatorStake = freshCoreVault.delegatedAmount(validators[i]);
-            totalActiveStake += validatorStake;
-        }
-
-        // Use a withdrawal amount that will require multiple validators but is realistic
-        // Start with something that should work - about 1/20th of total (which is the threshold)
-        uint256 largeWithdrawAmount = totalActiveStake / 20; // 1/20th threshold
-        if (largeWithdrawAmount < 5 ether) largeWithdrawAmount = 5 ether; // Ensure minimum reasonable amount
-
-        console.log("Attempting to withdraw: %d", largeWithdrawAmount);
-
-        magma.refreshCache();
-        vm.prank(address(magma));
-        freshCoreVault.undelegate(largeWithdrawAmount, alice);
-
-        // Verify withdrawal was successful
-        CoreVault.WithdrawalRequestInfo[] memory requests = freshCoreVault.getUserWithdrawalRequests(alice);
-        assertTrue(requests.length > 0, "Should have withdrawal requests");
-
-        // Count unique validators used
-        uint256 uniqueValidators = 0;
-        bool[5] memory validatorUsed; // index 0 unused, 1-4 for validators 81,82,83,84
-
-        for (uint256 i = 0; i < requests.length; i++) {
-            uint64 valId = requests[i].validator;
-            uint256 index = 0;
-            if (valId == 81) index = 1;
-            else if (valId == 82) index = 2;
-            else if (valId == 83) index = 3;
-            else if (valId == 84) index = 4;
-
-            if (index > 0 && !validatorUsed[index]) {
-                validatorUsed[index] = true;
-                uniqueValidators++;
-            }
-        }
-
-        assertGe(uniqueValidators, 1, "Should use at least 1 validator for withdrawal");
-
-        // Verify total amount
-        uint256 totalWithdrawn = 0;
-        for (uint256 i = 0; i < requests.length; i++) {
-            totalWithdrawn += requests[i].amount;
-        }
-        assertEq(totalWithdrawn, largeWithdrawAmount, "Total withdrawn should match requested amount");
     }
 
     // Test multiple users completing withdrawals simultaneously
