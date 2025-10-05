@@ -221,21 +221,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
-     * @notice Calculate total effective stake for validator cap validation
-     * @dev Handles two cap types differently:
-     *      - Absolute caps (_validatorCap[valId] != 0): Returns only actual stake (active + pending)
-     *        to avoid overstating with funds scheduled to leave via redelegation
-     *      - Percentage caps (_validatorCap[valId] == 0): Includes proportional pending redelegations
-     *        since these funds will eventually be delegated within the total Magma assets
-     * @param _valId The validator ID to query
-     * @return Total effective stake amount for cap validation purposes
-     */
-    function _getStakeForCapValidation(uint64 _valId) internal returns (uint256) {
-        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
-    }
-
-    /**
      * @notice Get the amount of assets corresponding to user's shares for a validator
      * @param _user The user address
      * @param _valId The validator ID
