@@ -9,7 +9,6 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {DelInfo} from "./MagmaDelegationModule.sol";
 import {
     ErrNotWhitelisted,
     ErrInvalidBps,
