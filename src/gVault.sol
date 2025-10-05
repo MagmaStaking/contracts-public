@@ -214,15 +214,20 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     /**
      * @notice Calculate total effective stake for validator cap validation
-     * @dev Returns active stake plus pending stakes plus a proportional amount of pending redelegations
-     *      based on defaultCapBps. Used specifically for deposit cap enforcement during delegation.
+     * @dev Handles two cap types differently:
+     *      - Absolute caps (_validatorCap[valId] != 0): Returns only actual stake (active + pending)
+     *        to avoid overstating with funds scheduled to leave via redelegation
+     *      - Percentage caps (_validatorCap[valId] == 0): Includes proportional pending redelegations
+     *        since these funds will eventually be delegated within the total Magma assets
      * @param _valId The validator ID to query
      * @return Total effective stake amount for cap validation purposes
      */
     function _getTotalStakedWithCap(uint64 _valId) internal view returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
-            + (pendingRedelegateByValidator(_valId) * _getGVaultStorage()._defaultCapBps) / BASE_BPS;
+        uint256 _stake = _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
+        return _getGVaultStorage()._validatorCap[_valId] != 0
+            ? _stake
+            : _stake + (pendingRedelegateByValidator(_valId) * _getGVaultStorage()._defaultCapBps) / BASE_BPS;
     }
 
     /**
