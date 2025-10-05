@@ -572,18 +572,6 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
     }
 
     /**
-     * @notice Get total stake for validator including pending operations
-     * @dev Returns active stake plus pending stakes plus pending redelegation amounts
-     * @param _valId The validator ID to query
-     * @return Total stake including all pending operations
-     */
-    function _getTotalStakedWithPendingToValidator(uint64 _valId) internal returns (uint256) {
-        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
-            + _getVaultBaseStorage()._pendingRedelegateByValidator[_valId];
-    }
-
-    /**
      * @notice Get total active stake for a validator
      * @dev Returns current active stake plus pending stake changes
      * @param _valId The validator ID to query
