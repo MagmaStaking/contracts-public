@@ -53,6 +53,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the CoreVault contract with configuration parameters
      * @dev Sets up the vault with Magma protocol address and epoch timing configuration
@@ -86,6 +90,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         _registerValidator(_valId);
         _redelegateInitiate();
     }
@@ -96,6 +101,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
     function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
@@ -111,6 +117,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      *      to complete the redistribution. Prevents concurrent rebalances.
      */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         setFinishedLastRebalance(false);
         _redelegateInitiate();
@@ -122,6 +129,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
     function redelegateToValidators() external onlyAdmin {
+        _refreshCache();
         _redelegateRedistribute();
     }
 
@@ -132,6 +140,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to remove
      */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         if (validatorsLength() == 1) revert ErrNotEnoughValidators();
         _initiateValidatorRemoval(_valId);
     }
@@ -142,6 +151,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
 
@@ -151,6 +161,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
         if (_withdrawalAmount > 0) {
@@ -171,6 +182,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (msg.sender != address(magma()) && msg.sender != magma().gVault()) {
             revert ErrNotMagma();
         }
+        // Check if rewards need to be claimed before delegating
+        _checkRewardsClaimDelay();
         _distributeToNextValidator(msg.value);
     }
 
@@ -186,6 +199,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         if (validatorsLength() == 0) revert ErrNoValidators();
+
+        // Check if rewards need to be claimed before undelegating
+        _checkRewardsClaimDelay();
 
         // only one withdrawal per user
         if (userWithdrawalRequests(_user).length > 0) revert ErrExistingWithdrawalInProgress();
@@ -277,7 +293,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Calculates and returns the sum of all delegated amounts including pending stakes
      * @return Total delegated amount in wei
      */
-    function getTotalDelegated() external view returns (uint256) {
+    function getTotalDelegated() external returns (uint256) {
         uint256 _total = 0;
         uint64[] memory _validators = getValidators();
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
@@ -292,7 +308,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to query
      * @return Total delegated amount to the validator in wei
      */
-    function delegatedAmount(uint64 _valId) external view returns (uint256) {
+    function delegatedAmount(uint64 _valId) external returns (uint256) {
         return _getTotalStakedToValidator(_valId);
     }
 
@@ -327,6 +343,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         uint256 _remaining = _rewards - _fee;
         _distributeToNextValidator(_remaining);
+
+        // Update the last rewards claim timestamp since we claimed from all validators
+        _updateLastRewardsClaimTimestamp();
     }
 
     /**

@@ -40,8 +40,6 @@ contract MagmaScript is Script {
                     name: "gMON",
                     symbol: "gMON",
                     admin: msg.sender,
-                    coreVault: address(0),
-                    gVault: address(0),
                     rewardsFee: 0,
                     withdrawalFee: 0,
                     feeReceiver: feeReceiverAddress,
@@ -57,9 +55,7 @@ contract MagmaScript is Script {
         );
         address gvProxy =
             Upgrades.deployUUPSProxy("gVault.sol", abi.encodeCall(gVault.initialize, (address(magma), epoch)));
-
-        magma.setVaults(coreProxy, gvProxy);
-
+        magma.initVaults(coreProxy, gvProxy);
         console.log("Deployed Magma Vault at:", address(magma));
         console.log("Deployed CoreVault at:", coreProxy);
         console.log("Deployed gVault at:", gvProxy);
