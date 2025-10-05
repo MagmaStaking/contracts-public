@@ -117,7 +117,7 @@ contract Magma is
     event RewardsFeeUpdated(uint256 indexed newRewardsFee);
     event WithdrawalFeeUpdated(uint256 indexed newWithdrawalFee);
     event RedeemDelayUpdated(uint256 indexed newRedeemDelay);
-    event VaultsUpdated(address indexed newCoreVault, address indexed newGVault);
+    event VaultsSet(address indexed newCoreVault, address indexed newGVault);
 
     modifier onlyAdmin() {
         if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
@@ -164,7 +164,7 @@ contract Magma is
         }
         $._coreVault = _coreVault;
         $._gVault = _gVault;
-        emit VaultsUpdated(_coreVault, _gVault);
+        emit VaultsSet(_coreVault, _gVault);
     }
 
     function pause() external onlyAdmin {
