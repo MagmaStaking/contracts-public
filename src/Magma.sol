@@ -477,7 +477,7 @@ contract Magma is
             }
         }
 
-        emit Withdraw(controller, receiver, address(this), totalWithdrawnAfterFee, shares);
+        emit Withdraw(_msgSender(), receiver, address(this), totalWithdrawnAfterFee, shares);
 
         return totalWithdrawnAfterFee;
     }

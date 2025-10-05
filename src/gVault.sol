@@ -14,6 +14,7 @@ import {
     ErrNotWhitelisted,
     ErrInvalidBps,
     ErrZeroAddress,
+    ErrZeroShares,
     ErrCapZero,
     ErrExceedsCap,
     ErrBelowMinWithdraw,
@@ -251,7 +252,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (newAmt > _cap) revert ErrExceedsCap();
 
         // Convert assets to shares based on current exchange rate
-        uint256 _sharesToMint = _convertToShares(_valId, msg.value);
+        uint256 _sharesToMint = _convertToShares(_valId, msg.value, Math.Rounding.Floor);
+        if (_sharesToMint == 0) {
+            revert ErrZeroShares();
+        }
 
         // Execute delegation to validator
         _delegate(_valId, msg.value);
@@ -264,7 +268,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (msg.value > 0) {
             // Calculate units = ceil(deposit_amount * S / P) to track user's contribution
             // Using ceiling to prevent precision erosion in user's favor
-            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Ceil);
+            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Floor);
             $._scaledPrincipalUnits[_user][_valId] += _addUnits;
         }
 
@@ -292,7 +296,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_user == address(0)) revert ErrZeroAddress();
 
         // Convert amount to shares to determine how many shares to burn
-        uint256 _sharesToBurn = _convertToShares(_valId, _amount);
+        uint256 _sharesToBurn = _convertToShares(_valId, _amount, Math.Rounding.Ceil);
 
         // Check if user has sufficient shares
         GVaultStorage storage $ = _getGVaultStorage();
@@ -478,7 +482,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _assets The amount of assets to convert
      * @return _shares The equivalent number of shares
      */
-    function _convertToShares(uint64 _valId, uint256 _assets) internal view returns (uint256 _shares) {
+    function _convertToShares(uint64 _valId, uint256 _assets, Math.Rounding rounding)
+        internal
+        view
+        returns (uint256 _shares)
+    {
         uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
@@ -490,7 +498,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Calculate shares proportionally: shares = assets * total_shares / total_assets
         // Round down to favor the vault (EIP-4626 requirement for convertToShares)
-        return (_assets * _totalShares) / _totalAssets;
+        return Math.mulDiv(_assets, _totalShares, _totalAssets + 1, rounding);
     }
 
     /**
