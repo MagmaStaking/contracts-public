@@ -62,6 +62,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
     event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the gVault contract with configuration parameters
      * @dev Sets up the vault with Magma protocol address, epoch timing, and multiplier system
@@ -124,6 +128,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _registerValidator(_valId);
     }
 
@@ -133,6 +138,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to remove
      */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _initiateValidatorRemoval(_valId);
     }
 
@@ -142,6 +148,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
 
@@ -151,6 +158,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
 
         // Send withdrawal amount to CoreVault
@@ -351,6 +359,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _bps The basis points to undelegate (e.g., 1000 = 10%)
      */
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
+        _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         GVaultStorage storage $ = _getGVaultStorage();
 
@@ -408,6 +417,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      *      through Magma protocol. Marks the rebalance process as finished.
      */
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
+        _refreshCache();
         uint64[] memory _list = getValidators();
         uint256 _beforeBal = address(this).balance;
         uint256 _n = _list.length;
