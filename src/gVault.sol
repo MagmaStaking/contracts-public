@@ -230,7 +230,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to query
      * @return Total effective stake amount for cap validation purposes
      */
-    function _getStakeForCapValidation(uint64 _valId) internal view returns (uint256) {
+    function _getStakeForCapValidation(uint64 _valId) internal returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         uint256 _stake = _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
         return _getGVaultStorage()._validatorCap[_valId] != 0
