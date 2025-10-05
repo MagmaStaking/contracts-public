@@ -239,6 +239,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     function delegate(address _user, uint64 _valId) external payable onlyMagma whenNotPaused {
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
+
+        // Check if rewards need to be claimed before delegating
+        _checkRewardsClaimDelay();
+
         // Cap check
         uint256 _cap = _maxCapFor(_valId);
         if (_cap == 0) revert ErrCapZero();
@@ -288,6 +292,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         //undelegate just adds to the queue
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
+
+        // Check if rewards need to be claimed before undelegating
+        _checkRewardsClaimDelay();
 
         // Convert amount to shares to determine how many shares to burn
         uint256 _sharesToBurn = _convertToShares(_valId, _amount, Math.Rounding.Ceil);
@@ -446,10 +453,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /**
      * @notice Claim and compound staking rewards for a specific validator
      * @dev Claims rewards from the validator, deducts fees, and re-delegates remaining rewards
-     * @param _valId The validator ID to claim rewards from
      */
-    function claimAndCompoundRewards(uint64 _valId) external {
-        _claimAndCompoundRewards(_valId);
+    function claimAndCompoundRewards() external {
+        uint64[] memory _list = getValidators();
+        for (uint256 i = 0; i < _list.length; ++i) {
+            uint64 _valId = _list[i];
+            _claimAndCompoundRewards(_valId);
+        }
+        _updateLastRewardsClaimTimestamp();
     }
 
     /**

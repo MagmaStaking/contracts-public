@@ -64,3 +64,6 @@ error ErrMaxValidators(uint64 errMaxValidators);
 error ErrExceedsOnetwentiethThreshold(uint256 amount, uint256 threshold);
 error ErrExistingWithdrawalInProgress();
 error ErrWithdrawalFailed(uint64 valId, uint8 withdrawalId);
+
+// Reward claiming errors
+error ErrRewardsClaimOverdue();
