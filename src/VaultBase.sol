@@ -20,7 +20,8 @@ import {
     ErrAlreadyWhitelisted,
     ErrNativeTransferFailed,
     ErrAdminWidInUse,
-    ErrNotWhitelisted
+    ErrNotWhitelisted,
+    ErrRewardsClaimOverdue
 } from "./MagmaErrorsModule.sol";
 
 abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgradeable {
@@ -66,6 +67,10 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
         mapping(address => WithdrawalRequestInfo[]) _userWithdrawalRequests;
         /// @dev Active validator list (validators available for delegation)
         uint64[] _validators;
+        /// @dev Maximum delay allowed between reward claims (default: 1 week)
+        uint256 _maxRewardsClaimDelay;
+        /// @dev Timestamp when rewards were last claimed from all validators
+        uint256 _lastRewardsClaimTimestamp;
     }
 
     /// @dev Structure to track individual user withdrawal requests
@@ -79,6 +84,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
     uint8 internal constant ADMIN_WID = 255;
     /// @dev Basis points constant for percentage calculations (10,000 = 100%)
     uint256 internal constant BASE_BPS = 10_000;
+    /// @dev Default maximum delay for reward claims (1 week)
+    uint256 internal constant DEFAULT_MAX_REWARDS_CLAIM_DELAY = 7 days;
 
     // keccak256(abi.encode(uint256(keccak256("storage.VaultBase")) - 1)) & ~bytes32(uint256(0xff))
     /* solhint-disable-next-line const-name-snakecase */
@@ -113,6 +120,8 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
         $._delegatorInfoUpdateInterval = 1 hours;
         $._epochSeconds = _epochSeconds;
         $._finishedLastRebalance = true;
+        $._maxRewardsClaimDelay = DEFAULT_MAX_REWARDS_CLAIM_DELAY;
+        $._lastRewardsClaimTimestamp = block.timestamp; // Initialize to current time
     }
 
     function _getVaultBaseStorage() private pure returns (VaultBaseStorage storage $) {
@@ -347,6 +356,35 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
     function setEpochSeconds(uint256 _epochSeconds) external onlyAdmin {
         _getVaultBaseStorage()._epochSeconds = _epochSeconds;
         emit EpochSecondsUpdated(_epochSeconds);
+    }
+
+    /**
+     * @notice Get the timestamp of the last reward claim
+     * @dev Returns when rewards were last claimed from all validators
+     * @return The timestamp of the last reward claim
+     */
+    function lastRewardsClaimTimestamp() external view virtual returns (uint256) {
+        return _getVaultBaseStorage()._lastRewardsClaimTimestamp;
+    }
+
+    /**
+     * @notice Get the maximum delay allowed between reward claims
+     * @dev Returns the maximum time allowed between reward claims
+     * @return The maximum delay in seconds
+     */
+    function maxRewardsClaimDelay() external view virtual returns (uint256) {
+        return _getVaultBaseStorage()._maxRewardsClaimDelay;
+    }
+
+    /**
+     * @notice Set the maximum delay allowed between reward claims
+     * @dev Updates the maximum time allowed between reward claims (must be between 1 day and 30 days)
+     * @param _delay The maximum delay in seconds
+     */
+    function setMaxRewardsClaimDelay(uint256 _delay) external virtual onlyAdmin {
+        _validateMaxRewardsClaimDelay(_delay);
+        _getVaultBaseStorage()._maxRewardsClaimDelay = _delay;
+        emit MaxRewardsClaimDelayUpdated(_delay);
     }
 
     /**
@@ -722,6 +760,34 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      */
     function _trackCachedUndelegation(uint256 _amount) internal {
         _getVaultBaseStorage()._cachedTotalNetPendingDelegations -= int256(_amount);
+    }
+
+    /**
+     * @dev Check if rewards need to be claimed based on the maximum delay
+     * @notice Reverts if rewards haven't been claimed within the maximum allowed delay
+     */
+    function _checkRewardsClaimDelay() internal view virtual {
+        VaultBaseStorage storage $ = _getVaultBaseStorage();
+        if (block.timestamp - $._lastRewardsClaimTimestamp > $._maxRewardsClaimDelay) {
+            revert ErrRewardsClaimOverdue();
+        }
+    }
+
+    /**
+     * @dev Update the last rewards claim timestamp
+     * @notice Should be called whenever rewards are claimed from all validators
+     */
+    function _updateLastRewardsClaimTimestamp() internal virtual {
+        _getVaultBaseStorage()._lastRewardsClaimTimestamp = block.timestamp;
+    }
+
+    /**
+     * @dev Validate the maximum rewards claim delay parameter
+     * @notice Shared validation logic for both vault types
+     * @param _delay The delay to validate (must be between 1 day and 30 days)
+     */
+    function _validateMaxRewardsClaimDelay(uint256 _delay) internal pure {
+        if (_delay < 1 days || _delay > 30 days) revert ErrInvalidAmount(_delay);
     }
 
     /**

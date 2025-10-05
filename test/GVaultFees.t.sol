@@ -33,7 +33,7 @@ contract GVaultRewardsTest is BaseTest {
         uint256 gvaultBefore = address(gvault).balance;
 
         // Call: gVault compounds rewards per validator
-        gvault.claimAndCompoundRewards(VAL_1);
+        gvault.claimAndCompoundRewards();
 
         // Rewards total = 10 ether; fee uses magma.rewardsFee() per 10_000
         uint256 feeReceiverAfter = admin.balance;

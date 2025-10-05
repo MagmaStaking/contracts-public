@@ -182,6 +182,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (msg.sender != address(magma()) && msg.sender != magma().gVault()) {
             revert ErrNotMagma();
         }
+        // Check if rewards need to be claimed before delegating
+        _checkRewardsClaimDelay();
         _distributeToNextValidator(msg.value);
     }
 
@@ -197,6 +199,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         if (validatorsLength() == 0) revert ErrNoValidators();
+
+        // Check if rewards need to be claimed before undelegating
+        _checkRewardsClaimDelay();
 
         // only one withdrawal per user
         if (userWithdrawalRequests(_user).length > 0) revert ErrExistingWithdrawalInProgress();
@@ -338,6 +343,9 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         uint256 _remaining = _rewards - _fee;
         _distributeToNextValidator(_remaining);
+
+        // Update the last rewards claim timestamp since we claimed from all validators
+        _updateLastRewardsClaimTimestamp();
     }
 
     /**

@@ -48,6 +48,86 @@ contract CoreVaultRewardsTest is BaseTest {
         assertEq(coreAfter, coreBefore, "coreVault should not retain funds after redistribution");
     }
 
+    // Test: Magma deposits fail after 7 days without claiming rewards
+    function testMagmaDepositFailsAfter7Days() public {
+        // Setup: Make an initial deposit to establish baseline
+        uint256 depositAmount = 10 ether;
+        vm.deal(user, depositAmount);
+        vm.startPrank(user);
+
+        // Initial deposit should work (rewards were just claimed during setup)
+        magma.depositMON{value: depositAmount}(user, 0);
+
+        // Fast forward 7 days + 1 second to exceed the reward claim delay
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Try to make another deposit - should fail due to reward claim delay
+        vm.deal(user, depositAmount);
+        vm.expectRevert(abi.encodeWithSignature("ErrRewardsClaimOverdue()"));
+        magma.depositMON{value: depositAmount}(user, 0);
+
+        vm.stopPrank();
+
+        // Set up some rewards for claiming
+        MockStakingPrecompile mock = MockStakingPrecompile(STAKING_PRECOMPILE);
+        mock.setDelegatorRewards(VAL_1, address(coreVault), 1 ether);
+        mock.setDelegatorRewards(VAL_2, address(coreVault), 1 ether);
+
+        // Admin claims rewards to reset the timer
+        coreVault.claimAndCompoundRewards();
+
+        // Now deposits should work again
+        vm.startPrank(user);
+        vm.deal(user, depositAmount);
+        magma.depositMON{value: depositAmount}(user, 0); // Should succeed
+        vm.stopPrank();
+    }
+
+    // Test: gVault deposits also fail after 7 days without claiming rewards
+    function testGVaultDepositFailsAfter7Days() public {
+        // Setup: Add validator to gVault as admin and set cap
+        vm.startPrank(admin);
+        gvault.addValidator(VAL_1);
+        gvault.changeValidatorCap(VAL_1, 100 ether); // Set a cap for the validator
+        vm.stopPrank();
+
+        uint256 depositAmount = 5 ether;
+        vm.deal(user, depositAmount);
+        vm.startPrank(user);
+        wmon.deposit{value: depositAmount}();
+        wmon.approve(address(magma), depositAmount);
+
+        // Initial deposit should work (rewards were just claimed during setup)
+        magma.depositGVault(depositAmount, user, VAL_1, 0);
+
+        // Fast forward 7 days + 1 second to exceed the reward claim delay
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Try to make another gVault deposit - should fail due to reward claim delay
+        vm.deal(user, depositAmount);
+        wmon.deposit{value: depositAmount}();
+        wmon.approve(address(magma), depositAmount);
+        vm.expectRevert(abi.encodeWithSignature("ErrRewardsClaimOverdue()"));
+        magma.depositGVault(depositAmount, user, VAL_1, 0);
+
+        vm.stopPrank();
+
+        // Set up some rewards for claiming
+        MockStakingPrecompile mock = MockStakingPrecompile(STAKING_PRECOMPILE);
+        mock.setDelegatorRewards(VAL_1, address(gvault), 1 ether);
+
+        // Admin claims rewards to reset the timer
+        gvault.claimAndCompoundRewards();
+
+        // Now gVault deposits should work again
+        vm.startPrank(user);
+        vm.deal(user, depositAmount);
+        wmon.deposit{value: depositAmount}();
+        wmon.approve(address(magma), depositAmount);
+        magma.depositGVault(depositAmount, user, VAL_1, 0); // Should succeed
+        vm.stopPrank();
+    }
+
     function testWithdrawalsFeeIsCharged() public {
         // Configure withdrawal fee and receiver as admin
         vm.startPrank(admin);
