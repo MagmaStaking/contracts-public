@@ -73,6 +73,7 @@ contract MagmaAsyncModuleRevertTest is MagmaAsyncModuleTest {
                 mevRewardsInjector: admin
             })
         );
+        vm.prank(admin);
         mockMagma.initVaults(address(coreVault), address(gvault));
 
         vm.deal(user, assets);
