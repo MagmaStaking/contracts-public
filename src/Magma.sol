@@ -156,7 +156,6 @@ contract Magma is
     /// @param _coreVault The address of the CoreVault contract
     /// @param _gVault The address of the GVault contract
     /// @custom:security Only callable by admin and restricted to one-time initialization
-    // TODO: tests for initVaults
     function initVaults(address _coreVault, address _gVault) external onlyAdmin {
         if (_coreVault == address(0) || _gVault == address(0)) revert ErrZeroAddress();
         MagmaStorage storage $ = _getMagmaStorage();
