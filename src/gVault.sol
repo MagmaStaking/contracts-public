@@ -243,9 +243,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Cap check
         uint256 _cap = _maxCapFor(_valId);
         if (_cap == 0) revert ErrCapZero();
-
-        DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
-        uint256 newAmt = msg.value + _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
+        uint256 newAmt = msg.value + _getTotalStakedToValidator(_valId);
         if (newAmt > _cap) revert ErrExceedsCap();
 
         // Convert assets to shares based on current exchange rate
