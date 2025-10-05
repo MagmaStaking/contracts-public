@@ -507,7 +507,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _shares The number of shares to convert
      * @return _assets The equivalent amount of assets
      */
-    function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
+    function _convertToAssets(uint64 _valId, uint256 _shares) internal returns (uint256 _assets) {
         uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
