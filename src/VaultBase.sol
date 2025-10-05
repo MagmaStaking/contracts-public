@@ -478,7 +478,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @dev Calculates sum of stakes across all active validators
      * @return Total staked amount in wei
      */
-    function _getTotalStakedToAllValidators() internal view returns (uint256) {
+    function _getTotalStakedToAllValidators() internal returns (uint256) {
         uint256 _total = 0;
         uint64[] memory _validators = getValidators();
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
@@ -532,7 +532,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _valId The validator ID to query
      * @return Total stake including all pending operations
      */
-    function _getTotalStakedWithPendingToValidator(uint64 _valId) internal view returns (uint256) {
+    function _getTotalStakedWithPendingToValidator(uint64 _valId) internal returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake
             + _getVaultBaseStorage()._pendingRedelegateByValidator[_valId];
@@ -544,7 +544,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _valId The validator ID to query
      * @return Total active stake amount
      */
-    function _getTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
+    function _getTotalStakedToValidator(uint64 _valId) internal returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
     }

@@ -26,7 +26,7 @@ interface IGVault is IBaseVault {
     function initialize(address _magma, uint256 _epochSeconds) external;
 
     // View functions
-    function delegatedAmountOf(address user, uint64 valId) external view returns (uint256);
+    function delegatedAmountOf(address user, uint64 valId) external returns (uint256);
     function maxWithdrawableFromGVault(address _user, uint64 _valId) external view returns (uint256);
     function validatorCap(uint64 valId) external view returns (uint256);
     function defaultCapBps() external view returns (uint256);
