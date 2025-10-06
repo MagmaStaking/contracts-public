@@ -90,8 +90,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
-        _refreshCache();
         _registerValidator(_valId);
+        _refreshCache();
         _redelegateInitiate();
     }
 
@@ -101,13 +101,13 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
     function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
-        _refreshCache();
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
         for (uint256 i = 0; i < validatorIds.length; ++i) {
             _registerValidator(validatorIds[i]);
         }
+        _refreshCache(); // refreshing cache after adding validators to ensure new validator inclusion in cache
         _redelegateInitiate();
     }
 
@@ -365,19 +365,20 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint64[] memory _validators = getValidators();
         if (_validators.length == 0) return;
 
-        uint256 _totalDelegated = _getTotalStakedToAllValidators(); // contains pending redelegations
+        uint256 _totalDelegated = _getCachedTotalStakedToAllValidators();
         if (_totalDelegated == 0) return;
 
         uint256 _targetPerValidator = _totalDelegated / _validators.length;
         uint256 _totalToUndelegate = 0;
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _v = _validators[_i];
-            if (_getTotalStakedToValidator(_v) > _targetPerValidator) {
-                uint256 _excess = _getTotalStakedToValidator(_v) - _targetPerValidator;
+            uint256 _validatorStake = _getCachedTotalStakedToValidator(_v);
+            if (_validatorStake > _targetPerValidator) {
+                uint256 _excess = _validatorStake - _targetPerValidator;
 
                 // Check if validator has sufficient active stake for undelegation
-                // Get actual stake from precompile to ensure we can undelegate
-                DelInfo memory _delInfo = _getDelegatorInfo(_v, address(this));
+                // Use cached data to get available stake for undelegation
+                DelInfo memory _delInfo = cachedDelegatorInfo(_v);
                 uint256 _availableStake = _delInfo.stake;
 
                 // Undelegate the minimum of what we want and what's available

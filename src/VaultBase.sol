@@ -533,6 +533,20 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
     }
 
     /**
+     * @notice Get total active stake across all validators using cached data
+     * @dev Sums cached stake data for all validators to avoid expensive precompile calls
+     * @return Total active stake amount across all validators from cached data
+     */
+    function _getCachedTotalStakedToAllValidators() internal view returns (uint256) {
+        uint256 _total = 0;
+        uint64[] memory _validators = getValidators();
+        for (uint256 _i = 0; _i < _validators.length; ++_i) {
+            _total += _getCachedTotalStakedToValidator(_validators[_i]);
+        }
+        return _total;
+    }
+
+    /**
      * @notice Allocate withdrawal ID and initiate undelegation
      * @dev Allocates a free withdrawal ID and starts undelegation process
      * @param _valId The validator ID to undelegate from
@@ -579,6 +593,17 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      */
     function _getTotalStakedToValidator(uint64 _valId) internal returns (uint256) {
         DelInfo memory _delInfo = _getDelegatorInfo(_valId, address(this));
+        return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
+    }
+
+    /**
+     * @notice Get total active stake for a validator using cached data
+     * @dev Returns current active stake plus pending stake changes from cache
+     * @param _valId The validator ID to query
+     * @return Total active stake amount from cached data
+     */
+    function _getCachedTotalStakedToValidator(uint64 _valId) internal view returns (uint256) {
+        DelInfo memory _delInfo = cachedDelegatorInfo(_valId);
         return _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
     }
 
