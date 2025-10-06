@@ -72,7 +72,7 @@ abstract contract MagmaDelegationModule {
     }
 
     // Typed function for delegator info: return stake amount (first word) per docs
-    function _getDelegatorStake(uint64 valId, address delegator) internal view returns (uint256 stake) {
+    function _getDelegatorStake(uint64 valId, address delegator) internal returns (uint256 stake) {
         try STAKING.getDelegator(valId, delegator) returns (
             uint256 _stake, uint256, uint256, uint256, uint256, uint64, uint64
         ) {
@@ -82,7 +82,7 @@ abstract contract MagmaDelegationModule {
         }
     }
 
-    function _getDelegatorInfo(uint64 valId, address delegator) internal view returns (DelInfo memory del) {
+    function _getDelegatorInfo(uint64 valId, address delegator) internal returns (DelInfo memory del) {
         try STAKING.getDelegator(valId, delegator) returns (
             uint256 stake,
             uint256 accRewardPerToken,

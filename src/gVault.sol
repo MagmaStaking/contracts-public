@@ -13,6 +13,7 @@ import {
     ErrNotWhitelisted,
     ErrInvalidBps,
     ErrZeroAddress,
+    ErrZeroShares,
     ErrCapZero,
     ErrExceedsCap,
     ErrBelowMinWithdraw,
@@ -60,6 +61,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
     event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
+
+    constructor() {
+        _disableInitializers();
+    }
 
     /**
      * @notice Initialize the gVault contract with configuration parameters
@@ -123,6 +128,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _registerValidator(_valId);
     }
 
@@ -132,6 +138,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to remove
      */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _initiateValidatorRemoval(_valId);
     }
 
@@ -141,6 +148,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
 
@@ -150,6 +158,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
 
         // Send withdrawal amount to CoreVault
@@ -216,7 +225,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID
      * @return _assets The amount of assets the user's shares represent
      */
-    function delegatedAmountOf(address _user, uint64 _valId) external view returns (uint256 _assets) {
+    function delegatedAmountOf(address _user, uint64 _valId) external returns (uint256 _assets) {
         return _convertToAssets(_valId, _getGVaultStorage()._delegatedSharesOf[_user][_valId]);
     }
 
@@ -227,17 +236,24 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _user The user address receiving the shares
      * @param _valId The validator ID to delegate to
      */
-    function delegate(address _user, uint64 _valId) external payable onlyMagma {
+    function delegate(address _user, uint64 _valId) external payable onlyMagma whenNotPaused {
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
+
+        // Check if rewards need to be claimed before delegating
+        _checkRewardsClaimDelay();
+
         // Cap check
         uint256 _cap = _maxCapFor(_valId);
         if (_cap == 0) revert ErrCapZero();
-        uint256 newAmt = _getTotalStakedWithPendingToValidator(_valId) + msg.value;
+        uint256 newAmt = msg.value + _getTotalStakedToValidator(_valId);
         if (newAmt > _cap) revert ErrExceedsCap();
 
         // Convert assets to shares based on current exchange rate
-        uint256 _sharesToMint = _convertToShares(_valId, msg.value);
+        uint256 _sharesToMint = _convertToShares(_valId, msg.value, Math.Rounding.Floor);
+        if (_sharesToMint == 0) {
+            revert ErrZeroShares();
+        }
 
         // Execute delegation to validator
         _delegate(_valId, msg.value);
@@ -250,7 +266,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (msg.value > 0) {
             // Calculate units = ceil(deposit_amount * S / P) to track user's contribution
             // Using ceiling to prevent precision erosion in user's favor
-            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Ceil);
+            uint256 _addUnits = Math.mulDiv(msg.value, $._gVaultScaleS, $._gVaultMultiplierP, Math.Rounding.Floor);
             $._scaledPrincipalUnits[_user][_valId] += _addUnits;
         }
 
@@ -269,7 +285,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to undelegate from
      * @param _amount The amount to undelegate
      */
-    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma {
+    function undelegate(address _user, uint64 _valId, uint256 _amount) external onlyMagma whenNotPaused {
         if (_amount < minUserWithdrawAmount()) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
@@ -277,8 +293,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
 
+        // Check if rewards need to be claimed before undelegating
+        _checkRewardsClaimDelay();
+
         // Convert amount to shares to determine how many shares to burn
-        uint256 _sharesToBurn = _convertToShares(_valId, _amount);
+        uint256 _sharesToBurn = _convertToShares(_valId, _amount, Math.Rounding.Ceil);
 
         // Check if user has sufficient shares
         GVaultStorage storage $ = _getGVaultStorage();
@@ -323,12 +342,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     function completeUserWithdrawal(address _user)
         external
         nonReentrant
+        onlyMagma
         returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee)
     {
         return _completeUserWithdrawal(_user);
     }
 
-    function injectRewards(uint64 _valId) public payable {
+    function injectRewards(uint64 _valId) public payable whenNotPaused {
         if (msg.sender != magma().mevRewardsInjector()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
@@ -346,6 +366,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _bps The basis points to undelegate (e.g., 1000 = 10%)
      */
     function adminInitiateRebalanceBps(uint16 _bps) external onlyAdmin {
+        _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         GVaultStorage storage $ = _getGVaultStorage();
 
@@ -403,6 +424,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      *      through Magma protocol. Marks the rebalance process as finished.
      */
     function adminCompleteRebalance() public onlyAdmin nonReentrant {
+        _refreshCache();
         uint64[] memory _list = getValidators();
         uint256 _beforeBal = address(this).balance;
         uint256 _n = _list.length;
@@ -431,10 +453,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /**
      * @notice Claim and compound staking rewards for a specific validator
      * @dev Claims rewards from the validator, deducts fees, and re-delegates remaining rewards
-     * @param _valId The validator ID to claim rewards from
      */
-    function claimAndCompoundRewards(uint64 _valId) external {
-        _claimAndCompoundRewards(_valId);
+    function claimAndCompoundRewards() external {
+        uint64[] memory _list = getValidators();
+        for (uint256 i = 0; i < _list.length; ++i) {
+            uint64 _valId = _list[i];
+            _claimAndCompoundRewards(_valId);
+        }
+        _updateLastRewardsClaimTimestamp();
     }
 
     /**
@@ -463,8 +489,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _assets The amount of assets to convert
      * @return _shares The equivalent number of shares
      */
-    function _convertToShares(uint64 _valId, uint256 _assets) internal view returns (uint256 _shares) {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+    function _convertToShares(uint64 _valId, uint256 _assets, Math.Rounding rounding)
+        internal
+        returns (uint256 _shares)
+    {
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle initial deposit case: no existing shares or assets
@@ -475,7 +504,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Calculate shares proportionally: shares = assets * total_shares / total_assets
         // Round down to favor the vault (EIP-4626 requirement for convertToShares)
-        return (_assets * _totalShares) / _totalAssets;
+        return Math.mulDiv(_assets, _totalShares, _totalAssets + 1, rounding);
     }
 
     /**
@@ -499,8 +528,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _shares The number of shares to convert
      * @return _assets The equivalent amount of assets
      */
-    function _convertToAssets(uint64 _valId, uint256 _shares) internal view returns (uint256 _assets) {
-        uint256 _totalAssets = _getTotalStakedWithPendingToValidator(_valId);
+    function _convertToAssets(uint64 _valId, uint256 _shares) internal returns (uint256 _assets) {
+        uint256 _totalAssets = _getTotalStakedToValidator(_valId);
         uint256 _totalShares = _getGVaultStorage()._totalSharesByValidator[_valId];
 
         // Handle edge case: no shares exist (shouldn't happen in normal operation)

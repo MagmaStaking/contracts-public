@@ -31,10 +31,14 @@ interface IBaseVault {
     event DelegatorInfoUpdateIntervalChanged(uint256 indexed newInterval);
     event MinUserWithdrawAmountUpdated(uint256 indexed newAmount);
     event EpochSecondsUpdated(uint256 indexed newEpochSeconds);
+    event MaxRewardsClaimDelayUpdated(uint256 indexed newDelay);
 
     function initiateValidatorRemoval(uint64 valId) external;
     function setMinUserWithdrawAmount(uint256 amount) external;
     function setDelegatorInfoUpdateInterval(uint256 interval) external;
+
+    function pause() external;
+    function unpause() external;
 
     function isWhitelisted(uint64 valId) external view returns (bool);
     function pendingRedelegateByValidator(uint64 valId) external view returns (uint256);

@@ -4,12 +4,10 @@ pragma solidity 0.8.30;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BitMapLib} from "./utils/BitMapLib.sol";
 import {VaultBase} from "./VaultBase.sol";
-
 import {
     ErrEpochGuard,
     ErrMaxValidators,
@@ -25,14 +23,7 @@ import {
     ErrNotAuthorized
 } from "./MagmaErrorsModule.sol";
 
-contract CoreVault is
-    Initializable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable,
-    PausableUpgradeable,
-    ICoreVault,
-    VaultBase
-{
+contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, ICoreVault, VaultBase {
     using BitMapLib for BitMapLib.WithdrawalBitMap;
 
     /// @custom:storage-location erc7201:storage.CoreVault
@@ -62,6 +53,10 @@ contract CoreVault is
         _;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @notice Initialize the CoreVault contract with configuration parameters
      * @dev Sets up the vault with Magma protocol address and epoch timing configuration
@@ -71,7 +66,6 @@ contract CoreVault is
      */
     function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
         __ReentrancyGuard_init();
-        __Pausable_init();
         __VaultBase_init(_magma, _epochSeconds);
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         $._maxValidatorPerBatch = maxValidatorPerBatch_;
@@ -86,29 +80,6 @@ contract CoreVault is
         }
     }
 
-    /**
-     * @dev Override to resolve interface conflict with OpenZeppelin's PausableUpgradeable
-     */
-    function paused() public view override(ICoreVault, PausableUpgradeable) returns (bool) {
-        return super.paused();
-    }
-
-    /**
-     * @notice Pause all vault operations
-     * @dev Emergency function to halt deposits, withdrawals, and delegations. Only callable by admin
-     */
-    function pause() external onlyAdmin {
-        _pause();
-    }
-
-    /**
-     * @notice Resume all vault operations
-     * @dev Removes emergency pause from deposits, withdrawals, and delegations. Only callable by admin
-     */
-    function unpause() external onlyAdmin {
-        _unpause();
-    }
-
     // --------------------------------------------------------------------------------------------------------------
     // Validator management functions
     // --------------------------------------------------------------------------------------------------------------
@@ -120,6 +91,7 @@ contract CoreVault is
      */
     function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
         _registerValidator(_valId);
+        _refreshCache();
         _redelegateInitiate();
     }
 
@@ -135,6 +107,7 @@ contract CoreVault is
         for (uint256 i = 0; i < validatorIds.length; ++i) {
             _registerValidator(validatorIds[i]);
         }
+        _refreshCache(); // refreshing cache after adding validators to ensure new validator inclusion in cache
         _redelegateInitiate();
     }
 
@@ -144,6 +117,7 @@ contract CoreVault is
      *      to complete the redistribution. Prevents concurrent rebalances.
      */
     function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
+        _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         setFinishedLastRebalance(false);
         _redelegateInitiate();
@@ -155,6 +129,7 @@ contract CoreVault is
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
     function redelegateToValidators() external onlyAdmin {
+        _refreshCache();
         _redelegateRedistribute();
     }
 
@@ -165,6 +140,7 @@ contract CoreVault is
      * @param _valId The validator ID to remove
      */
     function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         if (validatorsLength() == 1) revert ErrNotEnoughValidators();
         _initiateValidatorRemoval(_valId);
     }
@@ -175,6 +151,7 @@ contract CoreVault is
      * @param _valId The validator ID to remove
      */
     function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
 
@@ -184,6 +161,7 @@ contract CoreVault is
      * @param _valId The validator ID that was removed
      */
     function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+        _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
         if (_withdrawalAmount > 0) {
@@ -204,6 +182,8 @@ contract CoreVault is
         if (msg.sender != address(magma()) && msg.sender != magma().gVault()) {
             revert ErrNotMagma();
         }
+        // Check if rewards need to be claimed before delegating
+        _checkRewardsClaimDelay();
         _distributeToNextValidator(msg.value);
     }
 
@@ -219,6 +199,9 @@ contract CoreVault is
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
         if (validatorsLength() == 0) revert ErrNoValidators();
+
+        // Check if rewards need to be claimed before undelegating
+        _checkRewardsClaimDelay();
 
         // only one withdrawal per user
         if (userWithdrawalRequests(_user).length > 0) revert ErrExistingWithdrawalInProgress();
@@ -310,7 +293,7 @@ contract CoreVault is
      * @dev Calculates and returns the sum of all delegated amounts including pending stakes
      * @return Total delegated amount in wei
      */
-    function getTotalDelegated() external view returns (uint256) {
+    function getTotalDelegated() external returns (uint256) {
         uint256 _total = 0;
         uint64[] memory _validators = getValidators();
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
@@ -325,7 +308,7 @@ contract CoreVault is
      * @param _valId The validator ID to query
      * @return Total delegated amount to the validator in wei
      */
-    function delegatedAmount(uint64 _valId) external view returns (uint256) {
+    function delegatedAmount(uint64 _valId) external returns (uint256) {
         return _getTotalStakedToValidator(_valId);
     }
 
@@ -360,6 +343,9 @@ contract CoreVault is
 
         uint256 _remaining = _rewards - _fee;
         _distributeToNextValidator(_remaining);
+
+        // Update the last rewards claim timestamp since we claimed from all validators
+        _updateLastRewardsClaimTimestamp();
     }
 
     /**
@@ -379,19 +365,20 @@ contract CoreVault is
         uint64[] memory _validators = getValidators();
         if (_validators.length == 0) return;
 
-        uint256 _totalDelegated = _getTotalStakedToAllValidators(); // contains pending redelegations
+        uint256 _totalDelegated = _getCachedTotalStakedToAllValidators();
         if (_totalDelegated == 0) return;
 
         uint256 _targetPerValidator = _totalDelegated / _validators.length;
         uint256 _totalToUndelegate = 0;
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _v = _validators[_i];
-            if (_getTotalStakedToValidator(_v) > _targetPerValidator) {
-                uint256 _excess = _getTotalStakedToValidator(_v) - _targetPerValidator;
+            uint256 _validatorStake = _getCachedTotalStakedToValidator(_v);
+            if (_validatorStake > _targetPerValidator) {
+                uint256 _excess = _validatorStake - _targetPerValidator;
 
                 // Check if validator has sufficient active stake for undelegation
-                // Get actual stake from precompile to ensure we can undelegate
-                DelInfo memory _delInfo = _getDelegatorInfo(_v, address(this));
+                // Use cached data to get available stake for undelegation
+                DelInfo memory _delInfo = cachedDelegatorInfo(_v);
                 uint256 _availableStake = _delInfo.stake;
 
                 // Undelegate the minimum of what we want and what's available
@@ -416,6 +403,8 @@ contract CoreVault is
      * @dev Completes pending withdrawals and redistributes funds to under-target validators
      */
     function _redelegateRedistribute() internal {
+        // Refresh cache to reset any tracking inconsistencies
+        _refreshCache();
         // Step 1: Complete all pending withdrawals
         uint256 _totalAmountToDistribute = _completeAllPendingRedelegationWithdrawals();
 
@@ -606,7 +595,7 @@ contract CoreVault is
         }
     }
 
-    function injectRewards() public payable {
+    function injectRewards() public payable whenNotPaused {
         if (msg.sender != magma().mevRewardsInjector()) revert ErrNotAuthorized();
         if (msg.value == 0) revert ErrZeroAmount();
         _distributeToNextValidator(msg.value);
