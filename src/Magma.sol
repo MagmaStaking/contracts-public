@@ -131,6 +131,7 @@ contract Magma is
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
+        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
         __ERC20_init(params.name, params.symbol);

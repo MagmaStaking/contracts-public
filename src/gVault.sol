@@ -73,6 +73,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _epochSeconds The duration of each epoch in seconds
      */
     function initialize(address _magma, uint256 _epochSeconds) external initializer {
+        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         __VaultBase_init(_magma, _epochSeconds);
         // initialize multiplier system for proxies (declarations don't run)

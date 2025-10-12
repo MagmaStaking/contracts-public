@@ -113,7 +113,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _epochSeconds The duration of each epoch in seconds (0 disables epoch guard)
      */
     /* solhint-disable-next-line func-name-mixedcase */
-    function __VaultBase_init(address _magma, uint256 _epochSeconds) internal {
+    function __VaultBase_init(address _magma, uint256 _epochSeconds) internal onlyInitializing {
         __Pausable_init();
         VaultBaseStorage storage $ = _getVaultBaseStorage();
         $._magma = IMagma(_magma);
@@ -348,7 +348,7 @@ abstract contract VaultBase is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _interval The cache update interval in seconds (must be between 1 minute and 24 hours)
      */
     function setDelegatorInfoUpdateInterval(uint256 _interval) external onlyAdmin {
-        if (_interval > 24 hours) revert ErrInvalidAmount(_interval);
+        if (_interval < 1 minutes || _interval > 24 hours) revert ErrInvalidAmount(_interval);
         _getVaultBaseStorage()._delegatorInfoUpdateInterval = _interval;
         emit DelegatorInfoUpdateIntervalChanged(_interval);
     }

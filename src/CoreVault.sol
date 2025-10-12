@@ -65,6 +65,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @param maxValidatorPerBatch_ The maximum number of validators that can be added in a single batch
      */
     function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
+        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         __VaultBase_init(_magma, _epochSeconds);
         CoreVaultStorage storage $ = _getCoreVaultStorage();
