@@ -505,7 +505,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
         // Calculate shares proportionally: shares = assets * total_shares / total_assets
         // Round down to favor the vault (EIP-4626 requirement for convertToShares)
-        return Math.mulDiv(_assets, _totalShares, _totalAssets + 1, rounding);
+        return Math.mulDiv(_assets, _totalShares, _totalAssets, rounding);
     }
 
     /**
