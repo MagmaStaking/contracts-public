@@ -11,7 +11,6 @@ import {
     ErrRequestInexistent,
     ErrNativeTransferFailed,
     ErrTokenTransferFailed,
-    ErrNotAdmin,
     ErrZeroAddress,
     ErrInvalidBps,
     ErrVaultsSet
@@ -25,22 +24,25 @@ import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {IGVault} from "../interfaces/IGVault.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {IMagma} from "../interfaces/IMagma.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 contract Magma is
+    IMagma,
     Initializable,
     UUPSUpgradeable,
     ERC4626Upgradeable,
     ERC165Upgradeable,
     ReentrancyGuardUpgradeable,
-    PausableUpgradeable
+    PausableUpgradeable,
+    Ownable2StepUpgradeable
 {
     /// @custom:storage-location erc7201:storage.Magma
     struct MagmaStorage {
         /// @notice The address that receives the fees.
         address _feeReceiver;
-        // Admin for Magma, CoreVault validator management, etc
-        address _admin;
         // Vault contract references (to be set by admin)
         address _coreVault;
         address _gVault;
@@ -62,23 +64,10 @@ contract Magma is
         mapping(address controller => mapping(address operator => bool)) _isOperator;
     }
 
-    /// @notice Struct to track pending redeem requests
-    /// @dev Claimable state may transition automatically after a timestamp has passed.
-    /// @dev https://eips.ethereum.org/EIPS/eip-7540#no-event-for-claimable-state
-    /// @dev https://eips.ethereum.org/EIPS/eip-7540#request-lifecycle
-    struct RedeemRequests {
-        address owner; // Owner of the shares
-        bool isGVault; // If redeemRequest is for gVault or not
-        uint256 shares; // Amount of shares to redeem
-        uint256 assets; // Amount of assets to withdraw
-        uint256 claimableTime; // When assets become claimable
-    }
-
     struct InitializeParams {
         IERC20 asset;
         string name;
         string symbol;
-        address admin;
         uint256 rewardsFee;
         uint256 withdrawalFee;
         address feeReceiver;
@@ -95,35 +84,6 @@ contract Magma is
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
-    /// @dev Emitted upon a successful deposit, will be sent on every deposit to facilitate on the indexer side
-    event DepositWithReferral(
-        address indexed sender, address indexed owner, uint256 assets, uint256 shares, uint256 indexed referralId
-    );
-
-    // Events for ERC-7540 compatibility and admin
-    event RedeemRequest(
-        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
-    );
-
-    event OperatorSet(address indexed controller, address indexed operator, bool indexed approved);
-
-    event Referral(
-        address indexed sender, address indexed receiver, uint256 assets, uint256 shares, bytes32 indexed referralId
-    );
-
-    // Configuration update events
-    event AdminUpdated(address indexed newAdmin);
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
-    event RewardsFeeUpdated(uint256 indexed newRewardsFee);
-    event WithdrawalFeeUpdated(uint256 indexed newWithdrawalFee);
-    event RedeemDelayUpdated(uint256 indexed newRedeemDelay);
-    event VaultsSet(address indexed newCoreVault, address indexed newGVault);
-
-    modifier onlyAdmin() {
-        if (msg.sender != _getMagmaStorage()._admin) revert ErrNotAdmin();
-        _;
-    }
-
     constructor() {
         _disableInitializers();
     }
@@ -131,13 +91,13 @@ contract Magma is
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
         __ERC20_init(params.name, params.symbol);
         __ERC4626_init(params.asset);
         __ERC165_init();
-        $._admin = params.admin;
         $._rewardsFee = params.rewardsFee;
         $._withdrawalFee = params.withdrawalFee;
         $._feeReceiver = params.feeReceiver;
@@ -161,7 +121,7 @@ contract Magma is
     /// @param _coreVault The address of the CoreVault contract
     /// @param _gVault The address of the GVault contract
     /// @custom:security Only callable by admin and restricted to one-time initialization
-    function initVaults(address _coreVault, address _gVault) external onlyAdmin {
+    function initVaults(address _coreVault, address _gVault) external onlyOwner {
         if (_coreVault == address(0) || _gVault == address(0)) revert ErrZeroAddress();
         MagmaStorage storage $ = _getMagmaStorage();
         if (!($._coreVault == address(0) && $._gVault == address(0))) {
@@ -172,11 +132,11 @@ contract Magma is
         emit VaultsSet(_coreVault, _gVault);
     }
 
-    function pause() external onlyAdmin {
+    function pause() external onlyOwner {
         _pause();
     }
 
-    function unpause() external onlyAdmin {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
@@ -186,14 +146,10 @@ contract Magma is
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
     /* solhint-disable-next-line no-empty-blocks */
-    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165Upgradeable) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165Upgradeable) returns (bool) {
         return interfaceId == INTERFACE_ID_ERC7540 || super.supportsInterface(interfaceId);
-    }
-
-    function admin() public view returns (address) {
-        return _getMagmaStorage()._admin;
     }
 
     function coreVault() public view returns (address) {
@@ -220,7 +176,11 @@ contract Magma is
         return _getMagmaStorage()._mevRewardsInjector;
     }
 
-    function totalAssets() public view virtual override returns (uint256) {
+    function owner() public view override(OwnableUpgradeable, IMagma) returns (address) {
+        return super.owner();
+    }
+
+    function totalAssets() public view override(ERC4626Upgradeable, IMagma) returns (uint256) {
         MagmaStorage storage $ = _getMagmaStorage();
         return ICoreVault($._coreVault).totalAssets() + IGVault($._gVault).totalAssets();
     }
@@ -238,8 +198,7 @@ contract Magma is
     /// @dev Withdraws WMON to MON so it can stake it
     function mint(uint256 shares, address receiver)
         public
-        virtual
-        override
+        override(ERC4626Upgradeable, IMagma)
         whenNotPaused
         nonReentrant
         returns (uint256)
@@ -255,15 +214,29 @@ contract Magma is
 
     function _deposit(uint256 assets, address receiver) private returns (uint256) {
         uint256 shares = super.deposit(assets, receiver);
+        if (shares == 0) revert ErrZeroShares();
         WrappedMonad(payable(address(asset()))).withdraw(assets);
         return shares;
+    }
+
+    function _depositMON(address receiver, uint256 referralId) private returns (uint256 shares) {
+        _refreshCacheCheck();
+        uint256 assets = msg.value;
+        uint256 maxAssets = maxDeposit(receiver);
+        if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
+
+        shares = previewDeposit(assets);
+        if (shares == 0) revert ErrZeroShares();
+
+        _mint(receiver, shares);
+        emit Deposit(_msgSender(), receiver, assets, shares);
+        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
     }
 
     /// @dev Withdraws WMON to MON so it can stake it
     function deposit(uint256 assets, address receiver)
         public
-        virtual
-        override
+        override(ERC4626Upgradeable, IMagma)
         whenNotPaused
         nonReentrant
         returns (uint256)
@@ -275,7 +248,8 @@ contract Magma is
         return shares;
     }
 
-    function depositGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
+    function depositWMONGVault(uint256 assets, address receiver, uint64 valId, uint256 referralId)
         external
         whenNotPaused
         nonReentrant
@@ -286,6 +260,18 @@ contract Magma is
         IGVault(_getMagmaStorage()._gVault).delegate{value: assets}(receiver, valId);
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
+    }
+
+    /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
+    function depositMONGVault(address receiver, uint64 valId, uint256 referralId)
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        returns (uint256 shares)
+    {
+        shares = _depositMON(receiver, referralId);
+        IGVault(_getMagmaStorage()._gVault).delegate{value: msg.value}(receiver, valId);
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
@@ -308,25 +294,13 @@ contract Magma is
         payable
         whenNotPaused
         nonReentrant
-        returns (uint256)
+        returns (uint256 shares)
     {
-        _refreshCacheCheck();
-        uint256 assets = msg.value;
-        uint256 maxAssets = maxDeposit(receiver);
-        if (assets > maxAssets) revert ERC4626ExceededMaxDeposit(receiver, assets, maxAssets);
-
-        uint256 shares = previewDeposit(assets);
-
-        _mint(receiver, shares);
-        emit Deposit(_msgSender(), receiver, assets, shares);
-
-        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: assets}();
-        emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
-
-        return shares;
+        shares = _depositMON(receiver, referralId);
+        ICoreVault(_getMagmaStorage()._coreVault).delegate{value: msg.value}();
     }
 
-    function requestRedeem(uint256 shares, address controller, address owner)
+    function requestRedeem(uint256 shares, address controller, address _owner)
         external
         whenNotPaused
         nonReentrant
@@ -334,10 +308,10 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
-        return _requestRedeem(shares, assets, controller, owner, 0, false);
+        return _requestRedeem(shares, assets, controller, _owner, 0, false);
     }
 
-    function requestRedeemGVault(uint256 shares, address controller, address owner, uint64 valId)
+    function requestRedeemGVault(uint256 shares, address controller, address _owner, uint64 valId)
         external
         whenNotPaused
         nonReentrant
@@ -345,16 +319,16 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 assets = convertToAssets(shares);
-        if (assets > IGVault(_getMagmaStorage()._gVault).maxWithdrawableFromGVault(owner, valId)) {
+        if (assets > IGVault(_getMagmaStorage()._gVault).maxWithdrawableFromGVault(_owner, valId)) {
             revert ErrNotEnoughAssetsGVault();
         }
-        return _requestRedeem(shares, assets, controller, owner, valId, true);
+        return _requestRedeem(shares, assets, controller, _owner, valId, true);
     }
 
     /**
      * @param controller The designated controller will be responsible for claiming the assets of the owner after the
      * request is available.
-     * @param owner Owner of the shares.
+     * @param _owner Owner of the shares.
      * @dev An operator is just an account that can manage Requests on behalf of another account, either an owner or a
      * controller.
      * @dev Since we are using requestIds, a controller can do multiple requests and multiple claims without being
@@ -368,21 +342,21 @@ contract Magma is
         uint256 shares,
         uint256 assets,
         address controller,
-        address owner,
+        address _owner,
         uint64 valId,
         bool isGVault
     ) private returns (uint256) {
         MagmaStorage storage $ = _getMagmaStorage();
 
         if (controller == address(0)) revert ErrZeroAddress();
-        if ($._ownerRequested[owner]) revert ErrRequestPending();
+        if ($._ownerRequested[_owner]) revert ErrRequestPending();
         if (shares == 0) revert ErrZeroShares();
-        if (!(owner == _msgSender() || $._isOperator[owner][_msgSender()])) revert ErrNotAuthorized();
-        if (shares > balanceOf(owner)) revert ErrInsufficientShares(shares, balanceOf(owner));
+        if (!(_owner == _msgSender() || $._isOperator[_owner][_msgSender()])) revert ErrNotAuthorized();
+        if (shares > balanceOf(_owner)) revert ErrInsufficientShares(shares, balanceOf(_owner));
 
         uint256 requestId = $._requestIdCount;
         $._pendingRedeemRequests[controller][requestId] = RedeemRequests({
-            owner: owner,
+            owner: _owner,
             shares: shares,
             assets: assets,
             claimableTime: block.timestamp + $._redeemDelay,
@@ -391,15 +365,15 @@ contract Magma is
         unchecked {
             $._requestIdCount = requestId + 1;
         }
-        $._ownerRequested[owner] = true;
+        $._ownerRequested[_owner] = true;
 
-        _burn(owner, shares);
+        _burn(_owner, shares);
 
         isGVault
-            ? IGVault($._gVault).undelegate(owner, valId, assets)
-            : ICoreVault($._coreVault).undelegate(assets, owner);
+            ? IGVault($._gVault).undelegate(_owner, valId, assets)
+            : ICoreVault($._coreVault).undelegate(assets, _owner);
 
-        emit RedeemRequest(controller, owner, requestId, _msgSender(), shares);
+        emit RedeemRequest(controller, _owner, requestId, _msgSender(), shares);
         return requestId;
     }
 
@@ -422,8 +396,7 @@ contract Magma is
 
     function redeem(uint256 requestId, address controller, address receiver)
         public
-        virtual
-        override
+        override(ERC4626Upgradeable, IMagma)
         whenNotPaused
         nonReentrant
         returns (uint256 assets)
@@ -456,30 +429,34 @@ contract Magma is
         returns (uint256)
     {
         MagmaStorage storage $ = _getMagmaStorage();
-
-        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()] || _msgSender() == $._admin)) {
-            revert ErrNotAuthorized();
-        }
         RedeemRequests memory request = $._pendingRedeemRequests[controller][requestId];
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert ErrRequestInexistent();
 
-        address owner = $._pendingRedeemRequests[controller][requestId].owner;
+        if (
+            !(
+                controller == _msgSender() || $._isOperator[controller][_msgSender()] || request.owner == _msgSender()
+                    || $._isOperator[request.owner][_msgSender()] || _msgSender() == owner()
+            )
+        ) {
+            revert ErrNotAuthorized();
+        }
+
+        address _owner = $._pendingRedeemRequests[controller][requestId].owner;
         delete $._pendingRedeemRequests[controller][requestId];
-        $._ownerRequested[owner] = false;
+        $._ownerRequested[_owner] = false;
 
         (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) = request.isGVault
-            ? IGVault($._gVault).completeUserWithdrawal(owner)
-            : ICoreVault($._coreVault).completeUserWithdrawal(owner);
+            ? IGVault($._gVault).completeUserWithdrawal(_owner)
+            : ICoreVault($._coreVault).completeUserWithdrawal(_owner);
 
-        uint256 shares =
-            totalWithdrawn < request.assets ? convertToShares(request.assets - totalWithdrawn) : request.shares;
+        uint256 shares = totalWithdrawn < request.assets ? convertToShares(totalWithdrawn) : request.shares;
         if (totalWithdrawn < request.assets) {
             /**
              * If withdraw amount gets slashed losses are socialized. Shares minted represent an increase in the supply.
              * Therefore, losess are socialized between all the participants
              */
-            _mint(receiver, shares);
+            _mint(receiver, convertToShares(request.assets - totalWithdrawn));
         }
 
         if (receiveWMON) {
@@ -495,41 +472,35 @@ contract Magma is
             }
         }
 
-        emit Withdraw(_msgSender(), receiver, address(this), totalWithdrawnAfterFee, shares);
+        emit Withdraw(_msgSender(), receiver, _owner, totalWithdrawnAfterFee, shares);
 
         return totalWithdrawnAfterFee;
     }
 
-    function setAdmin(address newAdmin) external onlyAdmin {
-        if (newAdmin == address(0)) revert ErrZeroAddress();
-        _getMagmaStorage()._admin = newAdmin;
-        emit AdminUpdated(newAdmin);
-    }
-
-    function setRewardsFee(uint256 _rewardsFee) external onlyAdmin {
+    function setRewardsFee(uint256 _rewardsFee) external onlyOwner {
         if (_rewardsFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._rewardsFee = _rewardsFee;
         emit RewardsFeeUpdated(_rewardsFee);
     }
 
-    function setWithdrawalFee(uint256 _withdrawalFee) external onlyAdmin {
+    function setWithdrawalFee(uint256 _withdrawalFee) external onlyOwner {
         if (_withdrawalFee > BASE_BPS) revert ErrInvalidBps();
         _getMagmaStorage()._withdrawalFee = _withdrawalFee;
         emit WithdrawalFeeUpdated(_withdrawalFee);
     }
 
-    function setFeeReceiver(address _feeReceiver) external onlyAdmin {
+    function setFeeReceiver(address _feeReceiver) external onlyOwner {
         if (_feeReceiver == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._feeReceiver = _feeReceiver;
         emit FeeReceiverUpdated(_feeReceiver);
     }
 
-    function setRedeemDelay(uint256 _redeemDelay) external onlyAdmin {
+    function setRedeemDelay(uint256 _redeemDelay) external onlyOwner {
         _getMagmaStorage()._redeemDelay = _redeemDelay;
         emit RedeemDelayUpdated(_redeemDelay);
     }
 
-    function setMevRewardsInjector(address _mevRewardsInjector) external onlyAdmin {
+    function setMevRewardsInjector(address _mevRewardsInjector) external onlyOwner {
         if (_mevRewardsInjector == address(0)) revert ErrZeroAddress();
         _getMagmaStorage()._mevRewardsInjector = _mevRewardsInjector;
     }
@@ -537,7 +508,7 @@ contract Magma is
     /**
      * @notice Force refresh the cache for the CoreVault and gVault
      */
-    function refreshCache() external {
+    function refreshCache() external nonReentrant {
         MagmaStorage storage $ = _getMagmaStorage();
         ICoreVault($._coreVault).refreshCache();
         IGVault($._gVault).refreshCache();

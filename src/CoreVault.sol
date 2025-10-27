@@ -6,8 +6,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {DelInfo} from "./MagmaDelegationModule.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
-import {BitMapLib} from "./utils/BitMapLib.sol";
-import {VaultBase} from "./VaultBase.sol";
+import {BaseVault} from "./BaseVault.sol";
 import {
     ErrEpochGuard,
     ErrMaxValidators,
@@ -20,12 +19,11 @@ import {
     ErrInsufficientDelegated,
     ErrZeroAmount,
     ErrInvalidAmount,
-    ErrNotAuthorized
+    ErrNotAuthorized,
+    ErrValidatorInRemoval
 } from "./MagmaErrorsModule.sol";
 
-contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, ICoreVault, VaultBase {
-    using BitMapLib for BitMapLib.WithdrawalBitMap;
-
+contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, ICoreVault, BaseVault {
     /// @custom:storage-location erc7201:storage.CoreVault
     struct CoreVaultStorage {
         /// @dev Maximum number of validators that can be added in a single batch to prevent gas limit issues
@@ -67,13 +65,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function initialize(address _magma, uint256 _epochSeconds, uint64 maxValidatorPerBatch_) external initializer {
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        __VaultBase_init(_magma, _epochSeconds);
+        __BaseVault_init(_magma, _epochSeconds);
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         $._maxValidatorPerBatch = maxValidatorPerBatch_;
     }
-
-    // Accept native funds returned from precompile withdrawals
-    receive() external payable {}
 
     function _getCoreVaultStorage() private pure returns (CoreVaultStorage storage $) {
         assembly {
@@ -87,10 +82,14 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     /**
      * @notice Step 1: Add a validator and initiate rebalance phase 1 (undelegation)
-     * @dev Add a validator and trigger excess undelegation. Redistribution must be done manually via redistributeToValidators()
+     * @dev Add a validator and trigger excess undelegation. Redistribution must be done manually via redelegateToValidators()
+     * @dev Can re-add a validator that was removed
      * @param _valId The validator ID to add
      */
-    function addValidator(uint64 _valId) external onlyAdmin onlyAfterEpoch {
+    function addValidator(uint64 _valId) external onlyOwner onlyAfterEpoch {
+        if (validatorStatus(_valId) != ValidatorStatus.NONE && validatorStatus(_valId) != ValidatorStatus.REMOVED) {
+            revert ErrValidatorInRemoval();
+        }
         _registerValidator(_valId);
         _refreshCache();
         _redelegateInitiate();
@@ -101,7 +100,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Batch add validators with gas limit protection, then trigger rebalancing
      * @param validatorIds Array of validator IDs to add (limited by _maxValidatorPerBatch)
      */
-    function addValidators(uint64[] calldata validatorIds) external onlyAdmin onlyAfterEpoch {
+    function addValidators(uint64[] calldata validatorIds) external onlyOwner onlyAfterEpoch {
         CoreVaultStorage storage $ = _getCoreVaultStorage();
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
@@ -117,19 +116,18 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Starts the two-phase rebalancing process. Must be followed by redelegateToValidators()
      *      to complete the redistribution. Prevents concurrent rebalances.
      */
-    function adminRebalanceInitiate() external onlyAdmin onlyAfterEpoch {
+    function adminRebalanceInitiate() external onlyOwner onlyAfterEpoch {
         _refreshCache();
         if (!finishedLastRebalance()) revert ErrRebalanceInProgress();
         setFinishedLastRebalance(false);
         _redelegateInitiate();
-        setLastRebalanceTimestamp(block.timestamp);
     }
 
     /**
      * @notice Step 2: Redistribute to validators called after addValidator and adminRebalanceInitiate
      * @dev Completes pending withdrawals and redistributes funds to balance validator stakes
      */
-    function redelegateToValidators() external onlyAdmin {
+    function redelegateToValidators() external onlyOwner {
         _refreshCache();
         _redelegateRedistribute();
     }
@@ -140,7 +138,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Initiate validator removal by adding to pendingRemovalValidators
      * @param _valId The validator ID to remove
      */
-    function initiateValidatorRemoval(uint64 _valId) external onlyAdmin {
+    function initiateValidatorRemoval(uint64 _valId) external onlyOwner {
         _refreshCache();
         if (validatorsLength() == 1) revert ErrNotEnoughValidators();
         _initiateValidatorRemoval(_valId);
@@ -151,7 +149,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Remove validator from validators array
      * @param _valId The validator ID to remove
      */
-    function executeValidatorUndelegation(uint64 _valId) external onlyAdmin {
+    function executeValidatorUndelegation(uint64 _valId) external onlyOwner {
         _refreshCache();
         _executeValidatorUndelegation(_valId);
     }
@@ -161,7 +159,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * This should be called after the WITHDRAWAL_DELAY period has passed
      * @param _valId The validator ID that was removed
      */
-    function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyAdmin {
+    function completeValidatorRemovalWithdrawal(uint64 _valId) external onlyOwner {
         _refreshCache();
         uint256 _withdrawalAmount = _completeValidatorRemovalWithdrawal(_valId);
         // Distribute the recovered funds to remaining validators
@@ -207,16 +205,17 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         // only one withdrawal per user
         if (userWithdrawalRequests(_user).length > 0) revert ErrExistingWithdrawalInProgress();
 
-        // Get validators sorted by stake (highest first) and total stake in one go
-        (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
-            _getSortedValidatorsByActiveStakeDescendingWithTotal();
+        // Get validators and sort by active stake (highest first)
+        (ValidatorAmount[] memory _validatorsWithActiveStake, uint256 _totalActiveStake) =
+            _getValidatorsActiveStakeAndTotal();
+        _sortDescendingByAmount(_validatorsWithActiveStake);
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
 
-        for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; ++_i) {
-            uint64 _valId = _sortedValidators[_i].valId;
-            uint256 _availableStake = _sortedValidators[_i].amount; // Use stake from sorted array
+        for (uint256 _i = 0; _i < _validatorsWithActiveStake.length && _remainingAmount > 0; ++_i) {
+            uint64 _valId = _validatorsWithActiveStake[_i].valId;
+            uint256 _availableStake = _validatorsWithActiveStake[_i].amount; // Use stake from sorted array
 
             if (_availableStake == 0) continue;
 
@@ -276,7 +275,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Returns array of validator IDs currently registered in the vault
      * @return Array of validator IDs
      */
-    function getValidators() public view override(VaultBase, ICoreVault) returns (uint64[] memory) {
+    function getValidators() public view override(BaseVault, ICoreVault) returns (uint64[] memory) {
         return super.getValidators();
     }
 
@@ -318,7 +317,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Claims rewards from all validators, deducts protocol fees, and redistributes
      *      remaining rewards equally among validators for compound staking.
      */
-    function claimAndCompoundRewards() external {
+    function claimAndCompoundRewards() external nonReentrant {
         _claimAndCompoundRewards();
     }
     //--------------------------------------------------------------------------------------------------------------
@@ -340,17 +339,19 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
 
-        uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
+        if (_rewards > 0) {
+            uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
 
-        uint256 _remaining = _rewards - _fee;
-        _distributeToNextValidator(_remaining);
+            uint256 _remaining = _rewards - _fee;
+            _distributeToNextValidator(_remaining);
+        }
 
         // Update the last rewards claim timestamp since we claimed from all validators
         _updateLastRewardsClaimTimestamp();
     }
 
     /**
-     * @dev Override VaultBase._distributeClaimedRewardsFromRemoval to use internal distribution
+     * @dev Override BaseVault._distributeClaimedRewardsFromRemoval to use internal distribution
      * @param _amount The amount of rewards to distribute
      */
     function _distributeClaimedRewardsFromRemoval(uint256 _amount) internal override {
@@ -373,14 +374,11 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 _totalToUndelegate = 0;
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _v = _validators[_i];
-            uint256 _validatorStake = _getCachedTotalStakedToValidator(_v);
+            // Check if validator has sufficient active stake for undelegation
+            // Use cached data to get available stake for undelegation
+            (uint256 _validatorStake, uint256 _availableStake) = _getCachedTotalStakedToValidator(_v);
             if (_validatorStake > _targetPerValidator) {
                 uint256 _excess = _validatorStake - _targetPerValidator;
-
-                // Check if validator has sufficient active stake for undelegation
-                // Use cached data to get available stake for undelegation
-                DelInfo memory _delInfo = cachedDelegatorInfo(_v);
-                uint256 _availableStake = _delInfo.stake;
 
                 // Undelegate the minimum of what we want and what's available
                 uint256 _toUndelegate = _excess < _availableStake ? _excess : _availableStake;
@@ -394,9 +392,14 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
                 }
             }
         }
-        setTotalPendingRedelegation(totalPendingRedelegation() + _totalToUndelegate);
-        _trackCachedUndelegation(_totalToUndelegate);
-        emit RebalanceInitiated();
+        if (_totalToUndelegate > 0) {
+            setTotalPendingRedelegation(totalPendingRedelegation() + _totalToUndelegate);
+            _trackCachedUndelegation(_totalToUndelegate);
+        }
+
+        setLastRebalanceTimestamp(block.timestamp);
+
+        emit RebalanceInitiated(_totalToUndelegate, _validators.length, _targetPerValidator, _totalDelegated);
     }
 
     /**
@@ -417,6 +420,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         // Step 4: Update timestamp and mark rebalance as finished
         setLastRebalanceTimestamp(block.timestamp);
+        setFinishedLastRebalance(true);
     }
 
     /**
@@ -426,6 +430,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      */
     function _completeAllPendingRedelegationWithdrawals() internal returns (uint256 _totalWithdrawn) {
         uint64[] memory _validators = getValidators();
+        uint256 _beforeBal = address(this).balance;
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _valId = _validators[_i];
 
@@ -446,9 +451,10 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
                 // Mark withdrawal ID as completed
                 _markWithdrawalCompleted(_valId, ADMIN_WID);
-                _totalWithdrawn += _amount;
             }
         }
+        uint256 _delta = address(this).balance - _beforeBal;
+        _totalWithdrawn += _delta;
     }
 
     /**
@@ -468,33 +474,30 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             );
         }
 
-        _sort(_sortedValidators);
+        _sortAscendingByAmount(_sortedValidators);
     }
 
     /**
-     * @notice Get validators sorted by their current stake (highest first) and active stake
-     * @dev Optimized version that calculates both sorted validators and active stake in one pass
-     * @return _sortedValidators Array of ValidatorAmount structs sorted by stake amount (descending)
+     * @notice Get validators with their active stake
+     * @return _validatorsWithActiveStake Array of ValidatorAmount structs
      * @return _activeStake Active stake across all validators
      */
-    function _getSortedValidatorsByActiveStakeDescendingWithTotal()
+    function _getValidatorsActiveStakeAndTotal()
         internal
         view
-        returns (ValidatorAmount[] memory _sortedValidators, uint256 _activeStake)
+        returns (ValidatorAmount[] memory _validatorsWithActiveStake, uint256 _activeStake)
     {
         uint64[] memory _validators = getValidators();
-        _sortedValidators = new ValidatorAmount[](_validators.length);
+        _validatorsWithActiveStake = new ValidatorAmount[](_validators.length);
         _activeStake = 0;
 
         for (uint256 _i = 0; _i < _validators.length; ++_i) {
             uint64 _valId = _validators[_i];
             DelInfo memory _coreVaultDelInfo = cachedDelegatorInfo(_valId);
             uint256 _validatorStake = _coreVaultDelInfo.stake;
-            _sortedValidators[_i] = ValidatorAmount(_valId, _validatorStake);
+            _validatorsWithActiveStake[_i] = ValidatorAmount(_valId, _validatorStake);
             _activeStake += _validatorStake;
         }
-
-        _sortDescending(_sortedValidators);
     }
 
     /**
@@ -552,21 +555,20 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             revert ErrZeroAmount();
         }
 
-        // Get validators sorted by stake (highest first, then sort lowest) and total stake in one go
-        (ValidatorAmount[] memory _sortedValidators, uint256 _totalActiveStake) =
-            _getSortedValidatorsByActiveStakeDescendingWithTotal();
-        _sort(_sortedValidators);
+        (ValidatorAmount[] memory _validatorsWithActiveStake, uint256 _totalActiveStake) =
+            _getValidatorsActiveStakeAndTotal();
+        _sortAscendingByAmount(_validatorsWithActiveStake);
 
         uint256 _remainingAmount = _amount;
         uint256 _onetwentiethThreshold = _totalActiveStake / 20; // 1/20th of total active stake across all validators
         if (_totalActiveStake == 0) {
             // Send everything to the first (lowest-stake) validator
-            uint64 _firstValId = _sortedValidators[0].valId;
+            uint64 _firstValId = _validatorsWithActiveStake[0].valId;
             _delegate(_firstValId, _remainingAmount);
             _remainingAmount = 0;
         } else {
-            for (uint256 _i = 0; _i < _sortedValidators.length && _remainingAmount > 0; ++_i) {
-                uint64 _valId = _sortedValidators[_i].valId;
+            for (uint256 _i = 0; _i < _validatorsWithActiveStake.length && _remainingAmount > 0; ++_i) {
+                uint64 _valId = _validatorsWithActiveStake[_i].valId;
 
                 // Check if request exceeds 1/20th of total active stake
                 uint256 _maxAllowedFromValidator =
@@ -574,7 +576,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
                 uint256 _amountToValidator = _remainingAmount;
 
-                if (_amountToValidator > _maxAllowedFromValidator && _i < _sortedValidators.length - 1) {
+                if (_amountToValidator > _maxAllowedFromValidator && _i < _validatorsWithActiveStake.length - 1) {
                     _amountToValidator = _maxAllowedFromValidator;
                 }
 
@@ -585,13 +587,12 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             }
         }
 
-        _trackCachedDelegation(_amount);
-
         // If we couldn't fulfill the full amount, deposit remaining to first validator
         if (_remainingAmount > 0) {
-            uint64 _firstValId = _sortedValidators[0].valId;
+            uint64 _firstValId = _validatorsWithActiveStake[0].valId;
             _delegate(_firstValId, _remainingAmount);
         }
+        _trackCachedDelegation(_amount);
     }
 
     function injectRewards() public payable whenNotPaused {
@@ -604,7 +605,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /**
      * @dev Simple insertion sort for ValidatorAmount array (ascending by amount)
      */
-    function _sort(ValidatorAmount[] memory _arr) internal pure {
+    function _sortAscendingByAmount(ValidatorAmount[] memory _arr) internal pure {
         uint256 _length = _arr.length;
         for (uint256 _i = 1; _i < _length; ++_i) {
             ValidatorAmount memory key = _arr[_i];
@@ -620,7 +621,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /**
      * @dev Simple insertion sort for ValidatorAmount array (descending by amount)
      */
-    function _sortDescending(ValidatorAmount[] memory _arr) internal pure {
+    function _sortDescendingByAmount(ValidatorAmount[] memory _arr) internal pure {
         uint256 _length = _arr.length;
         for (uint256 _i = 1; _i < _length; ++_i) {
             ValidatorAmount memory key = _arr[_i];
@@ -672,7 +673,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev Admin function to adjust gas limit protection for batch validator operations
      * @param maxValidatorPerBatch New maximum batch size for validator additions
      */
-    function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyAdmin {
+    function setMaxValidatorPerBatch(uint64 maxValidatorPerBatch) external onlyOwner {
         _getCoreVaultStorage()._maxValidatorPerBatch = maxValidatorPerBatch;
     }
 
@@ -682,5 +683,5 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
      * @dev https://docs.openzeppelin.com/contracts/5.x/api/proxy#UUPSUpgradeable
      */
     /* solhint-disable-next-line no-empty-blocks */
-    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

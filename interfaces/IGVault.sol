@@ -34,24 +34,12 @@ interface IGVault is IBaseVault {
     event PositionUpdated(address indexed user, uint64 indexed valId, uint256 indexed amount, bool isDelegate);
     event CapChanged(uint64 indexed valId, uint256 indexed newCap);
     event DefaultCapUpdated(uint256 indexed newDefaultBps);
+    event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
+    event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
+
     // Rebalance admin events
     event AdminInitiatedRebalance(uint16 indexed bps);
     event AdminCompletedRebalance(uint256 indexed amountForwarded);
     event AdminCompletedRebalanceWithdrawal(uint64 indexed valId, uint256 indexed amount);
-
-    event ProcessedBatch(uint64 indexed valId, uint8 indexed withdrawalId, uint256 indexed amount);
-
-    // User withdrawal distribution events
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
-    );
     event RewardsInjected(uint256 indexed amount, uint64 indexed valId);
 }

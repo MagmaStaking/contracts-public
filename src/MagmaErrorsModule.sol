@@ -2,7 +2,6 @@
 pragma solidity 0.8.30;
 
 // Generic access/role
-error ErrNotAdmin();
 error ErrNotAuthorized();
 error ErrNotMagma();
 
@@ -32,11 +31,15 @@ error ErrAmountTooSmall();
 error ErrInsufficientPosition(uint256 requested, uint256 balance);
 error ErrEpochGuard();
 error ErrRebalanceInProgress();
+error ErrRebalanceNotInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
 error ErrRequestInexistent();
 error ErrNotEnoughAssetsGVault();
 error ErrVaultsSet();
+error ErrValidatorAdded();
+error ErrValidatorInRemoval();
+
 // External call failures
 error ErrDelegateFailed();
 error ErrUndelegateFailed();

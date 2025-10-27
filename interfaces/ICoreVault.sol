@@ -31,23 +31,8 @@ interface ICoreVault is IBaseVault {
     function getTotalDelegated() external returns (uint256);
 
     // Events
-
-    event RebalanceInitiated();
-    event RebalanceCompleted();
-    event SubmittedUndelegate(
-        uint8 indexed withdrawalId, uint256 indexed perValidatorAmount, uint256 indexed validatorCount
-    );
-    // User withdrawal distribution events (mirrors gVault for consistency)
-    event WithdrawalAmountMismatch(
-        uint64 indexed valId,
-        uint8 indexed withdrawalId,
-        uint256 totalDue,
-        uint256 totalDistributed,
-        uint256 expectedDueForUser,
-        address indexed user
-    );
-    event WithdrawalPaymentFailed(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
+    event RebalanceInitiated(
+        uint256 totalUndelegated, uint256 numValidators, uint256 targetPerValidator, uint256 totalDelegated
     );
     event RewardsInjected(uint256 indexed amount);
 }
