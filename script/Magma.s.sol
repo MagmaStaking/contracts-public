@@ -39,7 +39,6 @@ contract MagmaScript is Script {
                     asset: IERC20(underlyingAssetAddress),
                     name: "gMON",
                     symbol: "gMON",
-                    admin: msg.sender,
                     rewardsFee: 0,
                     withdrawalFee: 0,
                     feeReceiver: feeReceiverAddress,

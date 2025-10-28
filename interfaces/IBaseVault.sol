@@ -5,6 +5,7 @@ interface IBaseVault {
     enum ValidatorStatus {
         NONE,
         PAUSED,
+        REMOVED,
         UNDELEGATING
     }
 
@@ -20,10 +21,6 @@ interface IBaseVault {
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
     event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
-    // Events for user withdrawal completion
-    event WithdrawalNotReady(
-        uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 requestedAmount
-    );
 
     event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
     event RewardsFeeTransferFailed(uint256 indexed amount);
