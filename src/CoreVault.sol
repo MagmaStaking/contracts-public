@@ -439,8 +439,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
                 continue;
             }
 
-            (bool _exists, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-            if (_exists && _amount > 0) {
+            (, uint256 _amount,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+            if (_amount > 0) {
                 // For admin withdrawals, we need to handle pending redelegation amounts
                 _withdraw(_valId, ADMIN_WID);
                 // Update pending redelegation tracking

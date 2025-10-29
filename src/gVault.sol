@@ -325,6 +325,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_amount < minUserWithdrawAmount()) {
             revert ErrBelowMinWithdraw(minUserWithdrawAmount());
         }
+        if (_amount == 0) revert ErrZeroAmount();
         //undelegate just adds to the queue
         if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         if (_user == address(0)) revert ErrZeroAddress();
@@ -346,28 +347,26 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         $._delegatedSharesOf[_user][_valId] -= _sharesToBurn;
         $._totalSharesByValidator[_valId] -= _sharesToBurn;
 
-        if (_amount > 0) {
-            // Update deposit tracking: get compounded deposit, subtract withdrawal
-            uint256 _compoundedDeposit = _getCompoundedUserDeposit(_user, _valId);
+        // Update deposit tracking: get compounded deposit, subtract withdrawal
+        uint256 _compoundedDeposit = _getCompoundedUserDeposit(_user, _valId);
 
-            // Prevent underflow: if withdrawing more than compounded, set to 0
-            uint256 _remainingDeposit = _amount >= _compoundedDeposit ? 0 : (_compoundedDeposit - _amount);
+        // Prevent underflow: if withdrawing more than compounded, set to 0
+        uint256 _remainingDeposit = _amount >= _compoundedDeposit ? 0 : (_compoundedDeposit - _amount);
 
-            // Update deposit and snapshot
-            _updateUserDepositAndSnapshot(_user, _valId, _remainingDeposit);
+        // Update deposit and snapshot
+        _updateUserDepositAndSnapshot(_user, _valId, _remainingDeposit);
 
-            uint8 _wid = _allocateWidAndUndelegate(_valId, _amount);
+        uint8 _wid = _allocateWidAndUndelegate(_valId, _amount);
 
-            // Store withdrawal request information
-            _storeWithdrawalRequest(_user, _amount, _valId, _wid);
+        // Store withdrawal request information
+        _storeWithdrawalRequest(_user, _amount, _valId, _wid);
 
-            // Track pending; do not lower local delegated until completion
-            setPendingUndelegateByValidator(_valId, pendingUndelegateByValidator(_valId) + _amount);
-            setTotalPendingUndelegations(totalPendingUndelegations() + _amount);
+        // Track pending; do not lower local delegated until completion
+        setPendingUndelegateByValidator(_valId, pendingUndelegateByValidator(_valId) + _amount);
+        setTotalPendingUndelegations(totalPendingUndelegations() + _amount);
 
-            // Track undelegation for caching
-            _trackCachedUndelegation(_amount);
-        }
+        // Track undelegation for caching
+        _trackCachedUndelegation(_amount);
     }
 
     /**
@@ -473,8 +472,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         for (uint256 i = 0; i < _n; ++i) {
             uint64 _valId = _list[i];
 
-            (bool exists, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
-            if (!exists || amt == 0) continue; // Skip if no pending withdrawal
+            (, uint256 amt,,) = _getWithdrawalRequest(_valId, address(this), ADMIN_WID);
+            if (amt == 0) continue; // Skip if no pending withdrawal
 
             _withdraw(_valId, ADMIN_WID);
             _markWithdrawalCompleted(_valId, ADMIN_WID);
