@@ -43,7 +43,7 @@ contract Magma is
     struct MagmaStorage {
         /// @notice The address that receives the fees.
         address _feeReceiver;
-        // Vault contract references (to be set by admin)
+        /// Vault contract references (to be set by admin)
         address _coreVault;
         address _gVault;
         uint256 _requestIdCount;
@@ -57,10 +57,15 @@ contract Magma is
         uint256 _withdrawalFee;
         /// @notice The address authorized to inject MEV rewards.
         address _mevRewardsInjector;
+        /// @notice Tracks whether an owner has an active redemption request.
+        /// @dev Used to enforce one active request per owner at a time.
         mapping(address owner => bool) _ownerRequested;
-        // Mapping from controller to their pending withdrawal requests
+        /// @notice Maps each owner to their active redemption request ID.
+        /// @dev Returns 0 when an owner has no active request (requestIdCount starts at 1 to avoid ambiguity).
+        mapping(address owner => uint256 requestId) _ownerRequestId;
+        /// Mapping from controller to their pending withdrawal requests
         mapping(address controller => mapping(uint256 requestId => RedeemRequests)) _pendingRedeemRequests;
-        // Mapping for operator approvals (ERC-7540)
+        /// Mapping for operator approvals (ERC-7540)
         mapping(address controller => mapping(address operator => bool)) _isOperator;
     }
 
@@ -88,6 +93,10 @@ contract Magma is
         _disableInitializers();
     }
 
+    /**
+     * @dev Initialize requestIdCount to 1 to distinguish between "no active request" (default value 0 in
+     *  _ownerRequestId) and actual request IDs
+     */
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
@@ -103,6 +112,7 @@ contract Magma is
         $._feeReceiver = params.feeReceiver;
         $._redeemDelay = params.redeemDelay;
         $._mevRewardsInjector = params.mevRewardsInjector;
+        $._requestIdCount = 1;
     }
 
     /**
@@ -362,6 +372,7 @@ contract Magma is
             claimableTime: block.timestamp + $._redeemDelay,
             isGVault: isGVault
         });
+        $._ownerRequestId[_owner] = requestId;
         unchecked {
             $._requestIdCount = requestId + 1;
         }
@@ -392,6 +403,10 @@ contract Magma is
     function claimableRedeemRequest(uint256 requestId, address controller) external view returns (uint256 shares) {
         RedeemRequests memory request = _getMagmaStorage()._pendingRedeemRequests[controller][requestId];
         return request.claimableTime <= block.timestamp ? request.shares : 0;
+    }
+
+    function ownerRequestId(address _owner) external view returns (uint256) {
+        return _getMagmaStorage()._ownerRequestId[_owner];
     }
 
     function redeem(uint256 requestId, address controller, address receiver)
@@ -444,6 +459,7 @@ contract Magma is
 
         address _owner = $._pendingRedeemRequests[controller][requestId].owner;
         delete $._pendingRedeemRequests[controller][requestId];
+        delete $._ownerRequestId[_owner];
         $._ownerRequested[_owner] = false;
 
         (uint256 totalWithdrawn, uint256 totalWithdrawnAfterFee) = request.isGVault
