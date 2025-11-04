@@ -511,11 +511,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function _claimAndCompoundRewards(uint64 _valId) internal {
         uint256 _startingBalance = address(this).balance;
-        _claim(_valId);
+        bool success = _claim(_valId);
         uint256 _endingBalance = address(this).balance;
         uint256 _rewards = _endingBalance - _startingBalance;
         emit RewardsClaimed(_valId, _rewards);
-        if (_rewards > 0) {
+        if (_rewards > 0 && success) {
             uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
             uint256 _remaining = _rewards - _fee;
             _delegate(_valId, _remaining);

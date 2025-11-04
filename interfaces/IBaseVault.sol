@@ -20,7 +20,6 @@ interface IBaseVault {
     event WithdrawalPaymentSuccess(
         uint64 indexed valId, uint8 indexed withdrawalId, address indexed user, uint256 amount
     );
-    event WithdrawalFailed(uint64 indexed valId, uint8 indexed withdrawalId);
 
     event RewardsClaimed(uint64 indexed valId, uint256 indexed amount);
     event RewardsFeeTransferFailed(uint256 indexed amount);
