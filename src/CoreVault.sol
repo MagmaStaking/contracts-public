@@ -81,16 +81,25 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     // --------------------------------------------------------------------------------------------------------------
 
     /**
+     * @notice Register a new validator in the vault
+     * @dev Adds validator to the active validators list and marks as whitelisted
+     * @param _valId The validator ID to register
+     */
+    function _addValidator(uint64 _valId) private {
+        if (validatorStatus(_valId) != ValidatorStatus.NONE && validatorStatus(_valId) != ValidatorStatus.REMOVED) {
+            revert ErrValidatorInRemoval();
+        }
+        _registerValidator(_valId);
+    }
+
+    /**
      * @notice Step 1: Add a validator and initiate rebalance phase 1 (undelegation)
      * @dev Add a validator and trigger excess undelegation. Redistribution must be done manually via redelegateToValidators()
      * @dev Can re-add a validator that was removed
      * @param _valId The validator ID to add
      */
     function addValidator(uint64 _valId) external onlyOwner onlyAfterEpoch {
-        if (validatorStatus(_valId) != ValidatorStatus.NONE && validatorStatus(_valId) != ValidatorStatus.REMOVED) {
-            revert ErrValidatorInRemoval();
-        }
-        _registerValidator(_valId);
+        _addValidator(_valId);
         _refreshCache();
         _redelegateInitiate();
     }
@@ -105,7 +114,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (validatorIds.length > $._maxValidatorPerBatch) revert ErrMaxValidators($._maxValidatorPerBatch);
 
         for (uint256 i = 0; i < validatorIds.length; ++i) {
-            _registerValidator(validatorIds[i]);
+            _addValidator(validatorIds[i]);
         }
         _refreshCache(); // refreshing cache after adding validators to ensure new validator inclusion in cache
         _redelegateInitiate();

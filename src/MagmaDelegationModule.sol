@@ -50,9 +50,12 @@ abstract contract MagmaDelegationModule {
         if (!success) revert ErrWithdrawalFailed(valId, withdrawalId);
     }
 
-    function _claim(uint64 valId) internal {
-        bool success = STAKING.claimRewards(valId);
-        if (!success) revert ErrDelegateFailed();
+    function _claim(uint64 valId) internal returns (bool success) {
+        try STAKING.claimRewards(valId) returns (bool) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     function _getWithdrawalRequest(uint64 valId, address delegator, uint8 withdrawalId)

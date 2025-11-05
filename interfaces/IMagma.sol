@@ -27,6 +27,7 @@ interface IMagma {
         external
         view
         returns (RedeemRequests memory data);
+    function ownerRequestId(address _owner) external view returns (uint256);
     function rewardsFee() external view returns (uint256);
     function totalAssets() external view returns (uint256);
     function withdrawalFee() external view returns (uint256);
