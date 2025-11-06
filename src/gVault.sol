@@ -415,9 +415,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // Handle edge case of 100% rebalance (complete liquidation)
         if (_bps == BASE_BPS) {
             // Special handling for 100% outflow: prevent P from hitting zero which would break math
-            // Move to new scale, effectively making existing user units worthless (entitlement ≈ 0)
-            $._currentScale = _currentScale + 1;
-            $._scaleToMultiplierP[_currentScale + 1] = 1e27; // reset P to nominal 1.0 in 1e27 scale at new scale
+            // Move to 2 new scales, effectively making existing user units worthless (entitlement ≈ 0)
+            $._currentScale = _currentScale + 2;
+            $._scaleToMultiplierP[_currentScale + 2] = 1e27; // reset P to nominal 1.0 in 1e27 scale at new scale
             emit GVaultRescaled(MULTIPLIER_RESCALE_K, 1e27, GVAULT_BASE_SCALE_S);
         } else {
             // Update cumulative multiplier P at current scale to reflect what fraction stays in gVault
