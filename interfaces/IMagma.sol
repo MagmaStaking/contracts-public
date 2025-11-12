@@ -70,4 +70,5 @@ interface IMagma {
     event RewardsFeeUpdated(uint256 indexed newRewardsFee);
     event VaultsSet(address indexed newCoreVault, address indexed newGVault);
     event WithdrawalFeeUpdated(uint256 indexed newWithdrawalFee);
+    event MevRewardsInjectorUpdated(address indexed oldInjector, address indexed newInjector);
 }
