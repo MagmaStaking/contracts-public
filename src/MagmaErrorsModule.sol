@@ -19,6 +19,7 @@ error ErrZeroValidatorId();
 error ErrInsufficientShares(uint256 requested, uint256 balance);
 error ErrRequestPending();
 error ErrInsufficientDelegated(uint256 required, uint256 available);
+error ErrPullPassesStake();
 error ErrNoPendingWithdrawRequest();
 error ErrNotWhitelisted();
 error ErrAlreadyWhitelisted();

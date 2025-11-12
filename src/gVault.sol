@@ -8,6 +8,7 @@ import {IGVault} from "../interfaces/IGVault.sol";
 import {ICoreVault} from "../interfaces/ICoreVault.sol";
 import {BaseVault} from "./BaseVault.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {DelInfo} from "./MagmaDelegationModule.sol";
 import {
     ErrNotWhitelisted,
     ErrInvalidBps,
@@ -17,14 +18,15 @@ import {
     ErrExceedsCap,
     ErrBelowMinWithdraw,
     ErrInsufficientDelegated,
+    ErrPullPassesStake,
     ErrRebalanceInProgress,
     ErrRebalanceNotInProgress,
     ErrNotAuthorized,
     ErrValidatorAdded,
     ErrZeroAmount
 } from "./MagmaErrorsModule.sol";
-/* solhint-disable-next-line contract-name-capwords */
 
+/* solhint-disable-next-line contract-name-capwords */
 contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IGVault, BaseVault {
     /// @custom:storage-location erc7201:storage.GVault
     struct GVaultStorage {
@@ -442,8 +444,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         for (uint256 i = 0; i < n; ++i) {
             uint64 v = _list[i];
             // Decode vault-level delegation from precompile
-            uint256 amt = _getDelegatorStake(v, address(this));
-            uint256 pull = (amt * _bps) / BASE_BPS;
+            DelInfo memory _delInfo = cachedDelegatorInfo(v);
+            uint256 _totalStake = _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
+            uint256 pull = (_totalStake * _bps) / BASE_BPS;
+            if (pull > _delInfo.stake) revert ErrPullPassesStake();
             if (pull > 0) {
                 _checkFreeAdminWid(v);
                 _allocateAdminWidAndUndelegate(v, pull);
