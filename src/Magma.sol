@@ -518,7 +518,9 @@ contract Magma is
 
     function setMevRewardsInjector(address _mevRewardsInjector) external onlyOwner {
         if (_mevRewardsInjector == address(0)) revert ErrZeroAddress();
+        address _oldInjector = _getMagmaStorage()._mevRewardsInjector;
         _getMagmaStorage()._mevRewardsInjector = _mevRewardsInjector;
+        emit MevRewardsInjectorUpdated(_oldInjector, _mevRewardsInjector);
     }
 
     /**

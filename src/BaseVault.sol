@@ -406,6 +406,7 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
             (bool okFee,) = $._magma.feeReceiver().call{value: _fee}("");
             if (!okFee) {
                 emit WithdrawalFeeTransferFailed(_fee);
+                return 0;
             } else {
                 emit WithdrawalFeeTransferSuccess(_fee, $._magma.feeReceiver());
             }
