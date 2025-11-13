@@ -27,6 +27,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IMagma} from "../interfaces/IMagma.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
 contract Magma is
@@ -466,15 +467,7 @@ contract Magma is
             ? IGVault($._gVault).completeUserWithdrawal(_owner)
             : ICoreVault($._coreVault).completeUserWithdrawal(_owner);
 
-        uint256 shares = totalWithdrawn < request.assets ? convertToShares(totalWithdrawn) : request.shares;
-        if (totalWithdrawn < request.assets) {
-            /**
-             * If withdraw amount gets slashed losses are socialized. Shares minted represent an increase in the supply.
-             * Therefore, losess are socialized between all the participants
-             */
-            _mint(receiver, convertToShares(request.assets - totalWithdrawn));
-        }
-
+        uint256 withdrawnShares = _getWithdrawnShares(totalWithdrawn, receiver, request);
         if (receiveWMON) {
             WrappedMonad(payable(address(asset()))).deposit{value: totalWithdrawnAfterFee}();
             bool success = WrappedMonad(payable(address(asset()))).transfer(receiver, totalWithdrawnAfterFee);
@@ -488,9 +481,32 @@ contract Magma is
             }
         }
 
-        emit Withdraw(_msgSender(), receiver, _owner, totalWithdrawnAfterFee, shares);
+        emit Withdraw(_msgSender(), receiver, _owner, totalWithdrawnAfterFee, withdrawnShares);
 
         return totalWithdrawnAfterFee;
+    }
+
+    function _getWithdrawnShares(uint256 totalWithdrawn, address receiver, RedeemRequests memory request)
+        private
+        returns (uint256)
+    {
+        if (totalWithdrawn < request.assets) {
+            /**
+             * If withdraw amount gets slashed losses are socialized. Shares minted represent an increase in the supply.
+             * Therefore, losess are socialized between all the participants
+             */
+            uint256 withdrawnShares = Math.mulDiv(
+                totalWithdrawn,
+                totalSupply() + request.shares + 10 ** _decimalsOffset(),
+                totalAssets() + totalWithdrawn + 1,
+                Math.Rounding.Ceil
+            );
+            if (withdrawnShares < request.shares) {
+                _mint(receiver, request.shares - withdrawnShares);
+                return withdrawnShares;
+            }
+        }
+        return request.shares;
     }
 
     function setRewardsFee(uint256 _rewardsFee) external onlyOwner {
