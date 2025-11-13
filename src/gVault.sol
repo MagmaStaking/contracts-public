@@ -32,10 +32,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     struct GVaultStorage {
         /// @dev Default cap as percentage of total Magma assets in basis points (25 = 0.25%)
         uint256 _defaultCapBps;
-        /// @dev Current scale index - increments when P drops below MULTIPLIER_FLOOR
-        uint256 _currentScale;
-        /// @dev Multiplier P value per scale - tracks cumulative retention at each scale
-        mapping(uint256 => uint256) _scaleToMultiplierP;
+        /// @dev Per-validator current scale index
+        mapping(uint64 => uint256) _currentScaleByValidator;
+        /// @dev Per-validator multiplier P value per scale
+        mapping(uint64 => mapping(uint256 => uint256)) _scaleToMultiplierPByValidator;
         /// @dev EIP-4626 style share tracking: tracks user's share ownership per validator
         mapping(address => mapping(uint64 => uint256)) _delegatedSharesOf;
         /// @dev Total shares issued for each validator (used for share-to-asset conversion)
@@ -50,6 +50,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         mapping(address => mapping(uint64 => uint256)) _scaledPrincipalUnits;
         /// @dev User's snapshot of P and scale at time of last operation
         mapping(address => mapping(uint64 => Snapshot)) _userSnapshots;
+        /// @dev Sum of users' principal units per validator; used to scale P on rewards
+        mapping(uint64 => uint256) _totalScaledPrincipalUnits;
     }
 
     /// @dev Default max cap used when totalAssets is 0 to prevent ErrCapZero on a first delegation to gVault.
@@ -88,8 +90,6 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         // initialize multiplier system for proxies (declarations don't run)
         GVaultStorage storage $ = _getGVaultStorage();
         $._defaultCapBps = 25;
-        $._currentScale = 0;
-        $._scaleToMultiplierP[0] = 1e27;
     }
 
     function _getGVaultStorage() private pure returns (GVaultStorage storage $) {
@@ -108,17 +108,18 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _getGVaultStorage()._defaultCapBps;
     }
 
-    function currentScale() external view returns (uint256) {
-        return _getGVaultStorage()._currentScale;
+    function currentScale(uint64 _valId) external view returns (uint256) {
+        return _getGVaultStorage()._currentScaleByValidator[_valId];
     }
 
-    function currentMultiplierP() external view returns (uint256) {
+    function currentMultiplierP(uint64 _valId) external view returns (uint256) {
         GVaultStorage storage $ = _getGVaultStorage();
-        return $._scaleToMultiplierP[$._currentScale];
+        uint256 s = $._currentScaleByValidator[_valId];
+        return $._scaleToMultiplierPByValidator[_valId][s];
     }
 
-    function multiplierPAtScale(uint256 _scale) external view returns (uint256) {
-        return _getGVaultStorage()._scaleToMultiplierP[_scale];
+    function multiplierPAtScale(uint64 _valId, uint256 _scale) external view returns (uint256) {
+        return _getGVaultStorage()._scaleToMultiplierPByValidator[_valId][_scale];
     }
 
     function userSnapshot(address _user, uint64 _valId) external view returns (uint256 P, uint256 scale) {
@@ -164,6 +165,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         }
         _refreshCache();
         _registerValidator(_valId);
+        // initialize per-validator multiplier tracking
+        GVaultStorage storage $ = _getGVaultStorage();
+        $._currentScaleByValidator[_valId] = 0;
+        $._scaleToMultiplierPByValidator[_valId][0] = 1e27;
     }
 
     /**
@@ -411,38 +416,36 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         GVaultStorage storage $ = _getGVaultStorage();
 
         if (_bps > BASE_BPS) revert ErrInvalidBps();
-
-        (uint256 _currentScale, uint256 _currentP) = _getCurrentScaleAndP();
-
-        // Handle edge case of 100% rebalance (complete liquidation)
-        if (_bps == BASE_BPS) {
-            // Special handling for 100% outflow: prevent P from hitting zero which would break math
-            // Move to 2 new scales, effectively making existing user units worthless (entitlement ≈ 0)
-            $._currentScale = _currentScale + 2;
-            $._scaleToMultiplierP[_currentScale + 2] = 1e27; // reset P to nominal 1.0 in 1e27 scale at new scale
-            emit GVaultRescaled(MULTIPLIER_RESCALE_K, 1e27, GVAULT_BASE_SCALE_S);
-        } else {
-            // Update cumulative multiplier P at current scale to reflect what fraction stays in gVault
-            // P_new = P_old * (1 - bps/10000) tracks cumulative retention
-            uint256 _oldP = _currentP;
-            uint256 _factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // Convert (1 - bps/10000) to 1e27 scale
-            uint256 _newP = Math.mulDiv(_currentP, _factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
-            $._scaleToMultiplierP[_currentScale] = _newP;
-            emit GVaultMultiplierUpdated(_oldP, _newP, _bps);
-
-            // Prevent precision loss: if P gets too small, rescale to new scale
-            // This maintains user entitlements while bringing P back to a safe range
-            if (_newP < MULTIPLIER_FLOOR) {
-                $._currentScale = _currentScale + 1;
-                $._scaleToMultiplierP[_currentScale + 1] = _newP * MULTIPLIER_RESCALE_K;
-                emit GVaultRescaled(MULTIPLIER_RESCALE_K, _newP * MULTIPLIER_RESCALE_K, GVAULT_BASE_SCALE_S);
-            }
-        }
         uint64[] memory _list = getValidators();
         uint256 n = _list.length;
         setFinishedLastRebalance(false); // Mark rebalance as in progress
         for (uint256 i = 0; i < n; ++i) {
             uint64 v = _list[i];
+            // Handle edge case of 100% rebalance (complete liquidation)
+            if (_bps == BASE_BPS) {
+                // Special handling for 100% outflow: prevent P from hitting zero which would break math
+                // Move to 2 new scales, effectively making existing user units worthless (entitlement ≈ 0)
+                uint256 _currentScale = $._currentScaleByValidator[v];
+                $._currentScaleByValidator[v] = _currentScale + 2;
+                $._scaleToMultiplierPByValidator[v][_currentScale + 2] = 1e27; // reset P to nominal 1.0 in 1e27 scale at new scale
+                emit GVaultRescaled(MULTIPLIER_RESCALE_K, 1e27, GVAULT_BASE_SCALE_S);
+            } else {
+                // Update cumulative multiplier P at current scale to reflect what fraction stays in gVault
+                // P_new = P_old * (1 - bps/10000) tracks cumulative retention
+                (uint256 _currentScale, uint256 oldP) = _getCurrentScaleAndP(v);
+                uint256 factor1e27 = uint256(BASE_BPS - _bps) * 1e23; // Convert (1 - bps/10000) to 1e27 scale
+                uint256 newP = Math.mulDiv(oldP, factor1e27, 1e27, Math.Rounding.Ceil); // round up to prevent erosion
+                $._scaleToMultiplierPByValidator[v][_currentScale] = newP;
+                emit GVaultMultiplierUpdated(oldP, newP, _bps);
+
+                // Prevent precision loss: if P gets too small, rescale to new scale
+                // This maintains user entitlements while bringing P back to a safe range
+                if (newP < MULTIPLIER_FLOOR) {
+                    $._currentScaleByValidator[v] = _currentScale + 1;
+                    $._scaleToMultiplierPByValidator[v][_currentScale + 1] = newP * MULTIPLIER_RESCALE_K;
+                    emit GVaultRescaled(MULTIPLIER_RESCALE_K, newP * MULTIPLIER_RESCALE_K, GVAULT_BASE_SCALE_S);
+                }
+            }
             // Decode vault-level delegation from precompile
             DelInfo memory _delInfo = cachedDelegatorInfo(v);
             uint256 _totalStake = _delInfo.stake + _delInfo.deltaStake + _delInfo.nextDeltaStake;
@@ -521,9 +524,19 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         emit RewardsClaimed(_valId, _rewards);
         if (_rewards > 0 && success) {
             uint256 _fee = _calculateRewardsFeeAndSend(_rewards);
-            uint256 _remaining = _rewards - _fee;
-            _delegate(_valId, _remaining);
-            _trackCachedDelegation(_remaining);
+            if (_fee < _rewards) {
+                uint256 _remaining = _rewards - _fee;
+                // Scale P up for this validator based on net rewards and current total principal units
+                GVaultStorage storage $ = _getGVaultStorage();
+                uint256 totalScaled = $._totalScaledPrincipalUnits[_valId];
+                if (totalScaled > 0) {
+                    (uint256 s, uint256 oldP) = _getCurrentScaleAndP(_valId);
+                    uint256 newP = Math.mulDiv(oldP, totalScaled + _remaining, totalScaled, Math.Rounding.Floor);
+                    $._scaleToMultiplierPByValidator[_valId][s] = newP;
+                }
+                _delegate(_valId, _remaining);
+                _trackCachedDelegation(_remaining);
+            }
         }
     }
 
@@ -552,15 +565,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
-     * @dev Get current P at current scale, initializing if necessary
-     * @return Current scale and current P value
+     * @dev Get current per-validator P at current scale
+     * @return Current scale and current P value for the validator
      */
-    function _getCurrentScaleAndP() internal view returns (uint256, uint256) {
+    function _getCurrentScaleAndP(uint64 _valId) internal view returns (uint256, uint256) {
         GVaultStorage storage $ = _getGVaultStorage();
-        uint256 scale = $._currentScale;
-        uint256 P = $._scaleToMultiplierP[scale];
-
-        return (scale, P);
+        uint256 _scale = $._currentScaleByValidator[_valId];
+        uint256 _P = $._scaleToMultiplierPByValidator[_valId][_scale];
+        return (_scale, _P);
     }
 
     /**
@@ -574,16 +586,17 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * - scaleDiff = 1: compoundedDeposit = initialDeposit * P / snapshot_P / SCALE_FACTOR
      * - scaleDiff >= 2: compoundedDeposit = 0 (position is negligible)
      */
-    function _getCompoundedEntitlement(uint256 _initialDeposit, uint256 _snapshotP, uint256 _snapshotScale)
-        internal
-        view
-        returns (uint256)
-    {
+    function _getCompoundedEntitlement(
+        uint256 _initialDeposit,
+        uint256 _snapshotP,
+        uint256 _snapshotScale,
+        uint64 _valId
+    ) internal view returns (uint256) {
         if (_initialDeposit == 0) return 0;
 
         GVaultStorage storage $ = _getGVaultStorage();
-        uint256 _currentScale = $._currentScale;
-        uint256 _currentP = $._scaleToMultiplierP[_currentScale];
+        uint256 _currentScale = $._currentScaleByValidator[_valId];
+        uint256 _currentP = $._scaleToMultiplierPByValidator[_valId][_currentScale];
 
         uint256 _scaleDiff = _currentScale - _snapshotScale;
 
@@ -591,17 +604,14 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         * account for it. If more than one scale change was made, then the stake has decreased by a factor of
         * at least 1e-9 -- so return 0.
         */
-        uint256 compoundedDeposit;
         if (_scaleDiff == 0) {
-            compoundedDeposit = Math.mulDiv(_initialDeposit, _currentP, _snapshotP);
+            return Math.mulDiv(_initialDeposit, _currentP, _snapshotP);
         } else if (_scaleDiff == 1) {
-            compoundedDeposit = Math.mulDiv(_initialDeposit, _currentP, _snapshotP * MULTIPLIER_RESCALE_K);
+            return Math.mulDiv(_initialDeposit, _currentP, _snapshotP * MULTIPLIER_RESCALE_K);
         } else {
             // if scaleDiff >= 2
-            compoundedDeposit = 0;
+            return 0;
         }
-
-        return compoundedDeposit;
     }
 
     /**
@@ -614,7 +624,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         GVaultStorage storage $ = _getGVaultStorage();
         uint256 initialDeposit = $._scaledPrincipalUnits[_user][_valId];
         Snapshot memory snap = $._userSnapshots[_user][_valId];
-        return _getCompoundedEntitlement(initialDeposit, snap.P, snap.scale);
+        return _getCompoundedEntitlement(initialDeposit, snap.P, snap.scale, _valId);
     }
 
     /**
@@ -625,16 +635,24 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function _updateUserDepositAndSnapshot(address _user, uint64 _valId, uint256 _newDeposit) internal {
         GVaultStorage storage $ = _getGVaultStorage();
-        (uint256 _currentScale, uint256 _currentP) = _getCurrentScaleAndP();
+        (uint256 _currentScale, uint256 _currentP) = _getCurrentScaleAndP(_valId);
+        // Read previous initial principal units before update
+        uint256 _oldInitial = $._scaledPrincipalUnits[_user][_valId];
 
         $._scaledPrincipalUnits[_user][_valId] = _newDeposit;
         $._userSnapshots[_user][_valId] = Snapshot({P: _currentP, scale: _currentScale});
+
+        // Adjust total principal units by delta between new and old initial units
+        if (_newDeposit >= _oldInitial) {
+            $._totalScaledPrincipalUnits[_valId] += (_newDeposit - _oldInitial);
+        } else {
+            $._totalScaledPrincipalUnits[_valId] -= (_oldInitial - _newDeposit);
+        }
     }
 
     /**
      * @notice Calculate maximum withdrawable amount for a user from gVault only
      * @dev Returns user's entitlement based on multiplier system
-     *      This limits withdrawals based on actual contributions vs. rewards earned.
      * @param _user The user address
      * @param _valId The validator ID
      * @return maxWithdrawable Maximum withdrawable amount from gVault tracking
