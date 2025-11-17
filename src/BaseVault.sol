@@ -104,6 +104,8 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
         _;
     }
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -592,7 +594,8 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _withdrawalId The withdrawal ID assigned
      */
     function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
-        _getBaseVaultStorage()._userWithdrawalRequests[_user].push(
+        _getBaseVaultStorage()
+        ._userWithdrawalRequests[_user].push(
             WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
     }

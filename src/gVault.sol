@@ -71,8 +71,11 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     // keccak256(abi.encode(uint256(keccak256("storage.GVault")) - 1)) & ~bytes32(uint256(0xff))
     /* solhint-disable-next-line const-name-snakecase */
-    bytes32 private constant _GVaultStorageLocation = 0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
+    bytes32 private constant _GVaultStorageLocation =
+        0x232a700b4988b63345b0748030e1e6bc1b8a8284e6c533d0f558dab152a9c400;
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -136,12 +139,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         return _getGVaultStorage()._delegatedSharesOf[user][valId];
     }
 
-    function totalSharesByValidator(uint64 valId)
-        external
-        view
-        whenValNotRemoved(valId)
-        returns (uint256 totalShares)
-    {
+    function totalSharesByValidator(uint64 valId) external view whenValNotRemoved(valId) returns (uint256 totalShares) {
         return _getGVaultStorage()._totalSharesByValidator[valId];
     }
 

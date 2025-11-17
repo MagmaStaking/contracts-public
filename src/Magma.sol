@@ -90,6 +90,8 @@ contract Magma is
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -101,12 +103,12 @@ contract Magma is
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
-        __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-        __Pausable_init();
         __ERC20_init(params.name, params.symbol);
         __ERC4626_init(params.asset);
+        __ReentrancyGuard_init();
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+        __Pausable_init();
         __ERC165_init();
         $._rewardsFee = params.rewardsFee;
         $._withdrawalFee = params.withdrawalFee;
@@ -449,12 +451,8 @@ contract Magma is
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert ErrRequestInexistent();
 
-        if (
-            !(
-                controller == _msgSender() || $._isOperator[controller][_msgSender()] || request.owner == _msgSender()
-                    || $._isOperator[request.owner][_msgSender()] || _msgSender() == owner()
-            )
-        ) {
+        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()] || request.owner == _msgSender()
+                    || $._isOperator[request.owner][_msgSender()] || _msgSender() == owner())) {
             revert ErrNotAuthorized();
         }
 
@@ -558,13 +556,27 @@ contract Magma is
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
+    function previewWithdraw(
+        uint256 /*assets*/
+    )
+        public
+        view
+        override
+        returns (uint256)
+    {
         /* solhint-disable-next-line */
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
+    function previewRedeem(
+        uint256 /*shares*/
+    )
+        public
+        view
+        override
+        returns (uint256)
+    {
         /* solhint-disable-next-line */
         revert();
     }
@@ -573,7 +585,13 @@ contract Magma is
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function withdraw(uint256, /*assets*/ address, /*receiver*/ address /*controller*/ )
+    function withdraw(
+        uint256,
+        /*assets*/
+        address,
+        /*receiver*/
+        address /*controller*/
+    )
         public
         override
         returns (uint256)
