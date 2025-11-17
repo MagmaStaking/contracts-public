@@ -1,3 +1,4 @@
+/* solhint-disable no-console */
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
@@ -7,16 +8,17 @@ import {CoreVault} from "../src/CoreVault.sol";
 import {gVault} from "../src/gVault.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-// MagmaDelegationModule is now abstract and inherited; no separate deployment
 
-contract MagmaScript is Script {
+/**
+ * @dev MagmaDelegationModule is now abstract and inherited; no separate deployment
+ */
+contract DeployMagma is Script {
     Magma public magma;
-
-    function setUp() public {}
 
     function run() public {
         vm.startBroadcast();
 
+        // WMON
         address underlyingAssetAddress = vm.envAddress("UNDERLYING_ASSET");
         require(underlyingAssetAddress != address(0), "missing UNDERLYING_ASSET");
 
@@ -60,9 +62,6 @@ contract MagmaScript is Script {
         console.log("Deployed Magma Vault at:", address(magma));
         console.log("Deployed CoreVault at:", coreProxy);
         console.log("Deployed gVault at:", gvProxy);
-        console.log("Vault Name:", magma.name());
-        console.log("Vault Symbol:", magma.symbol());
-        console.log("Underlying Asset:", address(magma.asset()));
 
         vm.stopBroadcast();
     }
