@@ -90,6 +90,8 @@ contract Magma is
     /* solhint-disable-next-line const-name-snakecase */
     bytes32 private constant _MagmaStorageLocation = 0xe12a3c9ed0954edf986cec381af8403b24a0b0b94ceba99e0d4e9dd1e2aec500;
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -101,12 +103,12 @@ contract Magma is
     function initialize(InitializeParams calldata params) external initializer {
         MagmaStorage storage $ = _getMagmaStorage();
 
-        __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-        __Pausable_init();
         __ERC20_init(params.name, params.symbol);
         __ERC4626_init(params.asset);
+        __ReentrancyGuard_init();
+        __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
+        __Pausable_init();
         __ERC165_init();
         $._rewardsFee = params.rewardsFee;
         $._withdrawalFee = params.withdrawalFee;

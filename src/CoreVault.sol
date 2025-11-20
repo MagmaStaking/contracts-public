@@ -51,6 +51,8 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _;
     }
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }

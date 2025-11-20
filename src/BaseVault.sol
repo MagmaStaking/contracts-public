@@ -104,6 +104,8 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
         _;
     }
 
+    /// @dev https://forum.openzeppelin.com/t/is-disableinitializers-necessary/31070
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
