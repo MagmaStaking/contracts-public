@@ -401,7 +401,6 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
      */
     function _chargeWithdrawalFee(uint256 _totalWithdrawalAmount) internal returns (uint256) {
         BaseVaultStorage storage $ = _getBaseVaultStorage();
-        if (_totalWithdrawalAmount == 0) return 0;
         if ($._magma.withdrawalFee() == 0) return 0;
         uint256 _fee = Math.mulDiv(_totalWithdrawalAmount, $._magma.withdrawalFee(), BASE_BPS, Math.Rounding.Ceil);
         if (_fee > 0) {
@@ -532,20 +531,6 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
     }
 
     /**
-     * @notice Get total stake delegated to all validators
-     * @dev Calculates sum of stakes across all active validators
-     * @return Total staked amount in wei
-     */
-    function _getTotalStakedToAllValidators() internal returns (uint256) {
-        uint256 _total = 0;
-        uint64[] memory _validators = getValidators();
-        for (uint256 _i = 0; _i < _validators.length; ++_i) {
-            _total += _getTotalStakedToValidator(_validators[_i]);
-        }
-        return _total;
-    }
-
-    /**
      * @notice Get total active stake across all validators using cached data
      * @dev Sums cached stake data for all validators to avoid expensive precompile calls
      * @return Total active stake amount across all validators from cached data
@@ -570,7 +555,6 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
     function _allocateWidAndUndelegate(uint64 _valId, uint256 _amount) internal returns (uint8 _wid) {
         _wid = _getBaseVaultStorage()._withdrawalIdBitmaps[_valId].allocateWithdrawalId();
         _undelegate(_valId, _amount, _wid);
-        return _wid;
     }
 
     /**
@@ -594,7 +578,8 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
      * @param _withdrawalId The withdrawal ID assigned
      */
     function _storeWithdrawalRequest(address _user, uint256 _amount, uint64 _validator, uint8 _withdrawalId) internal {
-        _getBaseVaultStorage()._userWithdrawalRequests[_user].push(
+        _getBaseVaultStorage()
+        ._userWithdrawalRequests[_user].push(
             WithdrawalRequestInfo({amount: _amount, validator: _validator, withdrawalId: _withdrawalId})
         );
     }

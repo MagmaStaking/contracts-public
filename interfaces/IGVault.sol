@@ -2,44 +2,58 @@
 pragma solidity 0.8.30;
 
 import {IBaseVault} from "./IBaseVault.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 interface IGVault is IBaseVault {
     // Admin functions
-    function addValidator(uint64 valId) external;
-    function changeValidatorCap(uint64 valId, uint256 newCap) external;
-    function setDefaultCapBps(uint256 newBps) external;
-    function adminInitiateRebalanceBps(uint16 bps) external;
-    function adminCompleteRebalance() external;
+    function addValidator(uint64 _valId) external;
+    function executeValidatorUndelegation(uint64 _valId) external;
+    function completeValidatorRemovalWithdrawal(uint64 _valId) external;
+    function changeValidatorCap(uint64 _valId, uint256 _newCap) external;
+    function pauseValId(uint64 _valId) external;
+    function unpauseValId(uint64 _valId) external;
+    function setDefaultCapBps(uint256 _newBps) external;
+    function adminInitiateRebalanceBpsValId(uint16 _bps, uint64 _valId, uint256 _start, uint256 _stop) external;
+    function adminCompleteRebalance(uint64 _valId) external;
+    function setMinUserDepositAmount(uint256 _amount) external;
 
     // Withdrawal completion function
-    function completeUserWithdrawal(address user)
+    function completeUserWithdrawal(address _user)
         external
-        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFeen);
+        returns (uint256 _totalWithdrawn, uint256 _totalWithdrawnAfterFee);
 
     // Delegation functions (onlyMagma)
-    function delegate(address user, uint64 valId) external payable;
-    function undelegate(address user, uint64 valId, uint256 amount) external;
+    function delegate(address _user, uint64 _valId, uint256 _magmaShares) external payable;
+    function undelegate(address _user, uint64 _valId, uint256 _amount, uint256 _magmaShares) external;
 
-    // Withdrawal completion functions
+    // Asset functions
+    function magmaSharesToGvaultAssets(uint64 _valId, address _user, uint256 _magmaShares) external returns (uint256);
+    function sharesForAssets(uint64 _valId, uint256 _assets, Math.Rounding _r) external returns (uint256);
+
+    // Rewards functions
+    function injectRewards(uint64 _valId) external payable;
+    function claimAndCompoundRewards() external;
 
     // Initialization
     function initialize(address _magma, uint256 _epochSeconds) external;
 
     // View functions
-    function delegatedAmountOf(address user, uint64 valId) external returns (uint256);
-    function maxWithdrawableFromGVault(address _user, uint64 _valId) external view returns (uint256);
-    function validatorCap(uint64 valId) external view returns (uint256);
+    function accountsByValidatorLength(uint64 _valId) external view returns (uint256);
+    function sharesForUserByValidator(address _account, uint64 _valId) external view returns (uint256);
+    function totalSharesForValidator(uint64 _valId) external view returns (uint256);
+    function magmaSharesForUserByValidator(address _account, uint64 _valId) external view returns (uint256);
+    function validatorCap(uint64 _valId) external view returns (uint256);
     function defaultCapBps() external view returns (uint256);
+    function delegatedAmount(uint64 _valId) external returns (uint256);
+    function lastRebalancedStartIndex(uint64 _valId) external view returns (uint256);
+    function lastRebalancedBps(uint64 _valId) external view returns (uint256);
+    function minUserDepositAmount() external view returns (uint256);
 
-    event PositionUpdated(address indexed user, uint64 indexed valId, uint256 indexed amount, bool isDelegate);
     event CapChanged(uint64 indexed valId, uint256 indexed newCap);
     event DefaultCapUpdated(uint256 indexed newDefaultBps);
-    event GVaultMultiplierUpdated(uint256 indexed oldP, uint256 indexed newP, uint16 indexed bps);
-    event GVaultRescaled(uint256 indexed factorK, uint256 indexed newP, uint256 indexed newS);
-
-    // Rebalance admin events
-    event AdminInitiatedRebalance(uint16 indexed bps);
-    event AdminCompletedRebalance(uint256 indexed amountForwarded);
-    event AdminCompletedRebalanceWithdrawal(uint64 indexed valId, uint256 indexed amount);
+    event AdminInitiatedRebalance(uint16 indexed bps, uint64 indexed valId);
+    event AdminInitiatedRebalanceBatch(uint16 indexed bps, uint64 indexed valId, uint256 indexed start, uint256 stop);
+    event AdminCompletedRebalance(uint256 indexed amountForwarded, uint64 indexed valId);
     event RewardsInjected(uint256 indexed amount, uint64 indexed valId);
+    event MinUserDepositAmountUpdated(uint256 indexed newAmount);
 }

@@ -331,6 +331,7 @@ contract CoreVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function claimAndCompoundRewards() external nonReentrant {
         _claimAndCompoundRewards();
     }
+
     //--------------------------------------------------------------------------------------------------------------
     // Internal functions
     //--------------------------------------------------------------------------------------------------------------

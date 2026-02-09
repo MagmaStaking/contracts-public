@@ -12,7 +12,6 @@ error ErrZeroShares();
 error ErrInvalidBps();
 error ErrInvalidAmount(uint256 amount);
 error ErrBelowMinWithdraw(uint256 min);
-error ErrBelowMinDeposit();
 error ErrZeroAmount();
 error ErrZeroValidatorId();
 
@@ -27,9 +26,11 @@ error ErrAlreadyWhitelisted();
 error ErrNoValidators();
 error ErrEpochGuard();
 error ErrRebalanceInProgress();
+error ErrRebalanceNotInProgress();
 error ErrCapZero();
 error ErrExceedsCap();
 error ErrRequestInexistent();
+error ErrNotEnoughAssetsGVault();
 error ErrVaultsSet();
 error ErrValidatorAdded();
 error ErrValidatorInRemoval();
@@ -48,10 +49,6 @@ error ErrPendingStakeNotZero();
 error ErrInvalidStatus();
 error ErrNotEnoughValidators();
 error ErrMaxValidators(uint64 errMaxValidators);
-error ErrInvalidStart(uint256 currentStart, uint256 sentStart);
-error ErrInvalidStop();
-error ErrNoAccounts();
-error ErrBatchNotCompleted();
 
 // Withdrawal ordering errors
 error ErrExistingWithdrawalInProgress();

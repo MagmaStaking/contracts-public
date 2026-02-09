@@ -3,7 +3,7 @@
 pragma solidity 0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Magma} from "../src/Magma.sol";
+import {Magma} from "../deprecated/v1/Magma.sol";
 import {CoreVault} from "../src/CoreVault.sol";
 import {gVault} from "../src/gVault.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
