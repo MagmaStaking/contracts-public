@@ -3,7 +3,6 @@ pragma solidity 0.8.30;
 
 import {WrappedMonad} from "../monad/WrappedMonad.sol";
 import {
-    ErrNotEnoughAssetsGVault,
     ErrRequestPending,
     ErrZeroShares,
     ErrNotAuthorized,
@@ -12,8 +11,7 @@ import {
     ErrNativeTransferFailed,
     ErrTokenTransferFailed,
     ErrZeroAddress,
-    ErrInvalidBps,
-    ErrVaultsSet
+    ErrInvalidBps
 } from "./MagmaErrorsModule.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -30,7 +28,8 @@ import {IMagma} from "../interfaces/IMagma.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @dev Implementation of ERC-7540 as defined in https://eips.ethereum.org/EIPS/eip-7540.
-contract Magma is
+/// @custom:oz-upgrades-from Magma
+contract MagmaV2 is
     IMagma,
     Initializable,
     UUPSUpgradeable,
@@ -100,22 +99,21 @@ contract Magma is
      * @dev Initialize requestIdCount to 1 to distinguish between "no active request" (default value 0 in
      *  _ownerRequestId) and actual request IDs
      */
-    function initialize(InitializeParams calldata params) external initializer {
-        MagmaStorage storage $ = _getMagmaStorage();
+    /// @custom:oz-upgrades-validate-as-initializer
+    function initialize(address _owner, address _gVault) external reinitializer(2) {
+        if (_gVault == address(0)) revert ErrZeroAddress();
 
-        __ERC20_init(params.name, params.symbol);
-        __ERC4626_init(params.asset);
+        __ERC20_init(name(), name());
+        __ERC4626_init(IERC20(asset()));
         __ReentrancyGuard_init();
-        __Ownable_init(msg.sender);
+        __Ownable_init(_owner);
         __UUPSUpgradeable_init();
         __Pausable_init();
         __ERC165_init();
-        $._rewardsFee = params.rewardsFee;
-        $._withdrawalFee = params.withdrawalFee;
-        $._feeReceiver = params.feeReceiver;
-        $._redeemDelay = params.redeemDelay;
-        $._mevRewardsInjector = params.mevRewardsInjector;
-        $._requestIdCount = 1;
+
+        MagmaStorage storage $ = _getMagmaStorage();
+        $._gVault = _gVault;
+        emit VaultsSet($._coreVault, _gVault);
     }
 
     /**
@@ -127,22 +125,6 @@ contract Magma is
         assembly {
             $.slot := _MagmaStorageLocation
         }
-    }
-
-    /// @notice Initializes the CoreVault and GVault addresses for the Magma protocol
-    /// @dev This function can only be called once during contract initialization. Both vault addresses must be non-zero.
-    /// @param _coreVault The address of the CoreVault contract
-    /// @param _gVault The address of the GVault contract
-    /// @custom:security Only callable by admin and restricted to one-time initialization
-    function initVaults(address _coreVault, address _gVault) external onlyOwner {
-        if (_coreVault == address(0) || _gVault == address(0)) revert ErrZeroAddress();
-        MagmaStorage storage $ = _getMagmaStorage();
-        if (!($._coreVault == address(0) && $._gVault == address(0))) {
-            revert ErrVaultsSet();
-        }
-        $._coreVault = _coreVault;
-        $._gVault = _gVault;
-        emit VaultsSet(_coreVault, _gVault);
     }
 
     function pause() external onlyOwner {
@@ -270,7 +252,7 @@ contract Magma is
     {
         _refreshCacheCheck();
         uint256 shares = _deposit(assets, receiver);
-        IGVault(_getMagmaStorage()._gVault).delegate{value: assets}(receiver, valId);
+        IGVault(_getMagmaStorage()._gVault).delegate{value: assets}(receiver, valId, shares);
         emit DepositWithReferral(_msgSender(), receiver, assets, shares, referralId);
         return shares;
     }
@@ -284,7 +266,7 @@ contract Magma is
         returns (uint256 shares)
     {
         shares = _depositMON(receiver, referralId);
-        IGVault(_getMagmaStorage()._gVault).delegate{value: msg.value}(receiver, valId);
+        IGVault(_getMagmaStorage()._gVault).delegate{value: msg.value}(receiver, valId, shares);
     }
 
     /// @notice Allows to set a referralId which will be used to reward points to the referrer (in case it qualifies)
@@ -331,10 +313,7 @@ contract Magma is
         returns (uint256 requestId)
     {
         _refreshCacheCheck();
-        uint256 assets = convertToAssets(shares);
-        if (assets > IGVault(_getMagmaStorage()._gVault).maxWithdrawableFromGVault(_owner, valId)) {
-            revert ErrNotEnoughAssetsGVault();
-        }
+        uint256 assets = IGVault(_getMagmaStorage()._gVault).magmaSharesToGvaultAssets(valId, _owner, shares);
         return _requestRedeem(shares, assets, controller, _owner, valId, true);
     }
 
@@ -384,7 +363,7 @@ contract Magma is
         _burn(_owner, shares);
 
         isGVault
-            ? IGVault($._gVault).undelegate(_owner, valId, assets)
+            ? IGVault($._gVault).undelegate(_owner, valId, assets, shares)
             : ICoreVault($._coreVault).undelegate(assets, _owner);
 
         emit RedeemRequest(controller, _owner, requestId, _msgSender(), shares);
@@ -451,12 +430,8 @@ contract Magma is
         if (request.claimableTime > block.timestamp) revert ErrRequestPending();
         if (request.claimableTime == 0) revert ErrRequestInexistent();
 
-        if (
-            !(
-                controller == _msgSender() || $._isOperator[controller][_msgSender()] || request.owner == _msgSender()
-                    || $._isOperator[request.owner][_msgSender()] || _msgSender() == owner()
-            )
-        ) {
+        if (!(controller == _msgSender() || $._isOperator[controller][_msgSender()] || request.owner == _msgSender()
+                    || $._isOperator[request.owner][_msgSender()] || _msgSender() == owner())) {
             revert ErrNotAuthorized();
         }
 
@@ -560,13 +535,27 @@ contract Magma is
     }
 
     /// @dev previewWithdraw MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewWithdraw(uint256 /*assets*/ ) public view override returns (uint256) {
+    function previewWithdraw(
+        uint256 /*assets*/
+    )
+        public
+        view
+        override
+        returns (uint256)
+    {
         /* solhint-disable-next-line */
         revert();
     }
 
     /// @dev previewRedeem MUST revert for all callers and inputs: https://eips.ethereum.org/EIPS/eip-7540#request-flows
-    function previewRedeem(uint256 /*shares*/ ) public view override returns (uint256) {
+    function previewRedeem(
+        uint256 /*shares*/
+    )
+        public
+        view
+        override
+        returns (uint256)
+    {
         /* solhint-disable-next-line */
         revert();
     }
@@ -575,7 +564,13 @@ contract Magma is
      * @dev The redeem and withdraw methods do not transfer shares to the Vault, this happens in a two step process via
      * _requestRedeem and claimRequest.
      */
-    function withdraw(uint256, /*assets*/ address, /*receiver*/ address /*controller*/ )
+    function withdraw(
+        uint256,
+        /*assets*/
+        address,
+        /*receiver*/
+        address /*controller*/
+    )
         public
         override
         returns (uint256)

@@ -7,6 +7,7 @@
         "no-inline-assembly": "off",
         "import-path-check": "off",
         "function-max-lines": "off",
-        "gas-strict-inequalities": "off"
+        "gas-strict-inequalities": "off",
+        "func-visibility": ["warn", { "ignoreConstructors": true }]
     }
 }

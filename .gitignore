@@ -52,3 +52,6 @@ env.sample
 .cursor/rules/camel-case.mdc
 .cursor/rules/magma-errors.mdc
 .github/workflows/forge-fmt-solhint-test.yml
+
+# DeployGVaultUpgradeMagmaAtomic
+/src/DeployGVaultUpgradeMagmaAtomic.sol

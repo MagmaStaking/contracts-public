@@ -1,4 +1,4 @@
-# Magma Protocol
+# MagmaV2 Protocol
 
 [![Foundry][foundry-badge]][foundry]
 
@@ -7,7 +7,7 @@
 
 ## Overview
 
-Magma is a liquid staking protocol built specifically for the Monad blockchain. It implements ERC-4626 with asynchronous withdrawal capabilities.
+MagmaV2 is a liquid staking protocol built specifically for the Monad blockchain. It implements ERC-4626 with asynchronous withdrawal capabilities.
 
 - **ERC-4626 Compliance**: Standard vault interface with extended async withdrawal support
 - **UUPS Upgradeable**: Future-proof upgrade mechanism with admin controls
@@ -17,7 +17,7 @@ Magma is a liquid staking protocol built specifically for the Monad blockchain. 
 
 | Contract                               | Description                                                                                                                         | Mainnet Address |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| [Magma](src/Magma.sol)                 | Main ERC-4626 vault with async withdrawal extensions (ERC-7540). User-facing interface for deposits, mints, and withdrawal requests | `TBD`           |
+| [MagmaV2](src/MagmaV2.sol)                 | Main ERC-4626 vault with async withdrawal extensions (ERC-7540). User-facing interface for deposits, mints, and withdrawal requests | `TBD`           |
 | [CoreVault](src/CoreVault.sol)         | Validator management vault for equal stake distribution across whitelisted validators                                               | `TBD`           |
 | [gVault](src/gVault.sol)               | Targeted delegation vault with per-validator stake caps and curated validator sets                                                  | `TBD`           |
 | [WrappedMonad](monad/WrappedMonad.sol) | ERC-20 wrapper for native MON tokens                                                                                                | `TBD`           |
@@ -26,12 +26,12 @@ Magma is a liquid staking protocol built specifically for the Monad blockchain. 
 
 ```mermaid
 graph TB
-    Users[Users] --> Magma[Magma Vault<br/>ERC-4626]
-    Magma --> CoreVault[CoreVault<br/>Equal Distribution]
-    Magma --> gVault[gVault<br/>Targeted Delegation]
+    Users[Users] --> MagmaV2[MagmaV2 Vault<br/>ERC-4626]
+    MagmaV2 --> CoreVault[CoreVault<br/>Equal Distribution]
+    MagmaV2 --> gVault[gVault<br/>Targeted Delegation]
     CoreVault --> Precompile[Monad Staking<br/>Precompile]
     gVault --> Precompile
-    Admin[Admin/Governor] --> Magma
+    Admin[Admin/Governor] --> MagmaV2
     Admin --> CoreVault
     Admin --> gVault
 ```
