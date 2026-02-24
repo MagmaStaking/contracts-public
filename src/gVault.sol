@@ -71,7 +71,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
 
     /**
      * @notice Initialize the gVault contract with configuration parameters
-     * @dev Sets up the vault with Magma protocol address, epoch timing, and multiplier system
+     * @dev Sets up the vault with Magma protocol address and epoch timing
      * @param _magma The address of the Magma protocol contract
      * @param _epochSeconds The duration of each epoch in seconds
      */
@@ -118,14 +118,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
-     * @dev Checks if a rebalance batch has been fully processed for a validator
+     * @dev Checks if a rebalance is inactive
      * @param _valId The validator ID to check rebalance status for
      * @return True if the batch has been completed
      */
-    function _isRebalanceBatchCompleted(uint64 _valId) private view returns (bool) {
+    function _isRebalanceInactive(uint64 _valId) private view returns (bool) {
         GVaultStorage storage $ = _getGVaultStorage();
-        return !($._lastRebalancedStartIndex[_valId] != 0
-                && $._lastRebalancedStartIndex[_valId] != $._accountsByValidator[_valId].length);
+        return $._lastRebalancedStartIndex[_valId] == 0;
     }
 
     function accountsByValidatorLength(uint64 _valId) external view returns (uint256) {
@@ -175,6 +174,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to pause
      */
     function pauseValId(uint64 _valId) external onlyOwner {
+        if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
         _pauseValId(_valId);
     }
 
@@ -184,7 +184,8 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @param _valId The validator ID to unpause
      */
     function unpauseValId(uint64 _valId) external onlyOwner {
-        if (_getGVaultStorage()._lastRebalancedStartIndex[_valId] != 0) revert ErrRebalanceInProgress();
+        if (!isWhitelisted(_valId)) revert ErrNotWhitelisted();
+        if (!_isRebalanceInactive(_valId)) revert ErrRebalanceInProgress();
         _unpauseValId(_valId);
     }
 
@@ -315,10 +316,13 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     }
 
     /**
-     * @dev Main funcionality of magmaSharesToGvaultAssets is to be called from Magma requestRedeemGVault to get the assets
+     * @dev Main functionality of magmaSharesToGvaultAssets is to be called from Magma requestRedeemGVault to get the assets
      * amount that will be undelegated from gVault. Given this assumption is better to revert under certain conditions:
      *  - When total shares, shares or magma shares are 0
      *  - When magma shares exceed user total magma shares
+     * @param _valId The validator ID to calculate assets for
+     * @param _user The user address to calculate assets for
+     * @param _magmaShares The amount of Magma shares to convert to gVault assets
      */
     function _magmaSharesToGvaultAssets(uint64 _valId, address _user, uint256 _magmaShares)
         private
@@ -332,9 +336,9 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         uint256 _amountAssetsUserCanWithdrawFromGvault = Math.mulDiv(
             _totalStaked,
             $._sharesForUserByValidator[_user][_valId],
-            $._totalSharesForValidator[_valId], // this cannot be 0, checked at checkMagmaShares modifier,
-            // if user magma shares is 0 then total shares is 0, if magma shares is more than 1 then total shares
-            //  is more than 1
+            $._totalSharesForValidator[_valId], // if user magma shares is 0 then total shares is 0, if magma shares
+            // is more than 1 then total shares is more than 1, so _totalSharesForValidator will never be 0 here since
+            // checkMagmaShares checks for magma shares not being 0
             Math.Rounding.Floor
         );
 
@@ -350,9 +354,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /**
      * @notice Delegate MON to a specific validator on behalf of a user
      * @dev Converts MON to shares, tracks user position, and delegates to validator.
-     *      Enforces validator caps and updates multiplier-based tracking.
+     *      Enforces validator caps.
      * @param _user The user address receiving the shares
      * @param _valId The validator ID to delegate to
+     * @param _magmaShares The amount of Magma shares the user received for this deposit
      */
     function delegate(address _user, uint64 _valId, uint256 _magmaShares)
         external
@@ -399,10 +404,10 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
     /**
      * @notice Initiate undelegation of a specific amount from a validator for a user
      * @dev Burns user shares, creates withdrawal request, and tracks pending undelegation.
-     *      Updates multiplier-based principal tracking.
      * @param _user The user address requesting withdrawal
      * @param _valId The validator ID to undelegate from
      * @param _amount The amount to undelegate
+     * @param _magmaShares The amount of Magma shares to burn for this undelegation
      */
     function undelegate(address _user, uint64 _valId, uint256 _amount, uint256 _magmaShares)
         external
@@ -500,7 +505,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
         if (_start != $._lastRebalancedStartIndex[_valId]) {
             revert ErrInvalidStart($._lastRebalancedStartIndex[_valId], _start);
         }
-        if (_start == _stop) revert ErrInvalidStop();
+        if (_start > _stop) revert ErrInvalidStop();
         address[] storage _accounts = $._accountsByValidator[_valId];
         if (_accounts.length == 0) revert ErrNoAccounts();
         uint256 _lastIndex = _accounts.length - 1;
@@ -561,7 +566,7 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      * @notice Complete a rebalance operation and forward withdrawn funds to CoreVault
      * @param _valId The validator ID to complete rebalance for
      */
-    function adminCompleteRebalance(uint64 _valId) external onlyOwner nonReentrant {
+    function adminCompleteRebalance(uint64 _valId) external onlyOwner nonReentrant whenPausedValId(_valId) {
         GVaultStorage storage $ = _getGVaultStorage();
         if ($._accountsByValidator[_valId].length != $._lastRebalancedStartIndex[_valId]) {
             revert ErrBatchNotCompleted();
@@ -601,15 +606,18 @@ contract gVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, I
      */
     function claimAndCompoundRewards() external nonReentrant {
         uint64[] memory _list = getValidators();
+        bool _claimedAny = false;
         for (uint256 i = 0; i < _list.length; ++i) {
             uint64 _valId = _list[i];
-            bool _isBatchCompleted = _isRebalanceBatchCompleted(_valId);
             bool _isPausedVald = pausedValId(_valId);
-            if (_isBatchCompleted && !_isPausedVald) {
+            if (_isRebalanceInactive(_valId) && !_isPausedVald) {
                 _claimAndCompoundRewards(_valId);
+                _claimedAny = true;
             }
         }
-        _updateLastRewardsClaimTimestamp();
+        if (_claimedAny) {
+            _updateLastRewardsClaimTimestamp();
+        }
     }
 
     /**
