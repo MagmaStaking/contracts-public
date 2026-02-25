@@ -713,6 +713,7 @@ abstract contract BaseVault is MagmaDelegationModule, IBaseVault, PausableUpgrad
 
         uint256 _balanceAfter = address(this).balance;
         uint256 _rewardsClaimed = _balanceAfter - _balanceBefore;
+        emit RewardsClaimed(_valId, _rewardsClaimed);
 
         if (_rewardsClaimed > 0 && success) {
             // Calculate and send fee to fee receiver
